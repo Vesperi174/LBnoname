@@ -1,4 +1,4 @@
-package com.exercise.lbthreecountry;
+package com.lbthreecountry;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
