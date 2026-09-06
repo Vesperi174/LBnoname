@@ -5,6 +5,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.lbthreecountry.model.enums.interfaces.BaseEnum;
 import com.lbthreecountry.model.enums.utils.EnumUtils;
 
+/**
+ * 游戏阶段枚举
+ */
 public enum GamePhase implements BaseEnum {
     PREPARE(1, "准备阶段"),
     JUDGE(2, "判定阶段"),

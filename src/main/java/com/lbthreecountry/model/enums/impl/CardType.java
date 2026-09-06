@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.lbthreecountry.model.enums.interfaces.BaseEnum;
 import com.lbthreecountry.model.enums.utils.EnumUtils;
 
-// 游戏牌类型枚举
+/**
+ * 游戏牌类型枚举
+ */
 public enum CardType implements BaseEnum {
 
     BASIC(1, "基本牌"),

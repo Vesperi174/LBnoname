@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.lbthreecountry.model.enums.interfaces.BaseEnum;
 import com.lbthreecountry.model.enums.utils.EnumUtils;
 
-// 游戏牌点数枚举
+/**
+ * 游戏牌点数枚举
+ */
 public enum CardPoint implements BaseEnum {
     ACE(1, "A"),
     TWO(2, "2"),

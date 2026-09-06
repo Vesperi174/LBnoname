@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.lbthreecountry.model.enums.interfaces.BaseEnum;
 import com.lbthreecountry.model.enums.utils.EnumUtils;
 
-// 游戏角色类型枚举
+/**
+ * 游戏角色类型枚举
+ */
 public enum RoleType implements BaseEnum {
     LORD(1, "主公"),
     MINION(2, "忠臣"),

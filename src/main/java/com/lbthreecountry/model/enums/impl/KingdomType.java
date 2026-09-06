@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.lbthreecountry.model.enums.interfaces.BaseEnum;
 import com.lbthreecountry.model.enums.utils.EnumUtils;
 
-// 势力类型枚举
+/**
+ * 势力类型枚举
+ */
 public enum KingdomType implements BaseEnum {
     EUD(1,"艾欧尼亚"),
     NOK(2,"诺克萨斯"),

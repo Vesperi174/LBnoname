@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.lbthreecountry.model.enums.interfaces.BaseEnum;
 import com.lbthreecountry.model.enums.utils.EnumUtils;
 
-// 游戏牌花色枚举
+/**
+ * 游戏牌花色枚举
+ */
 public enum CardSuit implements BaseEnum {
     HEARTS(1, "红桃"),
     DIAMONDS(2, "方块"),

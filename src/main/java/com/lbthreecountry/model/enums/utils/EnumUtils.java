@@ -4,6 +4,9 @@ import com.lbthreecountry.model.enums.interfaces.BaseEnum;
 
 import java.util.Arrays;
 
+/**
+ * 枚举工具类 — 提供了枚举相关的工具方法
+ */
 public class EnumUtils {
     public static <T extends Enum<T> & BaseEnum> T fromCode(Class<T> enumClass, Integer code) {
         if (code == null) return null;
