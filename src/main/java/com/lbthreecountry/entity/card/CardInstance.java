@@ -17,13 +17,31 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CardInstance {
-    private Long instanceId;           // 实例唯一ID（牌堆中第几张）
-    private CardDefinition definition; // 引用卡牌模板
-    private CardStatus status;         // 当前状态（手牌/装备区/弃牌堆/判定区等）
-    private boolean isModified;        // 是否被技能修改过（如丈八蛇矛转化的杀）
-    private Long ownerId;              // 当前持有者
+    /**
+     * 实例唯一ID（牌堆中第几张）
+     */
+    private Long instanceId;
+    /**
+     * 引用卡牌模板
+     */
+    private CardDefinition definition;
+    /**
+     * 当前状态（手牌/装备区/弃牌堆/判定区等）
+     */
+    private CardStatus status;
+    /**
+     * 是否被技能修改过（如丈八蛇矛转化的杀）
+     */
+    private boolean isModified;
+    /**
+     * 当前持有者
+     */
+    private Long ownerId;
 
-    // 快捷方法
+    /**
+     * 获取卡牌名称
+     * @return 卡牌名称
+     */
     public String getCardName() {
         String name ="[" + definition.getCardName() + "]";
         if (definition.getAttribute() != null) {
@@ -31,7 +49,15 @@ public class CardInstance {
         }
         return name;
     }
+    /**
+     * 获取卡牌子类型
+     * @return 卡牌子类型
+     */
     public CardSubType getSubType() { return definition.getSubType(); }
+    /**
+     * 获取卡牌类型
+     * @return 卡牌类型
+     */
     public CardType getCardType() { return definition.getCardType(); }
 }
 

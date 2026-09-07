@@ -19,12 +19,36 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CardDefinition {
-    private Long id;                // 模板ID
-    private String cardName;        // 卡牌名称
-    private CardType cardType;      // 类型
-    private CardSubType subType;    // 子类型
-    private Attribute attribute;      // 属性
-    private CardSuit suit;          // 花色
-    private Integer point;          // 点数
-    private String effectBeanName;  // 效果处理器在 Spring 容器中的 Bean 名称
+    /**
+     * 模板ID
+     */
+    private Long id;
+    /**
+     * 卡牌名称
+     */
+    private String cardName;
+    /**
+     * 卡牌类型
+     */
+    private CardType cardType;
+    /**
+     * 子类型
+     */
+    private CardSubType subType;
+    /**
+     * 属性
+     */
+    private Attribute attribute;
+    /**
+     * 花色
+     */
+    private CardSuit suit;
+    /**
+     * 点数
+     */
+    private Integer point;
+    /**
+     * 效果处理器在 Spring 容器中的 Bean 名称
+     */
+    private String effectBeanName;
 }
