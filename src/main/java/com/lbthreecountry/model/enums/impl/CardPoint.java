@@ -26,6 +26,11 @@ public enum CardPoint implements BaseEnum {
     private Integer code;
     private String description;
 
+    /**
+     * 构造函数
+     * @param code 状态码
+     * @param description 状态描述
+     */
     CardPoint(Integer code, String description) {
         this.code = code;
         this.description = description;

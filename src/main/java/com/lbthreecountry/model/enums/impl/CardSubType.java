@@ -37,6 +37,11 @@ public enum CardSubType implements BaseEnum {
     private final Integer code;
     private final String description;
 
+    /**
+     * 构造函数
+     * @param code 状态码
+     * @param description 状态描述
+     */
     CardSubType(Integer code, String description) {
         this.code = code;
         this.description = description;
