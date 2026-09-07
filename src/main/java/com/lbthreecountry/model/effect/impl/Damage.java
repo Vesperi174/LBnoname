@@ -1,4 +1,4 @@
-package com.lbthreecountry.model.effect;
+package com.lbthreecountry.model.effect.impl;
 
 import com.lbthreecountry.model.enums.impl.Attribute;
 import lombok.AllArgsConstructor;

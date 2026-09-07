@@ -1,4 +1,4 @@
-package com.lbthreecountry.model.effect;
+package com.lbthreecountry.model.effect.impl;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
