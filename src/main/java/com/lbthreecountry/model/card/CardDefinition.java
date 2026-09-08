@@ -1,4 +1,4 @@
-package com.lbthreecountry.entity.card;
+package com.lbthreecountry.model.card;
 
 import com.lbthreecountry.model.enums.impl.Attribute;
 import com.lbthreecountry.model.enums.impl.CardSubType;
