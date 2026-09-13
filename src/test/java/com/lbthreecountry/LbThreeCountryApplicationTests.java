@@ -8,6 +8,6 @@ class LbThreeCountryApplicationTests {
 
     @Test
     void contextLoads() {
+        // 验证 Spring 上下文能正常启动（无数据库、无安全配置）
     }
-
 }
