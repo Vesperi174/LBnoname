@@ -80,6 +80,10 @@ public class GamePlayer {
     @Builder.Default
     private boolean hasPlayedSha = false;
 
+    /** 是否为机器人（玩家离开后自动接管） */
+    @Builder.Default
+    private boolean bot = false;
+
     /** 当前攻击距离（受武器、-1马影响，默认 1） */
     @Builder.Default
     private int attackRange = 1;

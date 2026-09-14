@@ -6,8 +6,8 @@
     <title>三国杀 · 联机测试</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: "Microsoft YaHei", sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
-        .container { width: 100%; max-width: 520px; padding: 20px; }
+        body { font-family: "Microsoft YaHei", sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 20px 0; }
+        .container { width: 100%; max-width: 640px; padding: 20px; }
         .card { background: #16213e; border-radius: 12px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
         .card + .card { margin-top: 16px; }
         h2 { font-size: 18px; margin-bottom: 16px; color: #e94560; }
@@ -27,9 +27,13 @@
         .btn-danger:hover { background: #755; }
         .btn-warning { background: #b8860b; color: #fff; }
         .btn-warning:hover { background: #9a7209; }
+        .btn-info { background: #1a5276; color: #8bf; }
+        .btn-info:hover { background: #1f6a9a; }
         .btn-sm { padding: 6px 12px; font-size: 12px; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn-block { width: 100%; }
+        .btn-group { display: flex; gap: 8px; }
+        .btn-group .btn { flex: 1; }
 
         /* 隐藏 */
         .hidden { display: none !important; }
@@ -41,12 +45,66 @@
         .room-item .name { font-weight: bold; }
         .room-item .meta { font-size: 12px; color: #888; margin-top: 2px; }
 
-        /* 玩家列表 */
+        /* 玩家列表（房间） */
         .player-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
         .player-chip { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #0f3460; border-radius: 20px; font-size: 14px; }
         .player-chip .host-tag { font-size: 10px; background: #e94560; color: #fff; padding: 1px 6px; border-radius: 8px; }
         .player-chip .ready-tag { font-size: 10px; background: #2a5; color: #fff; padding: 1px 6px; border-radius: 8px; }
         .player-chip .not-ready-tag { font-size: 10px; background: #555; color: #ccc; padding: 1px 6px; border-radius: 8px; }
+
+        /* ==================== 游戏界面 ==================== */
+        .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .game-round { font-size: 14px; color: #888; }
+        .game-round strong { color: #e94560; font-size: 18px; }
+
+        .phase-badge { font-size: 16px; padding: 6px 16px; border-radius: 20px; font-weight: bold; text-align: center; }
+        .phase-PREPARE { background: #1a5276; color: #8bf; }
+        .phase-JUDGE   { background: #6c3483; color: #d8b; }
+        .phase-DRAW    { background: #1e8449; color: #8f8; }
+        .phase-PLAY    { background: #b8860b; color: #ff8; }
+        .phase-DISCARD { background: #922b21; color: #f88; }
+        .phase-END     { background: #555; color: #ccc; }
+
+        /* 当前回合玩家高亮 */
+        .turn-indicator { text-align: center; padding: 8px; margin-bottom: 12px; font-size: 15px; background: #0f3460; border-radius: 8px; }
+        .turn-indicator .highlight { color: #e94560; font-weight: bold; }
+
+        /* 玩家卡片（游戏内） */
+        .game-player-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+        .game-player-card { background: #0f3460; border-radius: 10px; padding: 12px; border: 2px solid transparent; transition: all .3s; }
+        .game-player-card.active-turn { border-color: #e94560; box-shadow: 0 0 12px rgba(233,69,96,0.4); }
+        .game-player-card .name { font-weight: bold; font-size: 14px; }
+        .game-player-card .name .me-tag { font-size: 10px; background: #e94560; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+        .game-player-card .role-tag { font-size: 11px; padding: 1px 8px; border-radius: 8px; margin-left: 6px; }
+        .game-player-card .hp-bar { display: flex; gap: 2px; margin: 6px 0; }
+        .game-player-card .hp-dot { width: 14px; height: 14px; border-radius: 50%; }
+        .game-player-card .hp-dot.alive { background: #2ecc71; }
+        .game-player-card .hp-dot.lost  { background: #555; }
+        .game-player-card .hp-dot.wound { background: #e74c3c; }
+        .game-player-card .hand-count { font-size: 12px; color: #aaa; }
+        .game-player-card .status-tag { font-size: 11px; padding: 1px 8px; border-radius: 8px; }
+        .game-player-card .status-tag.alive { background: #1e8449; color: #8f8; }
+        .game-player-card .status-tag.dead  { background: #533; color: #f88; }
+        .game-player-card .seat-label { font-size: 10px; color: #666; }
+
+        /* 游戏日志 */
+        .game-log { background: #0a0a1a; border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-size: 13px; font-family: monospace; line-height: 1.6; }
+        .game-log .entry { padding: 2px 0; border-bottom: 1px solid #1a1a2e; }
+        .game-log .entry .time { color: #555; }
+        .game-log .entry .event-highlight { color: #e94560; font-weight: bold; }
+        .game-log .entry .info-text { color: #8af; }
+        .game-log .entry .success-text { color: #8f8; }
+        .game-log .entry .warn-text { color: #ff8; }
+
+        /* 游戏操作栏 */
+        .game-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .game-actions .btn { flex: 1; min-width: 100px; }
+
+        /* 游戏结束弹窗 */
+        .game-over-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 100; }
+        .game-over-box { background: #16213e; border-radius: 16px; padding: 32px; text-align: center; max-width: 400px; }
+        .game-over-box h2 { font-size: 28px; margin-bottom: 12px; }
+        .game-over-box p { color: #aaa; font-size: 15px; margin-bottom: 20px; }
 
         /* 状态条 */
         .status-bar { text-align: center; padding: 8px; color: #888; font-size: 13px; }
@@ -56,7 +114,14 @@
 
         /* 动画 */
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
         .fade-in { animation: fadeIn .3s ease; }
+        .pulse { animation: pulse .8s ease-in-out 3; }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0a0a1a; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
     </style>
 </head>
 <body>
@@ -80,20 +145,14 @@
                 <h2>🏠 游戏大厅</h2>
                 <span id="playerBadge" style="background:#0f3460;padding:4px 12px;border-radius:12px;font-size:13px;"></span>
             </div>
-
-            <!-- 创建房间 -->
             <div class="input-group">
                 <input type="text" id="roomNameInput" placeholder="房间名称（可选）" maxlength="20">
                 <button class="btn btn-success" id="createRoomBtn">创建房间</button>
             </div>
-
-            <!-- 房间列表 -->
             <h3>可加入的房间</h3>
             <div id="roomList" class="room-list">
                 <div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无房间，创建第一个吧</div>
             </div>
-
-            <!-- 分离线 -->
             <hr style="border-color:#0f3460;margin:16px 0;">
             <div class="input-group">
                 <input type="text" id="roomIdInput" placeholder="输入房间ID加入" maxlength="40">
@@ -111,19 +170,58 @@
                 <button class="btn btn-danger btn-sm" id="leaveRoomBtn">离开</button>
             </div>
             <div style="font-size:12px;color:#888;margin-bottom:16px;">房间ID: <span id="roomIdDisplay" style="font-family:monospace;"></span></div>
-
             <h3>玩家列表</h3>
             <div id="playerList" class="player-grid">
                 <div style="color:#666;font-size:13px;">等待玩家加入...</div>
             </div>
-
             <hr style="border-color:#0f3460;margin:16px 0;">
-
             <button class="btn btn-warning btn-block" id="readyBtn">✅ 准备</button>
             <button class="btn btn-primary btn-block hidden" id="startGameBtn" style="margin-top:8px;">🎮 开始游戏</button>
             <div style="font-size:12px;color:#888;margin-top:8px;text-align:center;" id="roomHint"></div>
         </div>
         <div class="status-bar" id="roomStatus"></div>
+    </div>
+
+    <!-- ========== 游戏界面 ========== -->
+    <div id="gameScreen" class="hidden">
+        <div class="card fade-in">
+            <!-- 顶栏：轮次 + 阶段 -->
+            <div class="game-header">
+                <div class="game-round">第 <strong id="gameRound">1</strong> 轮 · 总 <span id="gameTotalTurns">1</span> 回合</div>
+                <div id="gamePhaseBadge" class="phase-badge phase-PREPARE">准备阶段</div>
+            </div>
+
+            <!-- 当前回合玩家 -->
+            <div class="turn-indicator" id="turnIndicator">🎯 当前回合：<span class="highlight">等待中</span></div>
+
+            <!-- 玩家列表（游戏内） -->
+            <h3>👥 玩家状态</h3>
+            <div id="gamePlayerGrid" class="game-player-grid">
+                <div style="color:#666;font-size:13px;grid-column:1/-1;text-align:center;padding:20px;">等待游戏开始...</div>
+            </div>
+
+            <!-- 游戏日志 -->
+            <h3 style="margin-top:8px;">📜 游戏日志</h3>
+            <div id="gameLog" class="game-log">
+                <div class="entry"><span class="time">[--:--:--]</span> 游戏尚未开始</div>
+            </div>
+
+            <!-- 游戏操作 -->
+            <div class="game-actions">
+                <button class="btn btn-info" id="nextPhaseBtn">⏩ 下一阶段</button>
+                <button class="btn btn-danger" id="backToLobbyBtn">🏠 返回大厅</button>
+            </div>
+        </div>
+        <div class="status-bar" id="gameStatus">🎮 游戏进行中</div>
+    </div>
+
+    <!-- ========== 游戏结束弹窗 ========== -->
+    <div id="gameOverOverlay" class="game-over-overlay hidden">
+        <div class="game-over-box fade-in">
+            <h2 id="gameOverTitle">🏆 游戏结束</h2>
+            <p id="gameOverDesc">胜者阵营：--</p>
+            <button class="btn btn-primary" id="gameOverOkBtn">👍 知道了</button>
+        </div>
     </div>
 
 </div>
@@ -136,44 +234,89 @@ const STATE = {
     playerId: null,
     playerName: null,
     ws: null,
-    currentRoom: null,    // { roomId, players, ownerPlayerId, ... }
+    currentRoom: null,
     isHost: false,
     isReady: false,
+
+    // 游戏状态
+    game: {
+        round: 1,
+        totalTurns: 1,
+        phase: 'PREPARE',
+        currentPlayerIndex: 0,
+        players: [],        // 从 GAME_START 获得
+        myPrivateInfo: {},  // 从 YOUR_PRIVATE_INFO 获得
+        started: false,
+    }
 };
 
 const STORAGE_KEY = 'lb_player_name';
+
+// 阶段中文名
+const PHASE_NAMES = {
+    PREPARE: '准备阶段',
+    JUDGE:   '判定阶段',
+    DRAW:    '摸牌阶段',
+    PLAY:    '出牌阶段',
+    DISCARD: '弃牌阶段',
+    END:     '结束阶段',
+};
+
+// 角色中文名
+const ROLE_NAMES = {
+    LORD:    '主公',
+    MINION:  '忠臣',
+    REBEL:   '反贼',
+    INTRUDER: '内奸',
+};
 
 // ============================================================
 //  DOM 引用
 // ============================================================
 const $ = id => document.getElementById(id);
-const loginScreen     = $('loginScreen');
-const lobbyScreen     = $('lobbyScreen');
-const roomScreen      = $('roomScreen');
-const nameInput       = $('nameInput');
-const loginBtn        = $('loginBtn');
-const loginStatus     = $('loginStatus');
-const playerBadge     = $('playerBadge');
-const roomNameInput   = $('roomNameInput');
-const createRoomBtn   = $('createRoomBtn');
-const roomList        = $('roomList');
-const roomIdInput     = $('roomIdInput');
-const joinByIdBtn     = $('joinByIdBtn');
-const lobbyStatus     = $('lobbyStatus');
-const roomTitle       = $('roomTitle');
-const roomIdDisplay   = $('roomIdDisplay');
-const playerList      = $('playerList');
-const readyBtn        = $('readyBtn');
-const startGameBtn    = $('startGameBtn');
-const leaveRoomBtn    = $('leaveRoomBtn');
-const roomHint        = $('roomHint');
-const roomStatus      = $('roomStatus');
+const loginScreen       = $('loginScreen');
+const lobbyScreen       = $('lobbyScreen');
+const roomScreen        = $('roomScreen');
+const gameScreen        = $('gameScreen');
+const gameOverOverlay   = $('gameOverOverlay');
+const nameInput         = $('nameInput');
+const loginBtn          = $('loginBtn');
+const loginStatus       = $('loginStatus');
+const playerBadge       = $('playerBadge');
+const roomNameInput     = $('roomNameInput');
+const createRoomBtn     = $('createRoomBtn');
+const roomList          = $('roomList');
+const roomIdInput       = $('roomIdInput');
+const joinByIdBtn       = $('joinByIdBtn');
+const lobbyStatus       = $('lobbyStatus');
+const roomTitle         = $('roomTitle');
+const roomIdDisplay     = $('roomIdDisplay');
+const playerList        = $('playerList');
+const readyBtn          = $('readyBtn');
+const startGameBtn      = $('startGameBtn');
+const leaveRoomBtn      = $('leaveRoomBtn');
+const roomHint          = $('roomHint');
+const roomStatus        = $('roomStatus');
+
+// 游戏 DOM
+const gameRound         = $('gameRound');
+const gameTotalTurns    = $('gameTotalTurns');
+const gamePhaseBadge    = $('gamePhaseBadge');
+const turnIndicator     = $('turnIndicator');
+const gamePlayerGrid    = $('gamePlayerGrid');
+const gameLog           = $('gameLog');
+const nextPhaseBtn      = $('nextPhaseBtn');
+const backToLobbyBtn    = $('backToLobbyBtn');
+const gameStatus        = $('gameStatus');
+const gameOverTitle     = $('gameOverTitle');
+const gameOverDesc      = $('gameOverDesc');
+const gameOverOkBtn     = $('gameOverOkBtn');
 
 // ============================================================
 //  辅助
 // ============================================================
 function showScreen(screen) {
-    [loginScreen, lobbyScreen, roomScreen].forEach(s => s.classList.add('hidden'));
+    [loginScreen, lobbyScreen, roomScreen, gameScreen].forEach(s => s.classList.add('hidden'));
     screen.classList.remove('hidden');
 }
 
@@ -189,6 +332,11 @@ function sendMsg(data) {
     if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
         STATE.ws.send(JSON.stringify(data));
     }
+}
+
+function nowStr() {
+    const d = new Date();
+    return d.toTimeString().slice(0, 8);
 }
 
 // ============================================================
@@ -215,7 +363,6 @@ function connectWebSocket(name) {
     ws.onclose = () => {
         showError('与服务器断开连接');
         STATE.ws = null;
-        // 回到登录界面
         setTimeout(() => {
             showScreen(loginScreen);
             status(loginStatus, '连接已断开，刷新页面重试', 'error');
@@ -247,10 +394,6 @@ function handleMessage(msg) {
             break;
 
         case 'ROOM_CREATED':
-            STATE.currentRoom = msg.room;
-            enterRoomView(msg.room);
-            break;
-
         case 'ROOM_JOINED':
             STATE.currentRoom = msg.room;
             enterRoomView(msg.room);
@@ -273,29 +416,113 @@ function handleMessage(msg) {
             showInfo(`${msg.playerName} 加入了房间`);
             break;
 
-        case 'PLAYER_LEFT':
-            showInfo(`${msg.playerName} 离开了房间`);
+        case 'PLAYER_LEFT': {
+            const isBot = msg.bot;
+            if (isBot) {
+                showInfo(`🤖 ${msg.playerName} 已离线，机器人接管`);
+                addGameLog(`🤖 ${msg.playerName} 已离线，由机器人接管`, 'warn-text');
+            } else {
+                showInfo(`${msg.playerName} 离开了房间`);
+            }
             break;
+        }
 
-        case 'GAME_START':
-            status(roomStatus, '🎉 游戏开始！（游戏引擎尚未实现，此为联机验证）', 'success');
-            startGameBtn.disabled = true;
-            startGameBtn.textContent = '⏳ 游戏进行中';
-            readyBtn.disabled = true;
-            leaveRoomBtn.disabled = true;
-            // 弹窗提示
-            setTimeout(() => {
-                alert('🎮 游戏开始！\n\n联机通信验证通过 ✅\n\n房间内所有玩家都已收到 GAME_START 消息\n\n（游戏引擎待开发）');
-            }, 300);
+        // ==================== 游戏事件 ====================
+        case 'GAME_START': {
+            const players = msg.players || [];
+            STATE.game.started = true;
+            STATE.game.players = players;
+            STATE.game.round = msg.round || 1;
+            STATE.game.totalTurns = msg.totalTurns || 1;
+            STATE.game.phase = msg.currentPhase || 'PREPARE';
+            STATE.game.currentPlayerIndex = msg.currentPlayerIndex || 0;
+
+            // 清除上一局的日志
+            gameLog.innerHTML = '';
+            showScreen(gameScreen);
+            updateGameView();
+            addGameLog('🎮 游戏开始！身份已分配', 'event-highlight');
+            addGameLog(`👥 共 ${players.length} 名玩家参与游戏`, 'info-text');
             break;
+        }
+
+        case 'YOUR_PRIVATE_INFO': {
+            STATE.game.myPrivateInfo = msg;
+            // 将该玩家的角色更新到 STATE.game.players 中
+            const myIdx = STATE.game.players.findIndex(p => p.playerId === msg.playerId);
+            if (myIdx >= 0) {
+                STATE.game.players[myIdx].role = msg.role;
+                updateGameView();
+            }
+            addGameLog(`📜 你的身份：${ROLE_NAMES[msg.role] || msg.role}，手牌数：${msg.handCardCount}`, 'success-text');
+            break;
+        }
+
+        case 'ROUND_CHANGE': {
+            STATE.game.round = msg.round;
+            updateGameView();
+            addGameLog(`🔄 进入第 ${msg.round} 轮`, 'warn-text');
+            break;
+        }
+
+        case 'TURN_START': {
+            STATE.game.currentPlayerIndex = msg.gameSeat;
+            STATE.game.phase = msg.phase || 'PREPARE';
+            STATE.game.totalTurns = msg.totalTurns || STATE.game.totalTurns;
+            STATE.game.round = msg.round || STATE.game.round;
+            updateGameView();
+            const name = msg.playerName || '未知';
+            addGameLog(`🎯 ${name} 的回合开始（阶段：${PHASE_NAMES[msg.phase] || msg.phase}）`, 'event-highlight');
+            break;
+        }
+
+        case 'PHASE_CHANGE': {
+            STATE.game.phase = msg.toPhase;
+            updateGameView();
+            const fromName = PHASE_NAMES[msg.fromPhase] || msg.fromPhase;
+            const toName = PHASE_NAMES[msg.toPhase] || msg.toPhase;
+            addGameLog(`⏩ ${fromName} → ${toName}`, 'info-text');
+            break;
+        }
+
+        case 'GAME_OVER': {
+            if (msg.winnerRole === 'NONE') {
+                STATE.game.started = false;
+                STATE.game.players = [];
+                STATE.game.myPrivateInfo = {};
+                showScreen(lobbyScreen);
+                showInfo('对局已销毁（所有玩家离开）');
+                sendMsg({ type: 'LIST_ROOMS' });
+                break;
+            }
+            const winnerDesc = msg.winnerDesc || msg.winnerRole || '未知';
+            STATE.game.started = false;
+            addGameLog(`🏆 游戏结束！胜者：${winnerDesc}`, 'event-highlight');
+            showGameOver(winnerDesc);
+            break;
+        }
+
+        case 'ROOM_CLOSED': {
+            STATE.currentRoom = null;
+            STATE.isHost = false;
+            STATE.isReady = false;
+            STATE.game.started = false;
+            STATE.game.players = [];
+            STATE.game.myPrivateInfo = {};
+            showScreen(lobbyScreen);
+            showInfo(msg.message || '房间已关闭');
+            sendMsg({ type: 'LIST_ROOMS' });
+            break;
+        }
 
         case 'HEARTBEAT_ACK':
-            // 心跳回复，忽略
             break;
 
         case 'ERROR':
             showError(msg.message);
-            if (STATE.currentRoom) {
+            if (STATE.currentRoom && !gameScreen.classList.contains('hidden')) {
+                status(gameStatus, '❌ ' + msg.message, 'error');
+            } else if (STATE.currentRoom) {
                 status(roomStatus, '❌ ' + msg.message, 'error');
             }
             break;
@@ -327,13 +554,8 @@ function renderRoomList(rooms) {
             </div>
         `;
     }).join('');
-
-    // 绑定加入按钮事件
     document.querySelectorAll('.join-room-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const roomId = btn.dataset.roomId;
-            sendMsg({ type: 'JOIN_ROOM', roomId });
-        });
+        btn.addEventListener('click', () => sendMsg({ type: 'JOIN_ROOM', roomId: btn.dataset.roomId }));
     });
 }
 
@@ -357,7 +579,6 @@ function updateRoomView(room) {
     roomTitle.textContent = escHtml(room.roomName);
     roomIdDisplay.textContent = room.roomId;
 
-    // 玩家列表
     playerList.innerHTML = room.players.map(p => {
         const isOwner = p.playerId === room.ownerPlayerId;
         const readyText = p.isReady ? '已准备' : '未准备';
@@ -372,22 +593,18 @@ function updateRoomView(room) {
         `;
     }).join('');
 
-    // 准备按钮
     readyBtn.textContent = STATE.isReady ? '⏳ 取消准备' : '✅ 准备';
     readyBtn.classList.toggle('btn-warning', STATE.isReady);
     readyBtn.classList.toggle('btn-success', !STATE.isReady);
 
-    // 开始按钮（仅房主可见）
     if (STATE.isHost) {
         startGameBtn.classList.remove('hidden');
-        const allReady = room.players.every(p => p.isReady);
-        startGameBtn.disabled = !allReady || room.players.length < 2;
+        startGameBtn.disabled = !room.players.every(p => p.isReady) || room.players.length < 2;
         startGameBtn.textContent = `🎮 开始游戏 (${room.players.length}人)`;
     } else {
         startGameBtn.classList.add('hidden');
     }
 
-    // 提示
     if (room.players.length < 2) {
         roomHint.textContent = '至少需要 2 名玩家才能开始游戏';
     } else if (STATE.isHost && room.players.some(p => !p.isReady)) {
@@ -397,8 +614,86 @@ function updateRoomView(room) {
     } else {
         roomHint.textContent = '等待房主开始游戏';
     }
-
     status(roomStatus, `房间内有 ${room.players.length} 名玩家`, 'info');
+}
+
+// ============================================================
+//  游戏界面
+// ============================================================
+function updateGameView() {
+    const g = STATE.game;
+
+    // 轮次
+    gameRound.textContent = g.round;
+    gameTotalTurns.textContent = g.totalTurns;
+
+    // 阶段badge
+    const phase = g.phase || 'PREPARE';
+    gamePhaseBadge.textContent = PHASE_NAMES[phase] || phase;
+    gamePhaseBadge.className = 'phase-badge phase-' + phase;
+
+    // 当前回合玩家
+    const curPlayer = g.players[g.currentPlayerIndex];
+    if (curPlayer) {
+        turnIndicator.innerHTML = `🎯 当前回合：<span class="highlight">${escHtml(curPlayer.playerName)}</span> (座位 ${curPlayer.gameSeat})`;
+    } else {
+        turnIndicator.innerHTML = `🎯 当前回合：<span class="highlight">等待中</span>`;
+    }
+
+    // 玩家卡片
+    if (g.players.length === 0) {
+        gamePlayerGrid.innerHTML = '<div style="color:#666;font-size:13px;grid-column:1/-1;text-align:center;padding:20px;">等待游戏开始...</div>';
+        return;
+    }
+
+    gamePlayerGrid.innerHTML = g.players.map((p, idx) => {
+        const isMe = p.playerId === STATE.playerId;
+        const isActive = idx === g.currentPlayerIndex;
+        const roleDisplay = isMe ? (ROLE_NAMES[p.role] || p.role) : '??';
+        const hp = p.currentHp ?? 4;
+        const maxHp = p.maxHp ?? 4;
+        const hpDots = Array.from({ length: maxHp }, (_, i) => {
+            const cls = i < hp ? 'alive' : 'lost';
+            return `<span class="hp-dot ${cls}"></span>`;
+        }).join('');
+        const handCount = p.handCardCount ?? p.handCards?.length ?? 0;
+        const isDead = (p.status === 'DEAD' || p.currentHp <= 0);
+        const statusTag = isDead
+            ? '<span class="status-tag dead">阵亡</span>'
+            : '<span class="status-tag alive">存活</span>';
+
+        return `
+            <div class="game-player-card ${isActive ? 'active-turn pulse' : ''}">
+                <div class="name">
+                    ${escHtml(p.playerName)} ${isMe ? '<span class="me-tag">我</span>' : ''}
+                    <span class="role-tag">${roleDisplay}</span>
+                </div>
+                <div class="seat-label">座位 #${p.gameSeat} ${statusTag}</div>
+                <div class="hp-bar">${hpDots}</div>
+                <div class="hand-count">🃏 手牌：${handCount} 张</div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ============================================================
+//  游戏日志
+// ============================================================
+function addGameLog(text, cls = '') {
+    const entry = document.createElement('div');
+    entry.className = 'entry';
+    entry.innerHTML = `<span class="time">[${nowStr()}]</span> <span class="${cls}">${text}</span>`;
+    gameLog.appendChild(entry);
+    gameLog.scrollTop = gameLog.scrollHeight;
+}
+
+// ============================================================
+//  游戏结束
+// ============================================================
+function showGameOver(winnerDesc) {
+    gameOverTitle.textContent = '🏆 游戏结束';
+    gameOverDesc.textContent = `胜者阵营：${winnerDesc}`;
+    gameOverOverlay.classList.remove('hidden');
 }
 
 // ============================================================
@@ -417,19 +712,13 @@ function escHtml(str) {
 // 登录
 loginBtn.addEventListener('click', () => {
     const name = nameInput.value.trim();
-    if (!name) {
-        status(loginStatus, '请输入昵称', 'error');
-        return;
-    }
+    if (!name) { status(loginStatus, '请输入昵称', 'error'); return; }
     localStorage.setItem(STORAGE_KEY, name);
     status(loginStatus, '正在连接服务器...', 'info');
     loginBtn.disabled = true;
     connectWebSocket(name);
 });
-
-nameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') loginBtn.click();
-});
+nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click(); });
 
 // 创建房间
 createRoomBtn.addEventListener('click', () => {
@@ -437,10 +726,7 @@ createRoomBtn.addEventListener('click', () => {
     sendMsg({ type: 'CREATE_ROOM', roomName: name, maxPlayers: 8 });
     roomNameInput.value = '';
 });
-
-roomNameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') createRoomBtn.click();
-});
+roomNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') createRoomBtn.click(); });
 
 // 按ID加入
 joinByIdBtn.addEventListener('click', () => {
@@ -449,35 +735,55 @@ joinByIdBtn.addEventListener('click', () => {
     sendMsg({ type: 'JOIN_ROOM', roomId });
     roomIdInput.value = '';
 });
+roomIdInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinByIdBtn.click(); });
 
-roomIdInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') joinByIdBtn.click();
-});
-
-// 准备/取消准备
-readyBtn.addEventListener('click', () => {
-    const newReady = !STATE.isReady;
-    sendMsg({ type: 'PLAYER_READY', ready: newReady });
-});
+// 准备
+readyBtn.addEventListener('click', () => sendMsg({ type: 'PLAYER_READY', ready: !STATE.isReady }));
 
 // 开始游戏
-startGameBtn.addEventListener('click', () => {
-    sendMsg({ type: 'START_GAME' });
-});
+startGameBtn.addEventListener('click', () => sendMsg({ type: 'START_GAME' }));
 
 // 离开房间
-leaveRoomBtn.addEventListener('click', () => {
-    sendMsg({ type: 'LEAVE_ROOM' });
+leaveRoomBtn.addEventListener('click', () => sendMsg({ type: 'LEAVE_ROOM' }));
+
+// ==================== 游戏操作 ====================
+
+// 下一阶段
+nextPhaseBtn.addEventListener('click', () => {
+    if (!STATE.game.started) return;
+    sendMsg({ type: 'NEXT_PHASE' });
+});
+
+// 返回大厅
+backToLobbyBtn.addEventListener('click', () => {
+    if (!STATE.game.started) return;
+    STATE.game.started = false;
+    STATE.game.players = [];
+    STATE.game.myPrivateInfo = {};
+    showScreen(lobbyScreen);
+    showInfo('已从对局返回大厅');
+    // 刷新房间列表
+    sendMsg({ type: 'LIST_ROOMS' });
+});
+
+// 游戏结束弹窗确认
+gameOverOkBtn.addEventListener('click', () => {
+    gameOverOverlay.classList.add('hidden');
+    STATE.game.started = false;
+    STATE.game.players = [];
+    STATE.game.myPrivateInfo = {};
+    showScreen(lobbyScreen);
+    showInfo('游戏已结束，返回大厅');
+    sendMsg({ type: 'LIST_ROOMS' });
 });
 
 // ============================================================
-//  初始化：检查本地存储的名称
+//  初始化
 // ============================================================
 (function init() {
     const savedName = localStorage.getItem(STORAGE_KEY);
     if (savedName) {
         nameInput.value = savedName;
-        // 自动连接
         status(loginStatus, '正在自动连接...', 'info');
         loginBtn.disabled = true;
         connectWebSocket(savedName);
@@ -486,8 +792,7 @@ leaveRoomBtn.addEventListener('click', () => {
     }
 })();
 
-console.log('🔰 三国杀联机测试前端已加载');
-console.log('WebSocket 端点: ws://' + location.host + '/ws/game?name=xxx');
+console.log('🔰 三国杀 · 游戏流程可视化前端已加载');
 </script>
 </body>
 </html>
