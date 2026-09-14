@@ -3,13 +3,12 @@ package com.lbthreecountry.game;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.enums.impl.GamePhase;
 import com.lbthreecountry.model.enums.impl.GameStatus;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import lombok.EqualsAndHashCode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 对局实例 — 一局三国杀游戏的全部状态
@@ -97,6 +96,30 @@ public class GameMatch {
     /** 游戏状态（初始化/进行中/已结束） */
     @Builder.Default
     private GameStatus status = GameStatus.INIT;
+
+    // ============ 并发锁 ============
+
+    /**
+     * 对局锁 — 确保同一时刻只有一个线程操作本对局
+     * <p>所有修改 {@link GameMatch} 状态的操作（摸牌、出牌、伤害结算等）
+     * 必须先调用 {@link #lock()}，操作完成后调用 {@link #unlock()}。</p>
+     */
+    @Builder.Default
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private transient ReentrantLock gameLock = new ReentrantLock();
+
+    /** 加锁（如果已被其他线程锁定则等待） */
+    public void lock() {
+        gameLock.lock();
+    }
+
+    /** 解锁 */
+    public void unlock() {
+        gameLock.unlock();
+    }
 
     // ============ 便捷方法 ============
 
