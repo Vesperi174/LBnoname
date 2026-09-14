@@ -4,6 +4,7 @@ import com.lbthreecountry.entity.GameRoom;
 import com.lbthreecountry.entity.RoomPlayer;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
+import com.lbthreecountry.game.card.CardManager;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
@@ -37,6 +38,7 @@ public class GameServiceImpl implements GameService {
 
     private final RoomService roomService;
     private final EventBus eventBus;
+    private final CardManager cardManager;
 
     /** roomId → GameMatch */
     private final Map<String, GameMatch> matchMap = new ConcurrentHashMap<>();
@@ -264,12 +266,6 @@ public class GameServiceImpl implements GameService {
             gp.setCurrentHp(4);
         }
 
-        // 发起始手牌（主公多摸1张）
-        for (GamePlayer gp : gamePlayers) {
-            int drawCount = (gp.getGameSeat() == 0) ? 5 : 4;
-            for (int d = 0; d < drawCount; d++) gp.getHandCards().add(null);
-        }
-
         // 构建对局
         GameMatch match = GameMatch.builder()
                 .roomId(roomId)
@@ -287,6 +283,15 @@ public class GameServiceImpl implements GameService {
 
         room.setStatus(RoomStatus.IN_PROGRESS);
         matchMap.put(roomId, match);
+
+        // 初始化牌堆（从 JSON 展开副本、洗牌）
+        cardManager.initDeck(match);
+
+        // 发起始手牌（主公多摸1张）
+        for (GamePlayer gp : gamePlayers) {
+            int drawCount = (gp.getGameSeat() == 0) ? 5 : 4;
+            cardManager.draw(match, gp, drawCount);
+        }
 
         log.info("[游戏] 对局创建成功 [roomId={}, 人数={}, config={}]", roomId, gamePlayers.size(), identityConfig);
 
