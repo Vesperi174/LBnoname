@@ -12,12 +12,33 @@
     <!-- ========== 登录界面 ========== -->
     <div id="loginScreen" class="card fade-in">
         <h2>三国杀 · 联机测试</h2>
-        <p class="login-hint">输入昵称，进入游戏大厅</p>
+        <p class="login-hint">输入昵称，选择游戏模式</p>
         <div class="input-group">
             <input type="text" id="nameInput" placeholder="输入你的昵称..." maxlength="12">
             <button class="btn btn-primary" id="loginBtn">进入</button>
         </div>
         <div class="status-bar"><span id="loginStatus">启动服务端后，输入昵称点「进入」</span></div>
+    </div>
+
+    <!-- ========== 模式选择界面 ========== -->
+    <div id="modeSelectScreen" class="hidden">
+        <div class="card fade-in mode-select-card">
+            <h2>选择游戏模式</h2>
+            <p class="mode-select-hint">欢迎，<span id="modePlayerName"></span></p>
+            <div class="mode-buttons">
+                <button class="btn btn-mode btn-mode-single" id="singleModeBtn">
+                    <span class="mode-icon">S</span>
+                    <span class="mode-label">单机模式</span>
+                    <span class="mode-desc">本地单人游戏</span>
+                </button>
+                <button class="btn btn-mode btn-mode-multi" id="multiModeBtn">
+                    <span class="mode-icon">M</span>
+                    <span class="mode-label">联机模式</span>
+                    <span class="mode-desc">进入在线大厅</span>
+                </button>
+            </div>
+            <button class="btn btn-back-link" id="backToLoginBtn">重新输入昵称</button>
+        </div>
     </div>
 
     <!-- ========== 大厅界面 ========== -->

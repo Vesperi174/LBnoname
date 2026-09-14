@@ -585,6 +585,103 @@ h3 {
     font-size: 13px;
 }
 
+/* ==================== 模式选择界面 ==================== */
+.mode-select-card {
+    text-align: center;
+    max-width: 480px;
+    margin: 0 auto;
+}
+.mode-select-hint {
+    color: #aaa;
+    font-size: 15px;
+    margin-bottom: 24px;
+}
+.mode-select-hint span {
+    color: #e94560;
+    font-weight: bold;
+}
+.mode-buttons {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.btn-mode {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 28px 16px;
+    border-radius: 14px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: #0f3460;
+    color: #eee;
+}
+.btn-mode:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.btn-mode-single {
+    border-color: #2ecc71;
+}
+.btn-mode-single:hover {
+    background: rgba(46, 204, 113, 0.15);
+    border-color: #2ecc71;
+    box-shadow: 0 8px 24px rgba(46, 204, 113, 0.2);
+}
+.btn-mode-multi {
+    border-color: #3498db;
+}
+.btn-mode-multi:hover {
+    background: rgba(52, 152, 219, 0.15);
+    border-color: #3498db;
+    box-shadow: 0 8px 24px rgba(52, 152, 219, 0.2);
+}
+.btn-mode .mode-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+.btn-mode-single .mode-icon {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+}
+.btn-mode-multi .mode-icon {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+}
+.btn-mode .mode-label {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+.btn-mode .mode-desc {
+    font-size: 12px;
+    color: #888;
+    letter-spacing: 1px;
+}
+.btn-back-link {
+    background: transparent;
+    border: none;
+    color: #666;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 8px 16px;
+    transition: color 0.2s;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.btn-back-link:hover {
+    color: #e94560;
+}
+
 /* ==================== 输入 & 按钮 ==================== */
 .input-group {
     display: flex;

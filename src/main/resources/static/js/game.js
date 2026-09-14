@@ -79,6 +79,7 @@ const DEFAULT_KINGDOM_COLOR = '#3a3a3a';
 // ============================================================
 const $ = id => document.getElementById(id);
 const loginScreen       = $('loginScreen');
+const modeSelectScreen  = $('modeSelectScreen');
 const lobbyScreen       = $('lobbyScreen');
 const roomScreen        = $('roomScreen');
 const gameScreen        = $('gameScreen');
@@ -86,6 +87,10 @@ const gameOverOverlay   = $('gameOverOverlay');
 const nameInput         = $('nameInput');
 const loginBtn          = $('loginBtn');
 const loginStatus       = $('loginStatus');
+const modePlayerName    = $('modePlayerName');
+const singleModeBtn     = $('singleModeBtn');
+const multiModeBtn      = $('multiModeBtn');
+const backToLoginBtn    = $('backToLoginBtn');
 const playerBadge       = $('playerBadge');
 const roomNameInput     = $('roomNameInput');
 const createRoomBtn     = $('createRoomBtn');
@@ -334,10 +339,10 @@ function adaptScreenSize() {
 window.addEventListener('resize', adaptScreenSize);
 
 function showScreen(screen) {
-    [loginScreen, lobbyScreen, roomScreen, gameScreen].forEach(s => s.classList.add('hidden'));
+    [loginScreen, modeSelectScreen, lobbyScreen, roomScreen, gameScreen].forEach(s => s.classList.add('hidden'));
     screen.classList.remove('hidden');
     containerEl.classList.toggle('game-active', screen === gameScreen);
-    containerEl.classList.toggle('lobby-active', screen === lobbyScreen);
+    containerEl.classList.toggle('lobby-active', screen === lobbyScreen || screen === modeSelectScreen);
     bodyEl.classList.toggle('game-body-lobby', screen !== gameScreen);
     if (screen === gameScreen) adaptScreenSize();
 }
@@ -397,6 +402,7 @@ function connectWebSocket(name) {
     ws.onclose = function () {
         showError('与服务器断开连接');
         STATE.ws = null;
+        multiModeBtn.disabled = false;
         setTimeout(function () {
             showScreen(loginScreen);
             status(loginStatus, '连接已断开，刷新页面重试', 'error');
@@ -405,6 +411,7 @@ function connectWebSocket(name) {
 
     ws.onerror = function () {
         showError('连接错误，请确认服务端已启动');
+        multiModeBtn.disabled = false;
     };
 
     STATE.ws = ws;
@@ -742,11 +749,31 @@ loginBtn.addEventListener('click', function () {
     var name = nameInput.value.trim();
     if (!name) { status(loginStatus, '请输入昵称', 'error'); return; }
     localStorage.setItem(STORAGE_KEY, name);
-    status(loginStatus, '正在连接服务器...', 'info');
-    loginBtn.disabled = true;
-    connectWebSocket(name);
+    STATE.playerName = name;
+    modePlayerName.textContent = name;
+    showScreen(modeSelectScreen);
 });
 nameInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') loginBtn.click(); });
+
+// 返回登录（模式选择页）
+backToLoginBtn.addEventListener('click', function () {
+    showScreen(loginScreen);
+    nameInput.focus();
+});
+
+// 单机模式（暂定，留空）
+singleModeBtn.addEventListener('click', function () {
+    showInfo('单机模式正在开发中，敬请期待~');
+});
+
+// 联机模式 → 连接 WebSocket 进入大厅
+multiModeBtn.addEventListener('click', function () {
+    var name = STATE.playerName;
+    if (!name) { showError('昵称丢失，请重新登录'); return; }
+    status(loginStatus, '正在连接服务器...', 'info');
+    multiModeBtn.disabled = true;
+    connectWebSocket(name);
+});
 
 // 创建房间
 createRoomBtn.addEventListener('click', function () {
@@ -805,9 +832,9 @@ gameOverOkBtn.addEventListener('click', function () {
     var savedName = localStorage.getItem(STORAGE_KEY);
     if (savedName) {
         nameInput.value = savedName;
-        status(loginStatus, '正在自动连接...', 'info');
-        loginBtn.disabled = true;
-        connectWebSocket(savedName);
+        modePlayerName.textContent = savedName;
+        STATE.playerName = savedName;
+        showScreen(modeSelectScreen);
     } else {
         nameInput.focus();
     }
