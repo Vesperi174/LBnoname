@@ -12,6 +12,7 @@ import com.lbthreecountry.model.enums.impl.GameStatus;
 import com.lbthreecountry.model.enums.impl.PlayerStatus;
 import com.lbthreecountry.model.enums.impl.RoleType;
 import com.lbthreecountry.model.enums.impl.RoomStatus;
+import com.lbthreecountry.model.player.PlayerInfo;
 import com.lbthreecountry.service.GameService;
 import com.lbthreecountry.service.RoomService;
 import lombok.RequiredArgsConstructor;
@@ -59,89 +60,7 @@ public class GameServiceImpl implements GameService {
 
     @Override
     public GameMatch startGame(String roomId) {
-        GameRoom room = roomService.getRoom(roomId);
-        if (room == null) throw new IllegalStateException("房间不存在: " + roomId);
-        if (room.getStatus() != RoomStatus.WAITING)
-            throw new IllegalStateException("房间状态不是等待中，无法开始游戏");
-        if (room.getPlayerCount() < 2)
-            throw new IllegalStateException("至少需要 2 名玩家才能开始");
-        if (room.getPlayers().stream().anyMatch(p -> !p.isReady()))
-            throw new IllegalStateException("还有玩家未准备");
-
-        // 创建 GamePlayer 列表（从 RoomPlayer 转换）
-        List<GamePlayer> gamePlayers = new ArrayList<>();
-        for (RoomPlayer rp : room.getPlayers()) {
-            gamePlayers.add(GamePlayer.builder()
-                    .playerId(rp.getPlayerId())
-                    .playerName(rp.getPlayerName())
-                    .roomSeat(rp.getSeatNumber())
-                    .bot(rp.isBot())
-                    .status(PlayerStatus.ALIVE)
-                    .handCards(new ArrayList<>())
-                    .equipCards(new ArrayList<>())
-                    .judgeArea(new ArrayList<>())
-                    .flags(new HashMap<>())
-                    .build());
-        }
-
-        // 随机分配游戏座位
-        Collections.shuffle(gamePlayers);
-        for (int i = 0; i < gamePlayers.size(); i++) gamePlayers.get(i).setGameSeat(i);
-        gamePlayers.sort(Comparator.comparingInt(GamePlayer::getGameSeat));
-
-        // 分配身份与初始体力
-        assignRoles(gamePlayers);
-        for (GamePlayer gp : gamePlayers) {
-            gp.setMaxHp(4);
-            gp.setCurrentHp(4);
-        }
-
-        // 发起始手牌（主公多摸1张）
-        for (GamePlayer gp : gamePlayers) {
-            int drawCount = (gp.getGameSeat() == 0) ? 5 : 4;
-            for (int d = 0; d < drawCount; d++) gp.getHandCards().add(null);
-        }
-
-        // 构建对局
-        GameMatch match = GameMatch.builder()
-                .roomId(roomId)
-                .players(gamePlayers)
-                .currentPlayerIndex(0)
-                .currentPhase(GamePhase.PREPARE)
-                .drawPile(new ArrayList<>())
-                .discardPile(new ArrayList<>())
-                .gameOuterPile(new ArrayList<>())
-                .otherPile(new ArrayList<>())
-                .currentRound(1)
-                .totalTurns(1)
-                .status(GameStatus.PLAYING)
-                .build();
-
-        room.setStatus(RoomStatus.IN_PROGRESS);
-        matchMap.put(roomId, match);
-
-        log.info("[游戏] 对局创建成功 [roomId={}, 人数={}]", roomId, gamePlayers.size());
-
-        // 发布 GAME_START 事件
-        GameEvent startEvent = GameEvent.builder()
-                .type(GameEventType.GAME_START)
-                .sourceId("system")
-                .build();
-        startEvent.putData("roomId", roomId);
-        startEvent.putData("players", gamePlayers.stream()
-                .map(gp -> Map.of(
-                        "playerId", gp.getPlayerId(),
-                        "playerName", gp.getPlayerName(),
-                        "gameSeat", gp.getGameSeat(),
-                        "role", gp.getRole().name(),
-                        "maxHp", gp.getMaxHp(),
-                        "currentHp", gp.getCurrentHp(),
-                        "handCardCount", gp.getHandCards().size()
-                ))
-                .toList());
-        eventBus.publish(startEvent, match);
-
-        return match;
+        return startGame(roomId, "standard");
     }
 
     // ================================================================
@@ -292,10 +211,166 @@ public class GameServiceImpl implements GameService {
     //  私有方法
     // ================================================================
 
-    private void assignRoles(List<GamePlayer> players) {
-        int count = players.size();
+    @Override
+    public GameMatch startGame(String roomId, String identityConfig) {
+        GameRoom room = roomService.getRoom(roomId);
+        if (room == null) throw new IllegalStateException("房间不存在: " + roomId);
+        if (room.getStatus() != RoomStatus.WAITING)
+            throw new IllegalStateException("房间状态不是等待中，无法开始游戏");
+        if (room.getPlayerCount() < 2)
+            throw new IllegalStateException("至少需要 2 名玩家才能开始");
+        if (room.getPlayers().stream().anyMatch(p -> !p.isReady()))
+            throw new IllegalStateException("还有玩家未准备");
+
+        // 创建 GamePlayer 列表（从 RoomPlayer 转换）
+        List<GamePlayer> gamePlayers = new ArrayList<>();
+        for (RoomPlayer rp : room.getPlayers()) {
+            gamePlayers.add(GamePlayer.builder()
+                    .playerId(rp.getPlayerId())
+                    .playerName(rp.getPlayerName())
+                    .roomSeat(rp.getSeatNumber())
+                    .bot(rp.isBot())
+                    .status(PlayerStatus.ALIVE)
+                    .handCards(new ArrayList<>())
+                    .equipCards(new ArrayList<>())
+                    .judgeArea(new ArrayList<>())
+                    .flags(new HashMap<>())
+                    .build());
+        }
+
+        // 随机分配游戏座位
+        Collections.shuffle(gamePlayers);
+        for (int i = 0; i < gamePlayers.size(); i++) gamePlayers.get(i).setGameSeat(i);
+        gamePlayers.sort(Comparator.comparingInt(GamePlayer::getGameSeat));
+
+        // 分配身份与初始体力
+        assignRoles(gamePlayers, identityConfig);
+        for (GamePlayer gp : gamePlayers) {
+            gp.setMaxHp(4);
+            gp.setCurrentHp(4);
+        }
+
+        // 发起始手牌（主公多摸1张）
+        for (GamePlayer gp : gamePlayers) {
+            int drawCount = (gp.getGameSeat() == 0) ? 5 : 4;
+            for (int d = 0; d < drawCount; d++) gp.getHandCards().add(null);
+        }
+
+        // 构建对局
+        GameMatch match = GameMatch.builder()
+                .roomId(roomId)
+                .players(gamePlayers)
+                .currentPlayerIndex(0)
+                .currentPhase(GamePhase.PREPARE)
+                .drawPile(new ArrayList<>())
+                .discardPile(new ArrayList<>())
+                .gameOuterPile(new ArrayList<>())
+                .otherPile(new ArrayList<>())
+                .currentRound(1)
+                .totalTurns(1)
+                .status(GameStatus.PLAYING)
+                .build();
+
+        room.setStatus(RoomStatus.IN_PROGRESS);
+        matchMap.put(roomId, match);
+
+        log.info("[游戏] 对局创建成功 [roomId={}, 人数={}, config={}]", roomId, gamePlayers.size(), identityConfig);
+
+        // 发布 GAME_START 事件
+        GameEvent startEvent = GameEvent.builder()
+                .type(GameEventType.GAME_START)
+                .sourceId("system")
+                .build();
+        startEvent.putData("roomId", roomId);
+        startEvent.putData("players", gamePlayers.stream()
+                .map(gp -> Map.of(
+                        "playerId", gp.getPlayerId(),
+                        "playerName", gp.getPlayerName(),
+                        "gameSeat", gp.getGameSeat(),
+                        "role", gp.getRole().name(),
+                        "maxHp", gp.getMaxHp(),
+                        "currentHp", gp.getCurrentHp(),
+                        "handCardCount", gp.getHandCards().size()
+                ))
+                .toList());
+        eventBus.publish(startEvent, match);
+
+        return match;
+    }
+
+    // ================================================================
+    //  单机模式
+    // ================================================================
+
+    /** Bot 占位武将名 */
+    private static final String[] BOT_CHAR_NAMES = {
+        "卡斯奥佩娅", "神·赵云", "神·关羽", "神·吕布",
+        "神·曹操", "神·周瑜", "神·诸葛亮", "神·司马懿"
+    };
+
+    @Override
+    public GameMatch startSinglePlayer(String playerId, String playerName, int totalPlayers, String identityConfig) {
+        // 1. 创建房间（人类玩家为房主）
+        PlayerInfo owner = PlayerInfo.builder()
+                .playerId(playerId)
+                .name(playerName)
+                .build();
+        GameRoom room = roomService.createRoom(playerName + "的单机局", owner, totalPlayers);
+        String roomId = room.getRoomId();
+
+        // 2. 填充 Bot
+        for (int i = 1; i < totalPlayers; i++) {
+            String botId = "bot_sp_" + roomId + "_" + i;
+            String botName = "AI·" + BOT_CHAR_NAMES[(i - 1) % BOT_CHAR_NAMES.length];
+            PlayerInfo botInfo = PlayerInfo.builder()
+                    .playerId(botId)
+                    .name(botName)
+                    .build();
+            roomService.joinRoom(roomId, botInfo);
+            // 标记 Bot 为已准备
+            GameRoom r = roomService.getRoom(roomId);
+            r.getPlayers().stream()
+                    .filter(p -> p.getPlayerId().equals(botId))
+                    .findFirst()
+                    .ifPresent(p -> {
+                        p.setReady(true);
+                        p.setBot(true);
+                    });
+        }
+
+        // 3. 人类玩家已准备（房主默认 ready）
+        room.getPlayers().stream()
+                .filter(p -> p.getPlayerId().equals(playerId))
+                .findFirst()
+                .ifPresent(p -> p.setReady(true));
+
+        // 4. 启动游戏
+        return startGame(roomId, identityConfig);
+    }
+
+    // ================================================================
+    //  私有方法
+    // ================================================================
+
+    /**
+     * 根据人数和身份配置获取身份模板
+     */
+    private List<RoleType> getRoleTemplate(int count, String config) {
+        if ("double_intruder".equals(config) && count == 8) {
+            return List.of(
+                    RoleType.LORD, RoleType.MINION, RoleType.MINION,
+                    RoleType.REBEL, RoleType.REBEL, RoleType.REBEL,
+                    RoleType.INTRUDER, RoleType.INTRUDER
+            );
+        }
         List<RoleType> template = ROLE_TEMPLATES.get(count);
         if (template == null) throw new IllegalStateException("不支持的玩家人数: " + count);
+        return template;
+    }
+
+    private void assignRoles(List<GamePlayer> players, String identityConfig) {
+        int count = players.size();
+        List<RoleType> template = getRoleTemplate(count, identityConfig);
 
         List<RoleType> shuffled = new ArrayList<>(template);
         RoleType lordRole = shuffled.remove(0);

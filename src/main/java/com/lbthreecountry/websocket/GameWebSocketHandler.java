@@ -170,6 +170,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "ROOM_LIST"     -> pushRoomListToPlayer(session.getId());
             case "PLAYER_READY"  -> handlePlayerReady(session, playerSession, msg);
             case "START_GAME"    -> handleStartGame(session, playerSession, msg);
+            case "START_SINGLE_PLAYER" -> handleStartSinglePlayer(session, playerSession, msg);
             case "NEXT_PHASE"    -> handleNextPhase(session, playerSession);
             case "LIST_ONLINE_PLAYERS" -> broadcastOnlinePlayers();
             default -> sendJson(session, Map.of(
@@ -389,6 +390,70 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             // 通知大厅中的玩家房间状态已更新
             broadcastRoomList();
             broadcastOnlinePlayers();
+
+        } catch (IllegalStateException e) {
+            sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  单机模式
+    // ──────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void handleStartSinglePlayer(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+        String playerName = playerSession.getPlayer().getName();
+
+        int totalPlayers = msg.containsKey("totalPlayers")
+                ? ((Number) msg.get("totalPlayers")).intValue()
+                : 8;
+        String identityConfig = (String) msg.getOrDefault("identityConfig", "standard");
+
+        try {
+            // 后端统一创建房间 + 填充 Bot + 分配身份
+            GameMatch match = gameService.startSinglePlayer(playerId, playerName, totalPlayers, identityConfig);
+            String roomId = match.getRoomId();
+            GameRoom room = roomService.getRoom(roomId);
+            if (room == null) {
+                sendJson(session, Map.of("type", "ERROR", "message", "房间创建失败"));
+                return;
+            }
+
+            // 广播游戏开始基础信息（Bot 无 session 不会收到，仅人类玩家收到）
+            Map<String, Object> gameStartData = buildGameStartData(match, null);
+            broadcastToRoom(room, Map.of(
+                    "type", "GAME_START",
+                    "roomId", roomId,
+                    "players", gameStartData.get("players"),
+                    "currentPlayerIndex", match.getCurrentPlayerIndex(),
+                    "currentPhase", match.getCurrentPhase().name(),
+                    "round", match.getCurrentRound(),
+                    "totalTurns", match.getTotalTurns()
+            ), null);
+
+            // 私发每个玩家的手牌和身份（Bot 无 session 自动跳过）
+            for (GamePlayer gp : match.getPlayers()) {
+                sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
+                        "type", "YOUR_PRIVATE_INFO",
+                        "playerId", gp.getPlayerId(),
+                        "role", gp.getRole().name(),
+                        "gameSeat", gp.getGameSeat(),
+                        "handCardCount", gp.getHandCards().size()
+                )));
+            }
+
+            // 广播第一回合开始
+            broadcastToRoom(room, Map.of(
+                    "type", "TURN_START",
+                    "gameSeat", match.getCurrentPlayerIndex(),
+                    "playerName", match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "",
+                    "round", match.getCurrentRound(),
+                    "phase", match.getCurrentPhase().name()
+            ), null);
+
+            // 如果当前玩家是 Bot，触发自动推进
+            triggerBotIfNeeded(roomId);
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));

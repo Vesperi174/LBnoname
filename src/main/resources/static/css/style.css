@@ -361,6 +361,10 @@ body.game-body-lobby {
     width: auto;
     height: 100%;
     display: block;
+    transition: filter 0.35s ease;
+}
+.opp-card .oppc-general:hover .oppc-general-img {
+    filter: brightness(0.45);
 }
 .opp-card .oppc-name-overlay {
     position: absolute;
@@ -380,6 +384,10 @@ body.game-body-lobby {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: opacity 0.35s ease;
+}
+.opp-card .oppc-general:hover .oppc-name-overlay {
+    opacity: 0;
 }
 .opp-card .oppc-role-overlay {
     position: absolute;
@@ -400,9 +408,6 @@ body.game-body-lobby {
     letter-spacing: 2px;
     line-height: 1.3;
 }
-.opp-card:hover .oppc-role-overlay {
-    opacity: 1;
-}
 .opp-card .oppc-seat-num {
     position: absolute;
     bottom: 0;
@@ -418,6 +423,47 @@ body.game-body-lobby {
     background: linear-gradient(0deg, rgba(0,0,0,0.6) 0%, transparent 100%);
     pointer-events: none;
     user-select: none;
+}
+/* 对手卡牌堆按钮容器（悬停出现） */
+.oppc-deck-btns {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    display: flex;
+    gap: 1px;
+    padding: 2px;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 0 0 6px 6px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+}
+.opp-card .oppc-general:hover .oppc-deck-btns {
+    opacity: 1;
+    pointer-events: auto;
+}
+/* 对手卡牌堆按钮 */
+.oppc-deck-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 3px 0;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: rgba(255, 235, 200, 0.7);
+    background: rgba(255, 255, 255, 0.08);
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+    border-radius: 4px;
+    text-align: center;
+    user-select: none;
+}
+.oppc-deck-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+    color: #fff;
 }
 
 /* ==================== 底部行：装备 | 手牌 | 技能+武将 ==================== */

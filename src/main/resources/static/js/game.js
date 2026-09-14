@@ -13,6 +13,12 @@ const STATE = {
     isHost: false,
     isReady: false,
 
+    /** 单机模式待发送配置（连接成功后发送） */
+    _pendingSinglePlayerConfig: null,
+
+    /** 是否为主动断开（不显示重定向） */
+    _intentionalDisconnect: false,
+
     // 游戏状态
     game: {
         round: 1,
@@ -376,6 +382,19 @@ function renderOpponents(players) {
         seatNum.textContent = CN_NUMS[player.gameSeat + 1] || (player.gameSeat + 1);
         genDiv.appendChild(seatNum);
 
+        // 牌堆按钮（上/旁）
+        var deckBtns = document.createElement('div');
+        deckBtns.className = 'oppc-deck-btns';
+        var aboveBtn = document.createElement('button');
+        aboveBtn.className = 'oppc-deck-btn';
+        aboveBtn.textContent = '上';
+        deckBtns.appendChild(aboveBtn);
+        var sideBtn = document.createElement('button');
+        sideBtn.className = 'oppc-deck-btn';
+        sideBtn.textContent = '旁';
+        deckBtns.appendChild(sideBtn);
+        genDiv.appendChild(deckBtns);
+
         genCol.appendChild(genDiv);
         card.appendChild(genCol);
         return card;
@@ -580,8 +599,19 @@ function handleMessage(msg) {
             STATE.playerId = msg.playerId;
             STATE.playerName = msg.playerName;
             playerBadge.textContent = msg.playerName;
-            showSuccess('以"' + msg.playerName + '"身份进入大厅');
-            showScreen(lobbyScreen);
+            // 如果有待发送的单机配置，直接启动单机游戏
+            if (STATE._pendingSinglePlayerConfig) {
+                var cfg = STATE._pendingSinglePlayerConfig;
+                STATE._pendingSinglePlayerConfig = null;
+                sendMsg({
+                    type: 'START_SINGLE_PLAYER',
+                    totalPlayers: cfg.totalPlayers,
+                    identityConfig: cfg.config,
+                });
+            } else {
+                showSuccess('以"' + msg.playerName + '"身份进入大厅');
+                showScreen(lobbyScreen);
+            }
             break;
 
         case 'ROOM_LIST':
@@ -644,6 +674,7 @@ function handleMessage(msg) {
 
             updateTopBar();
             renderPlayerCard();
+            renderOpponents(players);
             if (!isBot) {
                 renderEquipment();
                 document.getElementById('handCards') && (document.getElementById('handCards').style.display = '');
@@ -670,6 +701,19 @@ function handleMessage(msg) {
             }
             renderPlayerCard();
             var roleName = ROLE_NAMES[msg.role] || msg.role;
+            var roleShort = ROLE_SHORT_NAMES[msg.role] || msg.role;
+            var totalPlayers = STATE.game.players.length;
+
+            // 首次收到身份信息时初始化日志
+            if (logContent && !STATE.game._logInited) {
+                STATE.game._logInited = true;
+                logContent.innerHTML = '';
+                addLog('══════ 游戏开始 ══════', 'highlight');
+                addLog(totalPlayers + '人局', 'system');
+                addLog('你的身份：' + roleShort, 'info');
+                addLog('等待你的第一个回合...', 'system');
+            }
+
             console.log('你的身份：' + roleName + '，手牌数：' + msg.handCardCount);
             break;
 
@@ -1101,7 +1145,7 @@ identityConfigGroup.addEventListener('click', function (e) {
     updateSummary();
 });
 
-// 单机模式 · 确认开始
+// 单机模式 · 确认开始 → 通过 WebSocket 连接后端启动
 singleRoomConfirmBtn.addEventListener('click', function () {
     var countEl = playerCountGroup.querySelector('.active');
     var configEl = identityConfigGroup.querySelector('.active');
@@ -1109,106 +1153,30 @@ singleRoomConfirmBtn.addEventListener('click', function () {
 
     var totalPlayers = parseInt(countEl.dataset.count, 10);
     var config = configEl.dataset.config;
-    var dist = calcIdentityDistribution(totalPlayers, config);
 
     singleRoomOverlay.classList.add('hidden');
-    startSinglePlayerGame(totalPlayers, dist);
+
+    // 保存配置，连接成功后自动发送
+    STATE._pendingSinglePlayerConfig = { totalPlayers: totalPlayers, config: config };
+
+    if (!STATE.ws || STATE.ws.readyState !== WebSocket.OPEN) {
+        connectWebSocket(STATE.playerName);
+    } else {
+        // 已连接，直接发送
+        var cfg = STATE._pendingSinglePlayerConfig;
+        STATE._pendingSinglePlayerConfig = null;
+        sendMsg({
+            type: 'START_SINGLE_PLAYER',
+            totalPlayers: cfg.totalPlayers,
+            identityConfig: cfg.config,
+        });
+    }
 });
 
 /**
  * 启动单机游戏（本地 AI 对局）
- * 目前：将配置存入 STATE，未来可在此处初始化本地 AI 引擎
+ * 目前：已废弃，改用 WebSocket + 后端 GameServiceImpl.startSinglePlayer()
  */
-function startSinglePlayerGame(totalPlayers, identityDist) {
-    // 确保本地玩家有 playerId（单机模式不依赖 WebSocket）
-    if (!STATE.playerId) {
-        STATE.playerId = 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    }
-
-    // 构建玩家列表：第一个是人类玩家，其余为 AI
-    var players = [];
-    var identityPool = [];
-    identityDist.forEach(function (item) {
-        for (var i = 0; i < item.count; i++) {
-            identityPool.push(item.role);
-        }
-    });
-
-    // 简单洗牌（Fisher-Yates），确保身份随机分配
-    for (var i = identityPool.length - 1; i > 0; i--) {
-        var j = Math.floor(Math.random() * (i + 1));
-        var tmp = identityPool[i];
-        identityPool[i] = identityPool[j];
-        identityPool[j] = tmp;
-    }
-
-    // 占位武将名列表
-    var PLACEHOLDER_CHARS = [
-        '卡斯奥佩娅', '神·赵云', '神·关羽', '神·吕布',
-        '神·曹操', '神·周瑜', '神·诸葛亮', '神·司马懿',
-    ];
-
-    for (var idx = 0; idx < totalPlayers; idx++) {
-        var isHuman = (idx === 0);
-        var role = identityPool[idx] || 'REBEL';
-        var charName = PLACEHOLDER_CHARS[idx % PLACEHOLDER_CHARS.length];
-        players.push({
-            playerId: isHuman ? STATE.playerId : 'bot_' + idx + '_' + Date.now(),
-            playerName: isHuman ? STATE.playerName : ('AI·' + (ROLE_SHORT_NAMES[role] || role) + (idx + 1)),
-            charName: charName,
-            role: role,
-            bot: !isHuman,
-            isReady: true,
-            gameSeat: idx,
-            currentHp: 4,
-            maxHp: 4,
-            kingdom: 1,
-        });
-    }
-
-    // 设置 STATE
-    STATE.game.started = true;
-    STATE.game.players = players;
-    STATE.game.round = 1;
-    STATE.game.totalTurns = 1;
-    STATE.game.phase = 'PREPARE';
-    STATE.game.currentPlayerIndex = 0;
-    STATE.game.myHandCards = [];
-    STATE.game.myEquipment = {
-        weapon: null, armor: null, mountPlus: null, mountMinus: null, treasure: null,
-    };
-    STATE.game.fieldCards = [];
-    STATE.currentRoom = {
-        roomId: 'single_' + Date.now(),
-        roomName: '单机模式',
-        players: players,
-        maxPlayers: totalPlayers,
-        ownerPlayerId: STATE.playerId,
-    };
-
-    // 人类玩家的身份信息
-    var human = players[0];
-    STATE.game.myPrivateInfo = { playerId: human.playerId, role: human.role, handCardCount: 0 };
-
-    // 清空日志并写入初始信息
-    if (logContent) {
-        logContent.innerHTML = '';
-    }
-    addLog('══════ 游戏开始 ══════', 'highlight');
-    addLog(totalPlayers + '人局 · ' + (ROLE_SHORT_NAMES[human.role] || human.role) + '模式', 'system');
-    addLog('你的身份：' + (ROLE_SHORT_NAMES[human.role] || human.role), 'info');
-    addLog('等待你的第一个回合...', 'system');
-
-    // 切换到游戏界面
-    showScreen(gameScreen);
-    updateTopBar();
-    renderPlayerCard();
-    renderEquipment();
-    renderOpponents(players);
-
-    console.log('单机模式启动：' + totalPlayers + '人局，身份配置：', identityDist);
-    console.log('玩家列表：', players);
-}
 
 // 联机模式 → 连接 WebSocket 进入大厅
 multiModeBtn.addEventListener('click', function () {
