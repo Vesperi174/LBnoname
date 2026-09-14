@@ -398,6 +398,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
             log.info("[Bot] 玩家 {} 已转为机器人接管 [roomId={}]", playerName, room.getRoomId());
 
+            // 从房间中移除该玩家（释放 playerRoomMap，允许重新加入其他房间）
+            roomService.leaveRoom(room.getRoomId(), playerId);
+
             // 广播玩家离开/转 Bot 消息
             broadcastToRoom(room, Map.of(
                     "type", "PLAYER_LEFT",

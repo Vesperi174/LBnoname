@@ -757,13 +757,8 @@ nextPhaseBtn.addEventListener('click', () => {
 // 返回大厅
 backToLobbyBtn.addEventListener('click', () => {
     if (!STATE.game.started) return;
-    STATE.game.started = false;
-    STATE.game.players = [];
-    STATE.game.myPrivateInfo = {};
-    showScreen(lobbyScreen);
-    showInfo('已从对局返回大厅');
-    // 刷新房间列表
-    sendMsg({ type: 'LIST_ROOMS' });
+    // 发送离开房间 → 服务端会转为 Bot 接管
+    sendMsg({ type: 'LEAVE_ROOM' });
 });
 
 // 游戏结束弹窗确认
