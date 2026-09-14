@@ -375,6 +375,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "phase", match.getCurrentPhase().name()
             ), null);
 
+            // 如果当前玩家是 Bot（例如全部为 Bot 的测试场景），触发自动推进
+            triggerBotIfNeeded(room.getRoomId());
+
             // 通知大厅中的玩家房间状态已更新
             broadcastRoomList();
 
@@ -609,6 +612,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                         "totalTurns", match.getTotalTurns(),
                         "phase", match.getCurrentPhase().name()
                 ), null);
+
+                // 如果新回合玩家是 Bot，触发自动推进
+                triggerBotIfNeeded(room.getRoomId());
             }
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
