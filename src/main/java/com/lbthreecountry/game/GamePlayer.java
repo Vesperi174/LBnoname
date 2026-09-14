@@ -1,6 +1,7 @@
 package com.lbthreecountry.game;
 
 import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.model.enums.impl.KingdomType;
 import com.lbthreecountry.model.enums.impl.PlayerStatus;
 import com.lbthreecountry.model.enums.impl.RoleType;
 import lombok.AllArgsConstructor;
@@ -41,6 +42,9 @@ public class GamePlayer {
     private int gameSeat;
 
     // ============ 身份 & 武将 ============
+
+    /** 势力（魏/蜀/吴/群/艾欧尼亚/诺克萨斯…） */
+    private KingdomType kingdom;
 
     /** 身份（主公/忠臣/反贼/内奸） */
     private RoleType role;

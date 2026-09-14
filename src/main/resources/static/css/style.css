@@ -1,0 +1,920 @@
+/* ============================================================
+   三国杀 · 联机测试 - 全部样式
+   ============================================================ */
+
+/* ==================== 全局重置 ==================== */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+body {
+    font-family: "Microsoft YaHei", "SimHei", "PingFang SC", sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0;
+}
+body.game-body-lobby {
+    overflow-y: auto;
+    padding: 20px 0;
+    align-items: flex-start;
+}
+
+/* ==================== 容器 ==================== */
+.container {
+    width: 100%;
+    max-width: 640px;
+    padding: 20px;
+    transition: max-width 0.3s ease, padding 0.3s ease, height 0.3s ease;
+}
+.container.game-active {
+    max-width: 100%;
+    height: 100vh;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+}
+.container.lobby-active {
+    max-width: 860px;
+}
+
+/* ==================== 对局布局：全屏桌布 ==================== */
+#gameScreen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.game-table-wrapper {
+    background: radial-gradient(ellipse at center, #c4b490 0%, #a8916a 100%);
+    border-radius: 10px;
+    padding: 6px 12px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+    border: 2px solid #7a6548;
+    position: relative;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.game-table-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23807050' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    pointer-events: none;
+}
+
+/* 顶部状态栏（与返回大厅同一行） */
+.game-top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: linear-gradient(180deg, rgba(80, 50, 20, 0.5) 0%, transparent 100%);
+    border-radius: 10px 10px 0 0;
+    pointer-events: none;
+    font-size: 12px;
+    color: rgba(255, 235, 200, 0.9);
+}
+.game-top-bar > * {
+    pointer-events: auto;
+}
+.gtb-item {
+    white-space: nowrap;
+    line-height: 1.4;
+}
+.gtb-item.highlight {
+    color: #ffd966;
+    font-weight: 600;
+}
+.gtb-divider {
+    width: 1px;
+    height: 14px;
+    background: rgba(255,255,255,0.15);
+    flex-shrink: 0;
+}
+.gtb-spacer {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 右上角返回大厅按钮 */
+.btn-back-lobby {
+    padding: 3px 12px;
+    font-size: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    background: rgba(200, 50, 50, 0.25);
+    color: #f88;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    line-height: 1.4;
+}
+.btn-back-lobby:hover {
+    background: rgba(200, 50, 50, 0.55);
+    color: #fff;
+    border-color: #f88;
+}
+
+/* ==================== 底部行：装备 | 手牌 | 技能+武将 ==================== */
+.game-bottom-row {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    z-index: 10;
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    pointer-events: none;
+}
+.game-bottom-row > * {
+    pointer-events: auto;
+}
+
+/* ==================== 装备模块 ==================== */
+.eq-wrapper {
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    width: 120px;
+    height: 135px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.eq-wrapper > * {
+    pointer-events: auto;
+}
+
+/* 装备标题栏 */
+.eq-title {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: rgba(240, 216, 160, 0.7);
+    letter-spacing: 4px;
+    padding: 3px 0 2px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    user-select: none;
+    flex-shrink: 0;
+}
+
+/* 装备行容器 */
+.eq-rows {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* 单行装备 */
+.eq-row {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    transition: background 0.25s ease;
+    cursor: default;
+    min-height: 0;
+}
+.eq-row:last-child {
+    border-bottom: none;
+}
+.eq-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* 装备类型名称 */
+.eq-label {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+    user-select: none;
+    flex-shrink: 0;
+    min-width: 32px;
+}
+
+/* 已装备的卡牌名称 */
+.eq-card-name {
+    font-size: 11px;
+    font-family: "SimSun", "STSong", "宋体", serif;
+    color: rgba(240, 216, 160, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+}
+
+/* 空装备占位符 */
+.eq-card-name.empty {
+    color: rgba(255, 255, 255, 0.15);
+    font-style: italic;
+}
+
+/* ==================== 手牌区（底部居中） ==================== */
+.hand-area {
+    flex: 1;
+    min-width: 0;
+    height: 135px;
+    pointer-events: none;
+}
+.hand-area-inner {
+    width: 100%;
+    height: 100%;
+    border: 1.5px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px;
+    transition: border-color 0.3s ease, background 0.3s ease;
+}
+.hand-area-inner:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(0, 0, 0, 0.28);
+}
+.hand-area-inner:empty::after {
+    content: '手牌区';
+    font-size: 12px;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: rgba(255, 255, 255, 0.12);
+    letter-spacing: 3px;
+    user-select: none;
+    pointer-events: none;
+}
+
+/* ==================== 玩家信息卡（右下角） ==================== */
+/* 右下角容器（技能 + 信息卡） */
+.br-wrapper {
+    flex-shrink: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    pointer-events: none;
+}
+
+.skill-bar {
+    display: flex;
+    flex-flow: column wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding-right: 6px;
+    max-height: 135px;
+    height: 135px;
+    align-content: flex-start;
+}
+.skill-btn {
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: #f0d8a0;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    padding: 2px 10px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background 0.25s ease, border-color 0.25s ease;
+    letter-spacing: 1px;
+    line-height: 1.3;
+    user-select: none;
+    white-space: nowrap;
+}
+.skill-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(240, 216, 160, 0.35);
+}
+
+.player-card {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+}
+.player-card > * {
+    pointer-events: auto;
+}
+.pc-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 2px;
+    min-width: 28px;
+    min-height: 135px;
+    border-radius: 6px 0 0 6px;
+    transition: background-color 0.5s ease;
+}
+
+/* 角色名（竖排 · 顶部） */
+.pc-char-name {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    font-weight: 600;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: rgba(255, 255, 255, 0.8);
+    letter-spacing: 1px;
+    line-height: 1.2;
+    user-select: none;
+    max-height: 80px;
+}
+
+/* 体力区域（底部） */
+.pc-hp-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+/* 体力竖点 */
+.hp-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.hp-dot.alive {
+    background: #2ecc71;
+    box-shadow: 0 0 6px rgba(46, 204, 113, 0.6);
+}
+.hp-dot.lost {
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow: none;
+}
+
+/* 体力文字（超过5点用竖排数字） */
+.hp-text {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    font-weight: 700;
+    font-family: "SimSun", "STSong", "宋体", serif;
+    color: #2ecc71;
+    text-shadow: 0 0 6px rgba(46, 204, 113, 0.4);
+    letter-spacing: 1px;
+    max-height: 60px;
+}
+.pc-detail {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.4;
+}
+
+/* 武将牌纵向容器 */
+.pc-general-col {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+/* 牌堆按钮行（位于武将牌上方） */
+.pc-deck-btns {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    display: flex;
+    gap: 1px;
+    padding: 2px;
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 0 0 6px 6px;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+}
+.pc-general:hover .pc-deck-btns {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* 单个牌堆按钮 */
+.deck-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 2px 0;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: rgba(255, 235, 200, 0.7);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: background 0.2s ease, color 0.2s ease;
+    user-select: none;
+    line-height: 1.3;
+}
+.deck-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 235, 200, 1);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.pc-general {
+    width: 102px;
+    height: 135px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #2a1a0a 0%, #3d2815 100%);
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+    cursor: default;
+}
+.pc-general-img {
+    width: auto;
+    height: 100%;
+    display: block;
+    transition: filter 0.35s ease;
+}
+.pc-general:hover .pc-general-img {
+    filter: brightness(0.45);
+}
+.pc-name-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: #fff;
+    opacity: 0.5;
+    padding: 5px 6px 8px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.35s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pc-general:hover .pc-name-overlay {
+    opacity: 0;
+}
+.pc-role-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 26px;
+    font-weight: 700;
+    font-family: "SimSun", "STSong", "宋体", "FangSong", serif;
+    color: #f0d8a0;
+    opacity: 0;
+    pointer-events: none;
+    user-select: none;
+    transition: opacity 0.35s ease;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.8), 0 0 3px rgba(0, 0, 0, 0.6);
+    letter-spacing: 2px;
+    line-height: 1.3;
+}
+.pc-general:hover .pc-role-overlay {
+    opacity: 1;
+}
+.pc-seat-num {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: #fff;
+    opacity: 0.5;
+    padding: 3px 0 4px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.6) 0%, transparent 100%);
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ==================== 通用卡片 ==================== */
+.card {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+.card + .card {
+    margin-top: 16px;
+}
+h2 {
+    font-size: 18px;
+    margin-bottom: 16px;
+    color: #e94560;
+}
+h3 {
+    font-size: 15px;
+    margin-bottom: 12px;
+    color: #ccc;
+}
+.empty-hint {
+    color: #666;
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
+}
+.divider {
+    border: none;
+    border-top: 1px solid #0f3460;
+    margin: 16px 0;
+}
+.login-hint {
+    margin-bottom: 16px;
+    color: #888;
+    font-size: 13px;
+}
+
+/* ==================== 输入 & 按钮 ==================== */
+.input-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.input-group input {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    background: #0f3460;
+    color: #eee;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.input-group input:focus {
+    border-color: #e94560;
+}
+.input-group input::placeholder {
+    color: #666;
+}
+
+/* 按钮系统 */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: background 0.2s, opacity 0.2s;
+    white-space: nowrap;
+    user-select: none;
+}
+.btn-primary { background: #e94560; color: #fff; }
+.btn-primary:hover { background: #d63851; }
+.btn-success { background: #0f3460; color: #eee; }
+.btn-success:hover { background: #1a4a8a; }
+.btn-danger  { background: #533; color: #f88; }
+.btn-danger:hover  { background: #755; }
+.btn-warning { background: #b8860b; color: #fff; }
+.btn-warning:hover { background: #9a7209; }
+.btn-info    { background: #1a5276; color: #8bf; }
+.btn-info:hover    { background: #1f6a9a; }
+.btn-sm   { padding: 6px 12px; font-size: 12px; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-block { width: 100%; }
+.btn-group { display: flex; gap: 8px; }
+.btn-group .btn { flex: 1; }
+
+/* ==================== 隐藏 ==================== */
+.hidden { display: none !important; }
+
+/* ==================== 房间列表 ==================== */
+.room-list {
+    max-height: 240px;
+    overflow-y: auto;
+}
+.room-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: #0f3460;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.room-item .info { flex: 1; }
+.room-item .info .name { font-weight: bold; }
+.room-item .info .meta {
+    font-size: 12px;
+    color: #888;
+    margin-top: 2px;
+}
+
+/* ==================== 大厅双列布局 ==================== */
+.lobby-layout {
+    display: flex;
+    gap: 20px;
+}
+.lobby-left {
+    flex: 3;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.lobby-right {
+    flex: 2;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #0f3460;
+    padding-left: 16px;
+}
+.lobby-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.lobby-title {
+    margin-bottom: 0;
+}
+.player-badge {
+    background: #0f3460;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+}
+
+/* ==================== 在线玩家列表（QQ 联系人风格） ==================== */
+.online-player-list {
+    max-height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 4px;
+}
+.online-player-list::-webkit-scrollbar { width: 4px; }
+.online-player-list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
+.online-player-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: default;
+    transition: background 0.2s;
+}
+.online-player-item:hover { background: #0f3460; }
+.online-player-item .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #3498db;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: bold;
+    color: #fff;
+    flex-shrink: 0;
+}
+.online-player-item .info { flex: 1; min-width: 0; }
+.online-player-item .info .name-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.online-player-item .info .name-line .name-text {
+    font-size: 14px;
+    font-weight: 500;
+}
+.online-player-item .info .name-line .me-badge {
+    font-size: 10px;
+    background: #e94560;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.online-player-item .info .status-line {
+    font-size: 11px;
+    color: #888;
+    margin-top: 1px;
+}
+.online-player-item .info .status-online { color: #2ecc71; }
+.online-player-item .info .status-room   { color: #5dade2; }
+.online-player-item .info .status-game   { color: #f39c12; }
+.online-player-item .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.3s;
+}
+.online-player-item .dot-online { background: #2ecc71; box-shadow: 0 0 6px rgba(46, 204, 113, 0.5); }
+.online-player-item .dot-room   { background: #5dade2; box-shadow: 0 0 6px rgba(93, 173, 226, 0.5); }
+.online-player-item .dot-game   { background: #f39c12; box-shadow: 0 0 6px rgba(243, 156, 18, 0.5); }
+.online-count-header {
+    font-size: 14px;
+    color: #aaa;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.online-count-header .count-badge {
+    background: #0f3460;
+    padding: 1px 10px;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #2ecc71;
+}
+
+/* ==================== 房间内玩家列表 ==================== */
+.player-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.player-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #0f3460;
+    border-radius: 20px;
+    font-size: 14px;
+}
+.player-chip .host-tag {
+    font-size: 10px;
+    background: #e94560;
+    color: #fff;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.player-chip .ready-tag {
+    font-size: 10px;
+    background: #2a5;
+    color: #fff;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.player-chip .not-ready-tag {
+    font-size: 10px;
+    background: #555;
+    color: #ccc;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+.room-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.room-title { margin-bottom: 0; }
+.room-id-line {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 16px;
+}
+.room-id-val {
+    font-family: "Consolas", "Courier New", monospace;
+}
+.room-hint {
+    font-size: 12px;
+    color: #888;
+    margin-top: 8px;
+    text-align: center;
+}
+
+/* ---- 游戏结束弹窗 ---- */
+.game-over-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+.game-over-box {
+    background: #16213e;
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    max-width: 400px;
+    border: 2px solid #f0c060;
+}
+.game-over-box h2 {
+    font-size: 28px;
+    margin-bottom: 12px;
+    color: #f0c060;
+}
+.game-over-box p {
+    color: #aaa;
+    font-size: 15px;
+    margin-bottom: 20px;
+}
+
+/* ---- 状态条 ---- */
+.status-bar {
+    text-align: center;
+    padding: 4px;
+    color: #888;
+    font-size: 11px;
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+.status-bar .error   { color: #f88; }
+.status-bar .info    { color: #8af; }
+.status-bar .success { color: #8f8; }
+
+/* ---- 动画 ---- */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.3s ease; }
+
+/* ---- 滚动条 ---- */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+
+/* ---- 响应式 ---- */
+@media (max-width: 900px) {
+    .game-main-area { flex-direction: column; }
+    .log-sidebar { width: 100%; max-height: 120px; }
+    .log-sidebar .log-content { max-height: 80px; }
+    .container.game-active { max-width: 100%; padding: 2px; }
+    .seat-card { min-width: 55px; }
+    .seat-card.sm { min-width: 45px; padding: 2px 4px; }
+    .seat-card.sm .seat-name { font-size: 9px; }
+    .lobby-layout { flex-direction: column; }
+    .lobby-right { border-left: none; padding-left: 0; border-top: 1px solid #0f3460; padding-top: 12px; }
+    .my-player-card { width: 130px; height: 76px; }
+    .my-player-card .my-player-portrait { width: 58px; }
+    .my-player-card .my-player-portrait .portrait-placeholder { width: 46px; height: 58px; font-size: 10px; }
+    .my-player-card .my-player-info { padding: 4px 6px; }
+    .my-player-card .my-player-info .mpi-name { font-size: 11px; }
+    .my-card-section { max-width: 100%; }
+    .hand-card { width: 46px; height: 56px; }
+    .hand-card .hc-name { font-size: 9px; }
+}

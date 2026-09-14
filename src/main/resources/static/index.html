@@ -4,170 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>三国杀 · 联机测试</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: "Microsoft YaHei", sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 20px 0; }
-        .container { width: 100%; max-width: 640px; padding: 20px; transition: max-width .3s; }
-        .container.game-active { max-width: 960px; }
-        .container.lobby-active { max-width: 860px; }
-        .card { background: #16213e; border-radius: 12px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-        .card + .card { margin-top: 16px; }
-        h2 { font-size: 18px; margin-bottom: 16px; color: #e94560; }
-        h3 { font-size: 15px; margin-bottom: 12px; color: #ccc; }
-
-        /* 输入 & 按钮 */
-        .input-group { display: flex; gap: 8px; margin-bottom: 12px; }
-        .input-group input { flex: 1; padding: 10px 14px; border: 1px solid #0f3460; border-radius: 8px; background: #0f3460; color: #eee; font-size: 14px; outline: none; }
-        .input-group input:focus { border-color: #e94560; }
-        .input-group input::placeholder { color: #666; }
-        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; transition: background .2s; white-space: nowrap; }
-        .btn-primary { background: #e94560; color: #fff; }
-        .btn-primary:hover { background: #d63851; }
-        .btn-success { background: #0f3460; color: #eee; }
-        .btn-success:hover { background: #1a4a8a; }
-        .btn-danger { background: #533; color: #f88; }
-        .btn-danger:hover { background: #755; }
-        .btn-warning { background: #b8860b; color: #fff; }
-        .btn-warning:hover { background: #9a7209; }
-        .btn-info { background: #1a5276; color: #8bf; }
-        .btn-info:hover { background: #1f6a9a; }
-        .btn-sm { padding: 6px 12px; font-size: 12px; }
-        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .btn-block { width: 100%; }
-        .btn-group { display: flex; gap: 8px; }
-        .btn-group .btn { flex: 1; }
-
-        /* 隐藏 */
-        .hidden { display: none !important; }
-
-        /* 房间列表 */
-        .room-list { max-height: 240px; overflow-y: auto; }
-        .room-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #0f3460; border-radius: 8px; margin-bottom: 8px; }
-        .room-item .info { flex: 1; }
-        .room-item .name { font-weight: bold; }
-        .room-item .meta { font-size: 12px; color: #888; margin-top: 2px; }
-
-        /* ==================== 大厅双列布局 ==================== */
-        .lobby-layout { display: flex; gap: 20px; }
-        .lobby-left { flex: 3; min-width: 0; display: flex; flex-direction: column; }
-        .lobby-right { flex: 2; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid #0f3460; padding-left: 16px; }
-
-        /* QQ 联系人风格在线玩家列表 */
-        .online-player-list { max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
-        .online-player-list::-webkit-scrollbar { width: 4px; }
-        .online-player-list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
-        .online-player-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: default; transition: background .2s; }
-        .online-player-item:hover { background: #0f3460; }
-        .online-player-item .avatar { width: 36px; height: 36px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold; color: #fff; flex-shrink: 0; }
-        .online-player-item .info { flex: 1; min-width: 0; }
-        .online-player-item .info .name-line { display: flex; align-items: center; gap: 6px; }
-        .online-player-item .info .name-line .name-text { font-size: 14px; font-weight: 500; }
-        .online-player-item .info .name-line .me-badge { font-size: 10px; background: #e94560; padding: 1px 6px; border-radius: 8px; }
-        .online-player-item .info .status-line { font-size: 11px; color: #888; margin-top: 1px; }
-        .online-player-item .info .status-line.status-online { color: #2ecc71; }
-        .online-player-item .info .status-line.status-room  { color: #5dade2; }
-        .online-player-item .info .status-line.status-game  { color: #f39c12; }
-        .online-player-item .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; transition: background .3s; }
-        .online-player-item .status-dot.dot-online { background: #2ecc71; box-shadow: 0 0 6px rgba(46,204,113,0.5); }
-        .online-player-item .status-dot.dot-room   { background: #5dade2; box-shadow: 0 0 6px rgba(93,173,226,0.5); }
-        .online-player-item .status-dot.dot-game   { background: #f39c12; box-shadow: 0 0 6px rgba(243,156,18,0.5); }
-        .online-count-header { font-size: 14px; color: #aaa; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
-        .online-count-header .count-badge { background: #0f3460; padding: 1px 10px; border-radius: 10px; font-size: 13px; color: #2ecc71; }
-
-        /* 玩家列表（房间） */
-        .player-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-        .player-chip { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #0f3460; border-radius: 20px; font-size: 14px; }
-        .player-chip .host-tag { font-size: 10px; background: #e94560; color: #fff; padding: 1px 6px; border-radius: 8px; }
-        .player-chip .ready-tag { font-size: 10px; background: #2a5; color: #fff; padding: 1px 6px; border-radius: 8px; }
-        .player-chip .not-ready-tag { font-size: 10px; background: #555; color: #ccc; padding: 1px 6px; border-radius: 8px; }
-
-        /* ==================== 游戏界面 ==================== */
-        .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .game-round { font-size: 14px; color: #888; }
-        .game-round strong { color: #e94560; font-size: 18px; }
-
-        .phase-badge { font-size: 16px; padding: 6px 16px; border-radius: 20px; font-weight: bold; text-align: center; }
-        .phase-PREPARE { background: #1a5276; color: #8bf; }
-        .phase-JUDGE   { background: #6c3483; color: #d8b; }
-        .phase-DRAW    { background: #1e8449; color: #8f8; }
-        .phase-PLAY    { background: #b8860b; color: #ff8; }
-        .phase-DISCARD { background: #922b21; color: #f88; }
-        .phase-END     { background: #555; color: #ccc; }
-
-        /* 当前回合玩家高亮 */
-        .turn-indicator { text-align: center; padding: 8px; margin-bottom: 8px; font-size: 15px; background: #0f3460; border-radius: 8px; }
-        .turn-indicator .highlight { color: #e94560; font-weight: bold; }
-
-        /* ==================== 游戏双列布局 ==================== */
-        .game-layout { display: flex; gap: 16px; margin: 8px 0 12px; }
-        .game-layout-left { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .game-layout-right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-
-        /* 游戏日志（左侧） */
-        .game-log { background: #0a0a1a; border-radius: 8px; padding: 12px; height: 360px; overflow-y: auto; font-size: 13px; font-family: monospace; line-height: 1.6; flex-shrink: 0; }
-        .game-log .entry { padding: 2px 0; border-bottom: 1px solid #1a1a2e; }
-        .game-log .entry .time { color: #555; }
-        .game-log .entry .event-highlight { color: #e94560; font-weight: bold; }
-        .game-log .entry .info-text { color: #8af; }
-        .game-log .entry .success-text { color: #8f8; }
-        .game-log .entry .warn-text { color: #ff8; }
-
-        /* 玩家列表（右侧） */
-        .game-player-grid { display: flex; flex-direction: column; gap: 8px; height: 360px; overflow-y: auto; padding-right: 4px; }
-        .game-player-card { background: #0f3460; border-radius: 10px; padding: 10px 14px; border: 2px solid transparent; transition: all .3s; flex-shrink: 0; }
-        .game-player-card.active-turn { border-color: #e94560; box-shadow: 0 0 12px rgba(233,69,96,0.4); }
-        .game-player-card .card-top { display: flex; align-items: center; justify-content: space-between; }
-        .game-player-card .name { font-weight: bold; font-size: 14px; }
-        .game-player-card .name .me-tag { font-size: 10px; background: #e94560; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
-        .game-player-card .role-tag { font-size: 11px; padding: 1px 8px; border-radius: 8px; }
-        .game-player-card .card-body { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
-        .game-player-card .hp-bar { display: flex; gap: 2px; }
-        .game-player-card .hp-dot { width: 14px; height: 14px; border-radius: 50%; }
-        .game-player-card .hp-dot.alive { background: #2ecc71; }
-        .game-player-card .hp-dot.lost  { background: #555; }
-        .game-player-card .hp-dot.wound { background: #e74c3c; }
-        .game-player-card .hand-count { font-size: 12px; color: #aaa; }
-        .game-player-card .status-tag { font-size: 11px; padding: 1px 8px; border-radius: 8px; white-space: nowrap; }
-        .game-player-card .status-tag.alive { background: #1e8449; color: #8f8; }
-        .game-player-card .status-tag.dead  { background: #533; color: #f88; }
-        .game-player-card .bot-tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #6c3483; color: #d8b; white-space: nowrap; }
-        .game-player-card .seat-label { font-size: 10px; color: #666; }
-
-        /* 游戏操作栏 */
-        .game-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-        .game-actions .btn { flex: 1; min-width: 100px; }
-
-        /* 游戏结束弹窗 */
-        .game-over-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 100; }
-        .game-over-box { background: #16213e; border-radius: 16px; padding: 32px; text-align: center; max-width: 400px; }
-        .game-over-box h2 { font-size: 28px; margin-bottom: 12px; }
-        .game-over-box p { color: #aaa; font-size: 15px; margin-bottom: 20px; }
-
-        /* 状态条 */
-        .status-bar { text-align: center; padding: 8px; color: #888; font-size: 13px; }
-        .status-bar .error { color: #f88; }
-        .status-bar .info { color: #8af; }
-        .status-bar .success { color: #8f8; }
-
-        /* 动画 */
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-        .fade-in { animation: fadeIn .3s ease; }
-        .pulse { animation: pulse .8s ease-in-out 3; }
-
-        /* 滚动条美化 */
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #0a0a1a; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
-    </style>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div class="container">
 
     <!-- ========== 登录界面 ========== -->
     <div id="loginScreen" class="card fade-in">
-        <h2>🔰 三国杀 · 联机测试</h2>
-        <p style="margin-bottom:16px;color:#888;font-size:13px;">输入昵称，进入游戏大厅</p>
+        <h2>三国杀 · 联机测试</h2>
+        <p class="login-hint">输入昵称，进入游戏大厅</p>
         <div class="input-group">
             <input type="text" id="nameInput" placeholder="输入你的昵称..." maxlength="12">
             <button class="btn btn-primary" id="loginBtn">进入</button>
@@ -180,9 +25,9 @@
         <div class="card fade-in">
             <div class="lobby-layout">
                 <div class="lobby-left">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                        <h2 style="margin-bottom:0;">🏠 游戏大厅</h2>
-                        <span id="playerBadge" style="background:#0f3460;padding:4px 12px;border-radius:12px;font-size:13px;"></span>
+                    <div class="lobby-header">
+                        <h2 class="lobby-title">游戏大厅</h2>
+                        <span id="playerBadge" class="player-badge"></span>
                     </div>
                     <div class="input-group">
                         <input type="text" id="roomNameInput" placeholder="房间名称（可选）" maxlength="20">
@@ -190,9 +35,9 @@
                     </div>
                     <h3>可加入的房间</h3>
                     <div id="roomList" class="room-list">
-                        <div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无房间，创建第一个吧</div>
+                        <div class="empty-hint">暂无房间，创建第一个吧</div>
                     </div>
-                    <hr style="border-color:#0f3460;margin:16px 0;">
+                    <hr class="divider">
                     <div class="input-group">
                         <input type="text" id="roomIdInput" placeholder="输入房间ID加入" maxlength="40">
                         <button class="btn btn-success" id="joinByIdBtn">加入</button>
@@ -200,11 +45,11 @@
                 </div>
                 <div class="lobby-right">
                     <div class="online-count-header">
-                        🟢 在线玩家
+                        在线玩家
                         <span class="count-badge" id="onlineCount">0</span>
                     </div>
                     <div id="onlinePlayerList" class="online-player-list">
-                        <div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无在线玩家</div>
+                        <div class="empty-hint">暂无在线玩家</div>
                     </div>
                 </div>
             </div>
@@ -215,695 +60,90 @@
     <!-- ========== 房间界面 ========== -->
     <div id="roomScreen" class="hidden">
         <div class="card fade-in">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <h2 style="margin-bottom:0;">🚪 <span id="roomTitle">房间</span></h2>
+            <div class="room-header-bar">
+                <h2 class="room-title"><span id="roomTitle">房间</span></h2>
                 <button class="btn btn-danger btn-sm" id="leaveRoomBtn">离开</button>
             </div>
-            <div style="font-size:12px;color:#888;margin-bottom:16px;">房间ID: <span id="roomIdDisplay" style="font-family:monospace;"></span></div>
+            <p class="room-id-line">房间ID: <span id="roomIdDisplay" class="room-id-val"></span></p>
             <h3>玩家列表</h3>
             <div id="playerList" class="player-grid">
-                <div style="color:#666;font-size:13px;">等待玩家加入...</div>
+                <div class="empty-hint">等待玩家加入...</div>
             </div>
-            <hr style="border-color:#0f3460;margin:16px 0;">
-            <button class="btn btn-warning btn-block" id="readyBtn">✅ 准备</button>
-            <button class="btn btn-primary btn-block hidden" id="startGameBtn" style="margin-top:8px;">🎮 开始游戏</button>
-            <div style="font-size:12px;color:#888;margin-top:8px;text-align:center;" id="roomHint"></div>
+            <hr class="divider">
+            <button class="btn btn-warning btn-block" id="readyBtn">准备</button>
+            <button class="btn btn-primary btn-block hidden" id="startGameBtn">开始游戏</button>
+            <p class="room-hint" id="roomHint"></p>
         </div>
         <div class="status-bar" id="roomStatus"></div>
     </div>
 
-    <!-- ========== 游戏界面 ========== -->
+    <!-- ============================================================
+         对局界面（待重建）
+         ============================================================ -->
     <div id="gameScreen" class="hidden">
-        <div class="card fade-in">
-            <!-- 顶栏：轮次 + 阶段 -->
-            <div class="game-header">
-                <div class="game-round">第 <strong id="gameRound">1</strong> 轮 · 总 <span id="gameTotalTurns">1</span> 回合</div>
-                <div id="gamePhaseBadge" class="phase-badge phase-PREPARE">准备阶段</div>
-            </div>
+    <div class="game-table-wrapper fade-in">
+        <div class="game-top-bar" id="gameTopBar">
+            <span class="gtb-item" id="gtbRound">第 0 轮</span>
+            <span class="gtb-divider"></span>
+            <span class="gtb-item" id="gtbTurn">第 0 回合</span>
+            <span class="gtb-divider"></span>
+            <span class="gtb-item highlight" id="gtbPhase">等待开始</span>
+            <span class="gtb-spacer"></span>
+            <button class="btn-back-lobby" id="backToLobbyBtn">返回大厅</button>
+        </div>
 
-            <!-- 当前回合玩家 -->
-            <div class="turn-indicator" id="turnIndicator">🎯 当前回合：<span class="highlight">等待中</span></div>
-
-            <!-- 双列布局：左日志 + 右玩家 -->
-            <div class="game-layout">
-                <!-- 左侧：游戏日志 -->
-                <div class="game-layout-left">
-                    <h3>📜 游戏日志</h3>
-                    <div id="gameLog" class="game-log">
-                        <div class="entry"><span class="time">[--:--:--]</span> 游戏尚未开始</div>
-                    </div>
-                </div>
-                <!-- 右侧：玩家状态 -->
-                <div class="game-layout-right">
-                    <h3>👥 玩家状态</h3>
-                    <div id="gamePlayerGrid" class="game-player-grid">
-                        <div style="color:#666;font-size:13px;text-align:center;padding:20px;">等待游戏开始...</div>
-                    </div>
+        <!-- 底部模块：装备 | 手牌 | 技能+武将 -->
+        <div class="game-bottom-row">
+            <div class="eq-wrapper" id="eqWrapper">
+                <div class="eq-title">装 备</div>
+                <div class="eq-rows" id="eqRows">
+                    <!-- 五行装备由 JS 动态渲染 -->
                 </div>
             </div>
 
-            <!-- 游戏操作 -->
-            <div class="game-actions">
-                <button class="btn btn-info" id="nextPhaseBtn">⏩ 下一阶段</button>
-                <button class="btn btn-danger" id="backToLobbyBtn">🏠 返回大厅</button>
+            <div class="hand-area" id="handArea">
+                <div class="hand-area-inner" id="handAreaInner">
+                    <!-- 手牌由 JS 动态渲染 -->
+                </div>
+            </div>
+
+            <div class="br-wrapper" id="brWrapper">
+                <div class="skill-bar" id="skillBar">
+                </div>
+                <div class="player-card" id="playerCard">
+                    <div class="pc-info" id="pcInfo">
+                        <div class="pc-char-name" id="pcCharName">卡斯奥佩娅</div>
+                        <div class="pc-hp-area" id="pcHpArea"></div>
+                    </div>
+                    <div class="pc-general-col">
+                        <div class="pc-general">
+                            <div class="pc-deck-btns" id="pcDeckBtns">
+                                <button class="deck-btn" id="deckAboveBtn" title="打开武将牌上方牌堆">上</button>
+                                <button class="deck-btn" id="deckSideBtn" title="打开武将牌旁侧牌堆">旁</button>
+                            </div>
+                            <img class="pc-general-img" src="/images/lol_EZ.png" alt="武将">
+                            <span class="pc-name-overlay" id="pcNameOverlay">等待中</span>
+                            <span class="pc-role-overlay" id="pcRoleOverlay">?</span>
+                            <span class="pc-seat-num" id="pcSeatNum">零</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="status-bar" id="gameStatus">🎮 游戏进行中</div>
     </div>
+</div>
 
-    <!-- ========== 游戏结束弹窗 ========== -->
+    <!-- 游戏结束弹窗 -->
     <div id="gameOverOverlay" class="game-over-overlay hidden">
         <div class="game-over-box fade-in">
-            <h2 id="gameOverTitle">🏆 游戏结束</h2>
+            <h2 id="gameOverTitle">游戏结束</h2>
             <p id="gameOverDesc">胜者阵营：--</p>
-            <button class="btn btn-primary" id="gameOverOkBtn">👍 知道了</button>
+            <button class="btn btn-primary" id="gameOverOkBtn">知道了</button>
         </div>
     </div>
 
 </div>
 
-<script>
-// ============================================================
-//  状态
-// ============================================================
-const STATE = {
-    playerId: null,
-    playerName: null,
-    ws: null,
-    currentRoom: null,
-    isHost: false,
-    isReady: false,
-
-    // 游戏状态
-    game: {
-        round: 1,
-        totalTurns: 1,
-        phase: 'PREPARE',
-        currentPlayerIndex: 0,
-        players: [],        // 从 GAME_START 获得
-        myPrivateInfo: {},  // 从 YOUR_PRIVATE_INFO 获得
-        started: false,
-    }
-};
-
-const STORAGE_KEY = 'lb_player_name';
-
-// 阶段中文名
-const PHASE_NAMES = {
-    PREPARE: '准备阶段',
-    JUDGE:   '判定阶段',
-    DRAW:    '摸牌阶段',
-    PLAY:    '出牌阶段',
-    DISCARD: '弃牌阶段',
-    END:     '结束阶段',
-};
-
-// 角色中文名
-const ROLE_NAMES = {
-    LORD:    '主公',
-    MINION:  '忠臣',
-    REBEL:   '反贼',
-    INTRUDER: '内奸',
-};
-
-// ============================================================
-//  DOM 引用
-// ============================================================
-const $ = id => document.getElementById(id);
-const loginScreen       = $('loginScreen');
-const lobbyScreen       = $('lobbyScreen');
-const roomScreen        = $('roomScreen');
-const gameScreen        = $('gameScreen');
-const gameOverOverlay   = $('gameOverOverlay');
-const nameInput         = $('nameInput');
-const loginBtn          = $('loginBtn');
-const loginStatus       = $('loginStatus');
-const playerBadge       = $('playerBadge');
-const roomNameInput     = $('roomNameInput');
-const createRoomBtn     = $('createRoomBtn');
-const roomList          = $('roomList');
-const roomIdInput       = $('roomIdInput');
-const joinByIdBtn       = $('joinByIdBtn');
-const lobbyStatus       = $('lobbyStatus');
-const roomTitle         = $('roomTitle');
-const roomIdDisplay     = $('roomIdDisplay');
-const playerList        = $('playerList');
-const readyBtn          = $('readyBtn');
-const startGameBtn      = $('startGameBtn');
-const leaveRoomBtn      = $('leaveRoomBtn');
-const roomHint          = $('roomHint');
-const roomStatus        = $('roomStatus');
-const onlinePlayerList  = $('onlinePlayerList');
-const onlineCount       = $('onlineCount');
-
-// 游戏 DOM
-const gameRound         = $('gameRound');
-const gameTotalTurns    = $('gameTotalTurns');
-const gamePhaseBadge    = $('gamePhaseBadge');
-const turnIndicator     = $('turnIndicator');
-const gamePlayerGrid    = $('gamePlayerGrid');
-const gameLog           = $('gameLog');
-const nextPhaseBtn      = $('nextPhaseBtn');
-const backToLobbyBtn    = $('backToLobbyBtn');
-const gameStatus        = $('gameStatus');
-const gameOverTitle     = $('gameOverTitle');
-const gameOverDesc      = $('gameOverDesc');
-const gameOverOkBtn     = $('gameOverOkBtn');
-
-// ============================================================
-//  辅助
-// ============================================================
-const containerEl = document.querySelector('.container');
-
-function showScreen(screen) {
-    [loginScreen, lobbyScreen, roomScreen, gameScreen].forEach(s => s.classList.add('hidden'));
-    screen.classList.remove('hidden');
-    // 进入游戏界面时放宽容器宽度
-    containerEl.classList.toggle('game-active', screen === gameScreen);
-    containerEl.classList.toggle('lobby-active', screen === lobbyScreen);
-}
-
-function status(el, msg, type = 'info') {
-    el.innerHTML = `<span class="${type}">${msg}</span>`;
-}
-
-function showError(msg) { status(lobbyStatus, '❌ ' + msg, 'error'); }
-function showInfo(msg)  { status(lobbyStatus, msg, 'info'); }
-function showSuccess(msg) { status(lobbyStatus, '✔ ' + msg, 'success'); }
-
-function sendMsg(data) {
-    if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
-        STATE.ws.send(JSON.stringify(data));
-    }
-}
-
-function nowStr() {
-    const d = new Date();
-    return d.toTimeString().slice(0, 8);
-}
-
-// ============================================================
-//  WebSocket
-// ============================================================
-function connectWebSocket(name) {
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${location.host}/ws/game?name=${encodeURIComponent(name)}`;
-    const ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-        showInfo('WebSocket 已连接');
-    };
-
-    ws.onmessage = (event) => {
-        try {
-            const msg = JSON.parse(event.data);
-            handleMessage(msg);
-        } catch (e) {
-            console.warn('消息解析失败:', event.data);
-        }
-    };
-
-    ws.onclose = () => {
-        showError('与服务器断开连接');
-        STATE.ws = null;
-        setTimeout(() => {
-            showScreen(loginScreen);
-            status(loginStatus, '连接已断开，刷新页面重试', 'error');
-        }, 500);
-    };
-
-    ws.onerror = () => {
-        showError('连接错误，请确认服务端已启动');
-    };
-
-    STATE.ws = ws;
-}
-
-// ============================================================
-//  消息处理
-// ============================================================
-function handleMessage(msg) {
-    switch (msg.type) {
-        case 'CONNECTED':
-            STATE.playerId = msg.playerId;
-            STATE.playerName = msg.playerName;
-            playerBadge.textContent = `👤 ${msg.playerName}`;
-            showSuccess(`以「${msg.playerName}」身份进入大厅`);
-            showScreen(lobbyScreen);
-            break;
-
-        case 'ROOM_LIST':
-            renderRoomList(msg.rooms || []);
-            break;
-
-        case 'ONLINE_PLAYERS':
-            renderOnlinePlayers(msg.players || [], msg.count || 0);
-            break;
-
-        case 'ROOM_CREATED':
-        case 'ROOM_JOINED':
-            STATE.currentRoom = msg.room;
-            enterRoomView(msg.room);
-            break;
-
-        case 'ROOM_UPDATE':
-            STATE.currentRoom = msg.room;
-            updateRoomView(msg.room);
-            break;
-
-        case 'ROOM_LEFT':
-            STATE.currentRoom = null;
-            STATE.isHost = false;
-            STATE.isReady = false;
-            showScreen(lobbyScreen);
-            showInfo('已离开房间');
-            break;
-
-        case 'PLAYER_JOINED':
-            showInfo(`${msg.playerName} 加入了房间`);
-            break;
-
-        case 'PLAYER_LEFT': {
-            const isBot = msg.bot;
-            if (isBot) {
-                showInfo(`🤖 ${msg.playerName} 已离线，机器人接管`);
-                addGameLog(`🤖 ${msg.playerName} 已离线，由机器人接管`, 'warn-text');
-                // 更新玩家状态中的 bot 标记，刷新卡片显示 🤖 托管
-                const p = STATE.game.players.find(x => x.playerId === msg.playerId);
-                if (p) p.bot = true;
-                updateGameView();
-            } else {
-                showInfo(`${msg.playerName} 离开了房间`);
-            }
-            break;
-        }
-
-        // ==================== 游戏事件 ====================
-        case 'GAME_START': {
-            const players = msg.players || [];
-            STATE.game.started = true;
-            STATE.game.players = players;
-            STATE.game.round = msg.round || 1;
-            STATE.game.totalTurns = msg.totalTurns || 1;
-            STATE.game.phase = msg.currentPhase || 'PREPARE';
-            STATE.game.currentPlayerIndex = msg.currentPlayerIndex || 0;
-
-            // 清除上一局的日志
-            gameLog.innerHTML = '';
-            showScreen(gameScreen);
-            updateGameView();
-            addGameLog('🎮 游戏开始！身份已分配', 'event-highlight');
-            addGameLog(`👥 共 ${players.length} 名玩家参与游戏`, 'info-text');
-            break;
-        }
-
-        case 'YOUR_PRIVATE_INFO': {
-            STATE.game.myPrivateInfo = msg;
-            // 将该玩家的角色更新到 STATE.game.players 中
-            const myIdx = STATE.game.players.findIndex(p => p.playerId === msg.playerId);
-            if (myIdx >= 0) {
-                STATE.game.players[myIdx].role = msg.role;
-                updateGameView();
-            }
-            addGameLog(`📜 你的身份：${ROLE_NAMES[msg.role] || msg.role}，手牌数：${msg.handCardCount}`, 'success-text');
-            break;
-        }
-
-        case 'ROUND_CHANGE': {
-            STATE.game.round = msg.round;
-            updateGameView();
-            addGameLog(`🔄 进入第 ${msg.round} 轮`, 'warn-text');
-            break;
-        }
-
-        case 'TURN_START': {
-            STATE.game.currentPlayerIndex = msg.gameSeat;
-            STATE.game.phase = msg.phase || 'PREPARE';
-            STATE.game.totalTurns = msg.totalTurns || STATE.game.totalTurns;
-            STATE.game.round = msg.round || STATE.game.round;
-            updateGameView();
-            const name = msg.playerName || '未知';
-            addGameLog(`🎯 ${name} 的回合开始（阶段：${PHASE_NAMES[msg.phase] || msg.phase}）`, 'event-highlight');
-            break;
-        }
-
-        case 'PHASE_CHANGE': {
-            STATE.game.phase = msg.toPhase;
-            updateGameView();
-            const fromName = PHASE_NAMES[msg.fromPhase] || msg.fromPhase;
-            const toName = PHASE_NAMES[msg.toPhase] || msg.toPhase;
-            addGameLog(`⏩ ${fromName} → ${toName}`, 'info-text');
-            break;
-        }
-
-        case 'GAME_OVER': {
-            if (msg.winnerRole === 'NONE') {
-                STATE.game.started = false;
-                STATE.game.players = [];
-                STATE.game.myPrivateInfo = {};
-                showScreen(lobbyScreen);
-                showInfo('对局已销毁（所有玩家离开）');
-                sendMsg({ type: 'LIST_ROOMS' });
-                break;
-            }
-            const winnerDesc = msg.winnerDesc || msg.winnerRole || '未知';
-            STATE.game.started = false;
-            addGameLog(`🏆 游戏结束！胜者：${winnerDesc}`, 'event-highlight');
-            showGameOver(winnerDesc);
-            break;
-        }
-
-        case 'ROOM_CLOSED': {
-            STATE.currentRoom = null;
-            STATE.isHost = false;
-            STATE.isReady = false;
-            STATE.game.started = false;
-            STATE.game.players = [];
-            STATE.game.myPrivateInfo = {};
-            showScreen(lobbyScreen);
-            showInfo(msg.message || '房间已关闭');
-            sendMsg({ type: 'LIST_ROOMS' });
-            break;
-        }
-
-        case 'HEARTBEAT_ACK':
-            break;
-
-        case 'ERROR':
-            showError(msg.message);
-            if (STATE.currentRoom && !gameScreen.classList.contains('hidden')) {
-                status(gameStatus, '❌ ' + msg.message, 'error');
-                addGameLog('❌ ' + msg.message, 'warn-text');
-            } else if (STATE.currentRoom) {
-                status(roomStatus, '❌ ' + msg.message, 'error');
-            }
-            break;
-
-        default:
-            console.log('未处理的消息类型:', msg.type, msg);
-    }
-}
-
-// ============================================================
-//  房间列表渲染
-// ============================================================
-function renderRoomList(rooms) {
-    if (!rooms || rooms.length === 0) {
-        roomList.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无房间，创建第一个吧</div>';
-        return;
-    }
-    roomList.innerHTML = rooms.map(r => {
-        const canJoin = r.playerCount < r.maxPlayers && r.status === 'WAITING';
-        const statusText = r.status === 'WAITING' ? '等待中' : '⚔️ 进行中';
-        const btnText = canJoin ? '加入' : (r.status !== 'WAITING' ? '进行中' : '已满');
-        return `
-            <div class="room-item">
-                <div class="info">
-                    <div class="name">${escHtml(r.roomName)}</div>
-                    <div class="meta">${r.playerCount}/${r.maxPlayers} 人 · ${statusText}</div>
-                </div>
-                <button class="btn btn-success btn-sm join-room-btn" data-room-id="${r.roomId}" ${canJoin ? '' : 'disabled'}>
-                    ${btnText}
-                </button>
-            </div>
-        `;
-    }).join('');
-    document.querySelectorAll('.join-room-btn').forEach(btn => {
-        btn.addEventListener('click', () => sendMsg({ type: 'JOIN_ROOM', roomId: btn.dataset.roomId }));
-    });
-}
-
-// ============================================================
-//  在线玩家列表渲染（QQ 联系人风格）
-// ============================================================
-const STATUS_MAP = {
-    ONLINE:  { text: '在线',   dotClass: 'dot-online',  lineClass: 'status-online' },
-    IN_ROOM: { text: '房间中', dotClass: 'dot-room',    lineClass: 'status-room'   },
-    IN_GAME: { text: '游戏中', dotClass: 'dot-game',    lineClass: 'status-game'   },
-};
-function renderOnlinePlayers(players, count) {
-    onlineCount.textContent = count;
-    if (!players || players.length === 0) {
-        onlinePlayerList.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无在线玩家</div>';
-        return;
-    }
-    onlinePlayerList.innerHTML = players.map(p => {
-        const isMe = p.playerId === STATE.playerId;
-        const initial = (p.playerName || '?').charAt(0);
-        const st = STATUS_MAP[p.status] || STATUS_MAP.ONLINE;
-        return `
-            <div class="online-player-item">
-                <div class="avatar">${initial}</div>
-                <div class="info">
-                    <div class="name-line">
-                        <span class="name-text">${escHtml(p.playerName)}</span>
-                        ${isMe ? '<span class="me-badge">我</span>' : ''}
-                    </div>
-                    <div class="status-line ${st.lineClass}">${st.text}</div>
-                </div>
-                <div class="status-dot ${st.dotClass}"></div>
-            </div>
-        `;
-    }).join('');
-}
-
-// ============================================================
-//  房间界面
-// ============================================================
-function enterRoomView(room) {
-    STATE.currentRoom = room;
-    STATE.isHost = room.ownerPlayerId === STATE.playerId;
-    STATE.isReady = room.players.find(p => p.playerId === STATE.playerId)?.isReady || false;
-    showScreen(roomScreen);
-    updateRoomView(room);
-}
-
-function updateRoomView(room) {
-    STATE.currentRoom = room;
-    STATE.isHost = room.ownerPlayerId === STATE.playerId;
-    const me = room.players.find(p => p.playerId === STATE.playerId);
-    STATE.isReady = me?.isReady || false;
-
-    roomTitle.textContent = escHtml(room.roomName);
-    roomIdDisplay.textContent = room.roomId;
-
-    playerList.innerHTML = room.players.map(p => {
-        const isOwner = p.playerId === room.ownerPlayerId;
-        const readyText = p.isReady ? '已准备' : '未准备';
-        const readyClass = p.isReady ? 'ready-tag' : 'not-ready-tag';
-        const isMe = p.playerId === STATE.playerId;
-        return `
-            <div class="player-chip">
-                <span>${isMe ? '⭐' : '👤'} ${escHtml(p.playerName)}</span>
-                ${isOwner ? '<span class="host-tag">房主</span>' : ''}
-                <span class="${readyClass}">${readyText}</span>
-            </div>
-        `;
-    }).join('');
-
-    readyBtn.textContent = STATE.isReady ? '⏳ 取消准备' : '✅ 准备';
-    readyBtn.classList.toggle('btn-warning', STATE.isReady);
-    readyBtn.classList.toggle('btn-success', !STATE.isReady);
-
-    if (STATE.isHost) {
-        startGameBtn.classList.remove('hidden');
-        startGameBtn.disabled = !room.players.every(p => p.isReady) || room.players.length < 2;
-        startGameBtn.textContent = `🎮 开始游戏 (${room.players.length}人)`;
-    } else {
-        startGameBtn.classList.add('hidden');
-    }
-
-    if (room.players.length < 2) {
-        roomHint.textContent = '至少需要 2 名玩家才能开始游戏';
-    } else if (STATE.isHost && room.players.some(p => !p.isReady)) {
-        roomHint.textContent = '等待所有玩家准备...';
-    } else if (STATE.isHost) {
-        roomHint.textContent = '全员已准备，可以开始游戏！';
-    } else {
-        roomHint.textContent = '等待房主开始游戏';
-    }
-    status(roomStatus, `房间内有 ${room.players.length} 名玩家`, 'info');
-}
-
-// ============================================================
-//  游戏界面
-// ============================================================
-function updateGameView() {
-    const g = STATE.game;
-
-    // 轮次
-    gameRound.textContent = g.round;
-    gameTotalTurns.textContent = g.totalTurns;
-
-    // 阶段badge
-    const phase = g.phase || 'PREPARE';
-    gamePhaseBadge.textContent = PHASE_NAMES[phase] || phase;
-    gamePhaseBadge.className = 'phase-badge phase-' + phase;
-
-    // 当前回合玩家
-    const curPlayer = g.players[g.currentPlayerIndex];
-    if (curPlayer) {
-        turnIndicator.innerHTML = `🎯 当前回合：<span class="highlight">${escHtml(curPlayer.playerName)}</span> (座位 ${curPlayer.gameSeat})`;
-    } else {
-        turnIndicator.innerHTML = `🎯 当前回合：<span class="highlight">等待中</span>`;
-    }
-
-    // 玩家卡片
-    if (g.players.length === 0) {
-        gamePlayerGrid.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:20px;">等待游戏开始...</div>';
-        return;
-    }
-
-    gamePlayerGrid.innerHTML = g.players.map((p, idx) => {
-        const isMe = p.playerId === STATE.playerId;
-        const isActive = idx === g.currentPlayerIndex;
-        const roleDisplay = isMe ? (ROLE_NAMES[p.role] || p.role) : '??';
-        const hp = p.currentHp ?? 4;
-        const maxHp = p.maxHp ?? 4;
-        const hpDots = Array.from({ length: maxHp }, (_, i) => {
-            const cls = i < hp ? 'alive' : 'lost';
-            return `<span class="hp-dot ${cls}"></span>`;
-        }).join('');
-        const handCount = p.handCardCount ?? p.handCards?.length ?? 0;
-        const isDead = (p.status === 'DEAD' || p.currentHp <= 0);
-        const isBot = p.bot;
-        const statusTag = isDead
-            ? '<span class="status-tag dead">阵亡</span>'
-            : '<span class="status-tag alive">存活</span>';
-        const botTag = isBot ? '<span class="bot-tag">🤖 托管</span>' : '';
-
-        return `
-            <div class="game-player-card ${isActive ? 'active-turn pulse' : ''}">
-                <div class="card-top">
-                    <div class="name">
-                        ${escHtml(p.playerName)} ${isMe ? '<span class="me-tag">我</span>' : ''}
-                        ${botTag}
-                    </div>
-                    <span class="role-tag">${roleDisplay}</span>
-                </div>
-                <div class="card-body">
-                    <div class="hp-bar">${hpDots}</div>
-                    <span style="color:#888;font-size:12px;">#${p.gameSeat}</span>
-                    ${statusTag}
-                    <span class="hand-count">🃏${handCount}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-// ============================================================
-//  游戏日志
-// ============================================================
-function addGameLog(text, cls = '') {
-    const entry = document.createElement('div');
-    entry.className = 'entry';
-    entry.innerHTML = `<span class="time">[${nowStr()}]</span> <span class="${cls}">${text}</span>`;
-    gameLog.appendChild(entry);
-    gameLog.scrollTop = gameLog.scrollHeight;
-}
-
-// ============================================================
-//  游戏结束
-// ============================================================
-function showGameOver(winnerDesc) {
-    gameOverTitle.textContent = '🏆 游戏结束';
-    gameOverDesc.textContent = `胜者阵营：${winnerDesc}`;
-    gameOverOverlay.classList.remove('hidden');
-}
-
-// ============================================================
-//  工具
-// ============================================================
-function escHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str || '';
-    return div.innerHTML;
-}
-
-// ============================================================
-//  事件绑定
-// ============================================================
-
-// 登录
-loginBtn.addEventListener('click', () => {
-    const name = nameInput.value.trim();
-    if (!name) { status(loginStatus, '请输入昵称', 'error'); return; }
-    localStorage.setItem(STORAGE_KEY, name);
-    status(loginStatus, '正在连接服务器...', 'info');
-    loginBtn.disabled = true;
-    connectWebSocket(name);
-});
-nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loginBtn.click(); });
-
-// 创建房间
-createRoomBtn.addEventListener('click', () => {
-    const name = roomNameInput.value.trim() || STATE.playerName + '的房间';
-    sendMsg({ type: 'CREATE_ROOM', roomName: name, maxPlayers: 8 });
-    roomNameInput.value = '';
-});
-roomNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') createRoomBtn.click(); });
-
-// 按ID加入
-joinByIdBtn.addEventListener('click', () => {
-    const roomId = roomIdInput.value.trim();
-    if (!roomId) { showError('请输入房间ID'); return; }
-    sendMsg({ type: 'JOIN_ROOM', roomId });
-    roomIdInput.value = '';
-});
-roomIdInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinByIdBtn.click(); });
-
-// 准备
-readyBtn.addEventListener('click', () => sendMsg({ type: 'PLAYER_READY', ready: !STATE.isReady }));
-
-// 开始游戏
-startGameBtn.addEventListener('click', () => sendMsg({ type: 'START_GAME' }));
-
-// 离开房间
-leaveRoomBtn.addEventListener('click', () => sendMsg({ type: 'LEAVE_ROOM' }));
-
-// ==================== 游戏操作 ====================
-
-// 下一阶段
-nextPhaseBtn.addEventListener('click', () => {
-    if (!STATE.game.started) return;
-    sendMsg({ type: 'NEXT_PHASE' });
-});
-
-// 返回大厅
-backToLobbyBtn.addEventListener('click', () => {
-    if (!STATE.game.started) return;
-    // 发送离开房间 → 服务端会转为 Bot 接管
-    sendMsg({ type: 'LEAVE_ROOM' });
-});
-
-// 游戏结束弹窗确认
-gameOverOkBtn.addEventListener('click', () => {
-    gameOverOverlay.classList.add('hidden');
-    STATE.game.started = false;
-    STATE.game.players = [];
-    STATE.game.myPrivateInfo = {};
-    showScreen(lobbyScreen);
-    showInfo('游戏已结束，返回大厅');
-    sendMsg({ type: 'LIST_ROOMS' });
-});
-
-// ============================================================
-//  初始化
-// ============================================================
-(function init() {
-    const savedName = localStorage.getItem(STORAGE_KEY);
-    if (savedName) {
-        nameInput.value = savedName;
-        status(loginStatus, '正在自动连接...', 'info');
-        loginBtn.disabled = true;
-        connectWebSocket(savedName);
-    } else {
-        nameInput.focus();
-    }
-})();
-
-console.log('🔰 三国杀 · 游戏流程可视化前端已加载');
-</script>
+<script src="js/game.js"></script>
 </body>
 </html>
