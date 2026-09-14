@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 
 /**
@@ -24,6 +25,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GameRoom {
+
+    private static final Random RANDOM = new Random();
 
     /**
      * 房间 ID（UUID）
@@ -143,10 +146,11 @@ public class GameRoom {
             for (int i = 0; i < players.size(); i++) {
                 players.get(i).setSeatNumber(i);
             }
-            // 如果房主离开，转让房主
+            // 如果房主离开，随机转让房主给一个剩余玩家
             if (ownerPlayerId.equals(playerId) && playerCount > 0) {
-                ownerPlayerId = players.get(0).getPlayerId();
-                players.get(0).setReady(true);
+                int newOwnerIndex = RANDOM.nextInt(players.size());
+                ownerPlayerId = players.get(newOwnerIndex).getPlayerId();
+                players.get(newOwnerIndex).setReady(true);
             }
         }
         return removed;

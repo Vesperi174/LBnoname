@@ -12,155 +12,53 @@
     <!-- ========== 登录界面 ========== -->
     <div id="loginScreen" class="card fade-in">
         <h2>三国杀 · 联机测试</h2>
-        <p class="login-hint">输入昵称，选择游戏模式</p>
+        <p class="login-hint">输入昵称开始游戏</p>
         <div class="input-group">
             <input type="text" id="nameInput" placeholder="输入你的昵称..." maxlength="12">
             <button class="btn btn-primary" id="loginBtn">进入</button>
         </div>
-        <div class="status-bar"><span id="loginStatus">启动服务端后，输入昵称点「进入」</span></div>
+        <div class="status-bar" id="loginStatus"></div>
     </div>
 
-    <!-- ========== 模式选择界面 ========== -->
-    <div id="modeSelectScreen" class="hidden">
-        <div class="card fade-in mode-select-card">
-            <h2>选择游戏模式</h2>
-            <p class="mode-select-hint">欢迎，<span id="modePlayerName"></span></p>
-            <div class="mode-buttons">
-                <button class="btn btn-mode btn-mode-single" id="singleModeBtn">
-                    <span class="mode-icon">S</span>
-                    <span class="mode-label">单机模式</span>
-                    <span class="mode-desc">本地单人游戏</span>
-                </button>
-                <button class="btn btn-mode btn-mode-multi" id="multiModeBtn">
-                    <span class="mode-icon">M</span>
-                    <span class="mode-label">联机模式</span>
-                    <span class="mode-desc">进入在线大厅</span>
-                </button>
-            </div>
-            <button class="btn btn-back-link" id="backToLoginBtn">重新输入昵称</button>
-        </div>
-    </div>
-
-    <!-- ========== 单机模式 · 房间设置弹窗 ========== -->
-    <div id="singleRoomOverlay" class="modal-overlay hidden">
-        <div class="modal-card fade-in">
-            <h2 class="modal-title">单机房间设置</h2>
-            <p class="modal-subtitle">配置本地对局参数，其余位置由电脑（AI）接管</p>
-
-            <!-- 人数选择 -->
-            <div class="setting-section">
-                <label class="setting-label">选择人数</label>
-                <div class="player-count-group" id="playerCountGroup">
-                    <button class="count-btn" data-count="2">2人</button>
-                    <button class="count-btn" data-count="3">3人</button>
-                    <button class="count-btn" data-count="4">4人</button>
-                    <button class="count-btn" data-count="5">5人</button>
-                    <button class="count-btn active" data-count="6">6人</button>
-                    <button class="count-btn" data-count="7">7人</button>
-                    <button class="count-btn" data-count="8">8人</button>
-                </div>
-            </div>
-
-            <!-- 身份配置 -->
-            <div class="setting-section">
-                <label class="setting-label">身份配置</label>
-                <div class="identity-config-group" id="identityConfigGroup">
-                    <label class="identity-option active" data-config="standard">
-                        <span class="identity-radio"></span>
-                        <span class="identity-text">
-                            <span class="identity-name">标准模式</span>
-                            <span class="identity-desc">主公 + 忠臣 + 反贼 + 内奸</span>
-                        </span>
-                    </label>
-                    <label class="identity-option hidden" data-config="double_intruder" id="doubleIntruderOption">
-                        <span class="identity-radio"></span>
-                        <span class="identity-text">
-                            <span class="identity-name">双内模式</span>
-                            <span class="identity-desc">主公 + 忠臣 + 反贼 + 内奸×2（8人局专属）</span>
-                        </span>
-                    </label>
-                </div>
-            </div>
-
-            <!-- 配置摘要（留白区域） -->
-            <div class="setting-summary" id="settingSummary">
-                <div class="summary-icon">⚙</div>
-                <div class="summary-text">
-                    <div class="summary-line" id="summaryLine">当前配置：6人局 · 标准身份</div>
-                    <div class="summary-detail" id="summaryDetail">主公×1 忠臣×1 反贼×3 内奸×1</div>
-                </div>
-            </div>
-
-            <!-- 按钮 -->
-            <div class="modal-actions">
-                <button class="btn btn-secondary" id="singleRoomCancelBtn">取消</button>
-                <button class="btn btn-primary" id="singleRoomConfirmBtn">确认开始</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========== 大厅界面 ========== -->
-    <div id="lobbyScreen" class="hidden">
-        <div class="card fade-in">
-            <div class="lobby-layout">
-                <div class="lobby-left">
-                    <div class="lobby-header">
-                        <h2 class="lobby-title">游戏大厅</h2>
-                        <div class="lobby-header-right">
-                            <span id="playerBadge" class="player-badge"></span>
-                            <button class="btn-back-lobby-sm" id="lobbyBackBtn">返回</button>
-                        </div>
-                    </div>
-                    <div class="input-group">
-                        <input type="text" id="roomNameInput" placeholder="房间名称（可选）" maxlength="20">
-                        <button class="btn btn-success" id="createRoomBtn">创建房间</button>
-                    </div>
-                    <h3>可加入的房间</h3>
-                    <div id="roomList" class="room-list">
-                        <div class="empty-hint">暂无房间，创建第一个吧</div>
-                    </div>
-                    <hr class="divider">
-                    <div class="input-group">
-                        <input type="text" id="roomIdInput" placeholder="输入房间ID加入" maxlength="40">
-                        <button class="btn btn-success" id="joinByIdBtn">加入</button>
+    <!-- ========== 主页（桌布背景） ========== -->
+    <div id="homeScreen" class="hidden">
+        <div class="home-table-wrapper fade-in">
+            <!-- 右侧边栏 -->
+            <div class="home-sidebar" id="homeSidebar">
+                <!-- 自己 -->
+                <div class="sidebar-self" id="sidebarSelf">
+                    <div class="sidebar-avatar" id="selfAvatar">?</div>
+                    <div class="sidebar-info">
+                        <span class="sidebar-name" id="selfName">-</span>
+                        <span class="sidebar-status status-online" id="selfStatus">在线</span>
                     </div>
                 </div>
-                <div class="lobby-right">
-                    <div class="online-count-header">
-                        在线玩家
-                        <span class="count-badge" id="onlineCount">0</span>
-                    </div>
-                    <div id="onlinePlayerList" class="online-player-list">
-                        <div class="empty-hint">暂无在线玩家</div>
-                    </div>
+                <div class="sidebar-divider"></div>
+                <!-- 在线列表标题 -->
+                <div class="sidebar-list-title">
+                    在线玩家 <span class="sidebar-count" id="onlineCount">0</span>
+                </div>
+                <!-- 玩家列表 -->
+                <div class="sidebar-player-list" id="playerList"></div>
+            </div>
+
+            <!-- 中央内容区 -->
+            <div class="home-content">
+                <div class="home-header">
+                    <h2>欢迎，<span id="homePlayerName"></span></h2>
+                </div>
+                <div class="home-room-area">
+                    <div class="room-list" id="roomList"></div>
+                </div>
+                <div class="home-bottom-area">
+                    <button class="btn-create-room" id="createRoomBtn">＋ 创建房间</button>
                 </div>
             </div>
         </div>
-        <div class="status-bar" id="lobbyStatus">已连接服务器</div>
-    </div>
-
-    <!-- ========== 房间界面 ========== -->
-    <div id="roomScreen" class="hidden">
-        <div class="card fade-in">
-            <div class="room-header-bar">
-                <h2 class="room-title"><span id="roomTitle">房间</span></h2>
-                <button class="btn btn-danger btn-sm" id="leaveRoomBtn">离开</button>
-            </div>
-            <p class="room-id-line">房间ID: <span id="roomIdDisplay" class="room-id-val"></span></p>
-            <h3>玩家列表</h3>
-            <div id="playerList" class="player-grid">
-                <div class="empty-hint">等待玩家加入...</div>
-            </div>
-            <hr class="divider">
-            <button class="btn btn-warning btn-block" id="readyBtn">准备</button>
-            <button class="btn btn-primary btn-block hidden" id="startGameBtn">开始游戏</button>
-            <p class="room-hint" id="roomHint"></p>
-        </div>
-        <div class="status-bar" id="roomStatus"></div>
     </div>
 
     <!-- ============================================================
-         对局界面（待重建）
+         对局界面
          ============================================================ -->
     <div id="gameScreen" class="hidden">
     <div class="game-table-wrapper fade-in">
@@ -171,7 +69,7 @@
             <span class="gtb-divider"></span>
             <span class="gtb-item highlight" id="gtbPhase">等待开始</span>
             <span class="gtb-spacer"></span>
-            <button class="btn-back-lobby" id="backToLobbyBtn">返回</button>
+            <button class="btn-back-lobby" id="backToHomeBtn">返回</button>
         </div>
 
         <!-- 右侧日志区 -->
@@ -235,6 +133,99 @@
             <h2 id="gameOverTitle">游戏结束</h2>
             <p id="gameOverDesc">胜者阵营：--</p>
             <button class="btn btn-primary" id="gameOverOkBtn">知道了</button>
+        </div>
+    </div>
+
+    <!-- 创建房间命名提示框 -->
+    <div id="roomNameOverlay" class="room-name-overlay hidden">
+        <div class="room-name-box fade-in">
+            <h3>创建房间</h3>
+            <p class="room-name-hint">请输入房间名称</p>
+            <input type="text" class="room-name-input" id="roomNameInput" maxlength="20" placeholder="输入房间名称...">
+            <div class="room-name-actions">
+                <button class="btn btn-sm btn-secondary" id="roomNameCancelBtn">取消</button>
+                <button class="btn btn-sm btn-primary" id="roomNameConfirmBtn">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加入房间确认框 -->
+    <div id="joinRoomOverlay" class="room-name-overlay hidden">
+        <div class="room-name-box fade-in">
+            <h3>加入房间</h3>
+            <p class="room-name-hint" id="joinRoomHint">是否加入该房间？</p>
+            <div class="room-name-actions">
+                <button class="btn btn-sm btn-secondary" id="joinRoomCancelBtn">取消</button>
+                <button class="btn btn-sm btn-primary" id="joinRoomConfirmBtn">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 房间界面 -->
+    <div id="roomScreen" class="hidden">
+        <div class="room-table-wrapper fade-in">
+            <div class="room-sidebar" id="roomSidebar">
+                <div class="sidebar-self" id="roomSidebarSelf">
+                    <div class="sidebar-avatar" id="roomSelfAvatar">?</div>
+                    <div class="sidebar-info">
+                        <span class="sidebar-name" id="roomSelfName">-</span>
+                        <span class="sidebar-status status-online" id="roomSelfStatus">在线</span>
+                    </div>
+                </div>
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-list-title">
+                    在线玩家 <span class="sidebar-count" id="roomOnlineCount">0</span>
+                </div>
+                <div class="sidebar-player-list" id="roomPlayerList"></div>
+            </div>
+            <div class="room-content">
+                <div class="room-content-header">
+                    <h2 id="roomTitle">房间</h2>
+                    <button class="btn btn-sm btn-secondary" id="roomLeaveBtn">← 离开</button>
+                </div>
+                <div class="room-content-body" id="roomSeats">
+                    <div class="room-seat" data-seat="0">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">等待加入</div>
+                        <div class="seat-status">空位</div>
+                    </div>
+                    <div class="room-seat" data-seat="1">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">等待加入</div>
+                        <div class="seat-status">空位</div>
+                    </div>
+                    <div class="room-seat" data-seat="2">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">等待加入</div>
+                        <div class="seat-status">空位</div>
+                    </div>
+                    <div class="room-seat" data-seat="3">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">等待加入</div>
+                        <div class="seat-status">空位</div>
+                    </div>
+                    <div class="room-seat" data-seat="4">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">等待加入</div>
+                        <div class="seat-status">空位</div>
+                    </div>
+                    <div class="room-seat" data-seat="5">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">等待加入</div>
+                        <div class="seat-status">空位</div>
+                    </div>
+                    <div class="room-seat" data-seat="6">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">等待加入</div>
+                        <div class="seat-status">空位</div>
+                    </div>
+                    <div class="room-seat" data-seat="7">
+                        <div class="seat-avatar">?</div>
+                        <div class="seat-name">等待加入</div>
+                        <div class="seat-status">空位</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 

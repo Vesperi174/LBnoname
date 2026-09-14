@@ -26,11 +26,7 @@ body {
     align-items: flex-start;
     padding: 0;
 }
-body.game-body-lobby {
-    overflow-y: auto;
-    padding: 20px 0;
-    align-items: flex-start;
-}
+
 
 /* ==================== 容器 ==================== */
 .container {
@@ -46,9 +42,7 @@ body.game-body-lobby {
     display: flex;
     flex-direction: column;
 }
-.container.lobby-active {
-    max-width: 860px;
-}
+
 
 /* ==================== 对局布局：全屏桌布 ==================== */
 #gameScreen {
@@ -896,101 +890,325 @@ h3 {
     font-size: 13px;
 }
 
-/* ==================== 模式选择界面 ==================== */
-.mode-select-card {
-    text-align: center;
-    max-width: 480px;
-    margin: 0 auto;
-}
-.mode-select-hint {
-    color: #aaa;
-    font-size: 15px;
-    margin-bottom: 24px;
-}
-.mode-select-hint span {
-    color: #e94560;
-    font-weight: bold;
-}
-.mode-buttons {
+/* ==================== 主页（全屏桌布） ==================== */
+.container.home-active,
+.container.room-active {
+    max-width: 100%;
+    height: 100vh;
+    padding: 6px;
     display: flex;
-    gap: 16px;
-    margin-bottom: 20px;
+    flex-direction: column;
 }
-.btn-mode {
+#homeScreen,
+#roomScreen {
     flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 28px 16px;
-    border-radius: 14px;
-    border: 2px solid transparent;
+    min-height: 0;
+}
+.home-table-wrapper,
+.room-table-wrapper {
+    background: radial-gradient(ellipse at center, #1a3a6a 0%, #0d1f3c 100%);
+    border-radius: 10px;
+    padding: 6px 12px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+    border: 2px solid #2a4a8a;
+    position: relative;
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.home-table-wrapper::before,
+.room-table-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2388aadd' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    pointer-events: none;
+}
+.home-content {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    margin-right: 260px;
+    min-height: 0;
+}
+.home-header {
+    text-align: center;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+}
+.home-header h2 {
+    margin-bottom: 0;
+    font-size: 22px;
+    color: #7ab0e8;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.home-header h2 span {
+    color: #a8d4ff;
+}
+.home-room-area {
+    flex: 2;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    gap: 10px;
+}
+.room-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 0;
+}
+.btn-create-room {
+    flex-shrink: 0;
+    width: 160px;
+    height: 80px;
+    border-radius: 12px;
+    border: 2px dashed rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 16px;
     cursor: pointer;
-    transition: all 0.25s ease;
-    background: #0f3460;
-    color: #eee;
-}
-.btn-mode:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-}
-.btn-mode-single {
-    border-color: #2ecc71;
-}
-.btn-mode-single:hover {
-    background: rgba(46, 204, 113, 0.15);
-    border-color: #2ecc71;
-    box-shadow: 0 8px 24px rgba(46, 204, 113, 0.2);
-}
-.btn-mode-multi {
-    border-color: #3498db;
-}
-.btn-mode-multi:hover {
-    background: rgba(52, 152, 219, 0.15);
-    border-color: #3498db;
-    box-shadow: 0 8px 24px rgba(52, 152, 219, 0.2);
-}
-.btn-mode .mode-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
+    letter-spacing: 2px;
+}
+.btn-create-room:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.6);
+}
+.btn-create-room:active {
+    transform: scale(0.96);
+}
+.room-list::-webkit-scrollbar {
+    width: 3px;
+}
+.room-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+.room-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: background 0.15s;
+    border: 1px solid transparent;
+}
+.room-item:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.room-item .room-name {
+    font-size: 13px;
+    color: #c8dfff;
+    font-weight: 500;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.room-item .room-meta {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    white-space: nowrap;
+}
+.room-item .room-status {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.room-status-waiting {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+}
+.room-status-playing {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+}
+.room-empty {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.15);
+    font-size: 12px;
+    padding: 30px 0;
+    letter-spacing: 1px;
+}
+.home-bottom-area {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 12px 12px 0 0;
+}
+
+/* ==================== 主页侧边栏 ==================== */
+.home-sidebar,
+.room-sidebar {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 2;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 18px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* 自己的信息 */
+.sidebar-self {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 6px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+}
+.sidebar-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3a7bd5, #2a5fa0);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
     font-weight: 700;
     color: #fff;
     flex-shrink: 0;
+    user-select: none;
 }
-.btn-mode-single .mode-icon {
-    background: linear-gradient(135deg, #2ecc71, #27ae60);
+.sidebar-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
 }
-.btn-mode-multi .mode-icon {
-    background: linear-gradient(135deg, #3498db, #2980b9);
+.sidebar-name {
+    font-size: 14px;
+    color: #d0e4ff;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.btn-mode .mode-label {
-    font-size: 17px;
-    font-weight: 700;
-    letter-spacing: 2px;
+.sidebar-status {
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
-.btn-mode .mode-desc {
+.sidebar-status::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.status-online::before  { background: #4ade80; }
+.status-in_room::before { background: #fbbf24; }
+.status-in_game::before { background: #f87171; }
+.status-online  { color: #4ade80; }
+.status-in_room { color: #fbbf24; }
+.status-in_game { color: #f87171; }
+
+/* 分割线 */
+.sidebar-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 8px 0;
+}
+
+/* 列表标题 */
+.sidebar-list-title {
     font-size: 12px;
-    color: #888;
-    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.35);
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
-.btn-back-link {
-    background: transparent;
-    border: none;
-    color: #666;
+.sidebar-count {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 0 8px;
+    font-size: 11px;
+    line-height: 18px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* 玩家列表 */
+.sidebar-player-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 2px;
+    min-height: 0;
+}
+.sidebar-player-list::-webkit-scrollbar {
+    width: 3px;
+}
+.sidebar-player-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+
+/* 列表中的每个玩家 */
+.sidebar-player-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 6px;
+    border-radius: 6px;
+    transition: background 0.15s;
+    cursor: default;
+}
+.sidebar-player-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+.sidebar-player-item .sidebar-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+}
+.sidebar-player-item .sidebar-name {
     font-size: 13px;
-    cursor: pointer;
-    padding: 8px 16px;
-    transition: color 0.2s;
-    text-decoration: underline;
-    text-underline-offset: 3px;
 }
-.btn-back-link:hover {
-    color: #e94560;
+.sidebar-player-item .sidebar-status {
+    font-size: 11px;
 }
 
 /* ==================== 输入 & 按钮 ==================== */
@@ -1048,228 +1266,6 @@ h3 {
 /* ==================== 隐藏 ==================== */
 .hidden { display: none !important; }
 
-/* ==================== 房间列表 ==================== */
-.room-list {
-    max-height: 240px;
-    overflow-y: auto;
-}
-.room-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 12px;
-    background: #0f3460;
-    border-radius: 8px;
-    margin-bottom: 8px;
-}
-.room-item .info { flex: 1; }
-.room-item .info .name { font-weight: bold; }
-.room-item .info .meta {
-    font-size: 12px;
-    color: #888;
-    margin-top: 2px;
-}
-
-/* ==================== 大厅双列布局 ==================== */
-.lobby-layout {
-    display: flex;
-    gap: 20px;
-}
-.lobby-left {
-    flex: 3;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-}
-.lobby-right {
-    flex: 2;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid #0f3460;
-    padding-left: 16px;
-}
-.lobby-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-}
-.lobby-title {
-    margin-bottom: 0;
-}
-.player-badge {
-    background: #0f3460;
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-size: 13px;
-}
-.lobby-header-right {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.btn-back-lobby-sm {
-    padding: 4px 12px;
-    font-size: 11px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.04);
-    color: #888;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    line-height: 1.4;
-    white-space: nowrap;
-}
-.btn-back-lobby-sm:hover {
-    background: rgba(200, 50, 50, 0.35);
-    color: #f88;
-    border-color: #f88;
-}
-
-/* ==================== 在线玩家列表（QQ 联系人风格） ==================== */
-.online-player-list {
-    max-height: 400px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding-right: 4px;
-}
-.online-player-list::-webkit-scrollbar { width: 4px; }
-.online-player-list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
-.online-player-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    cursor: default;
-    transition: background 0.2s;
-}
-.online-player-item:hover { background: #0f3460; }
-.online-player-item .avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: #3498db;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    font-weight: bold;
-    color: #fff;
-    flex-shrink: 0;
-}
-.online-player-item .info { flex: 1; min-width: 0; }
-.online-player-item .info .name-line {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.online-player-item .info .name-line .name-text {
-    font-size: 14px;
-    font-weight: 500;
-}
-.online-player-item .info .name-line .me-badge {
-    font-size: 10px;
-    background: #e94560;
-    padding: 1px 6px;
-    border-radius: 8px;
-}
-.online-player-item .info .status-line {
-    font-size: 11px;
-    color: #888;
-    margin-top: 1px;
-}
-.online-player-item .info .status-online { color: #2ecc71; }
-.online-player-item .info .status-room   { color: #5dade2; }
-.online-player-item .info .status-game   { color: #f39c12; }
-.online-player-item .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    transition: background 0.3s;
-}
-.online-player-item .dot-online { background: #2ecc71; box-shadow: 0 0 6px rgba(46, 204, 113, 0.5); }
-.online-player-item .dot-room   { background: #5dade2; box-shadow: 0 0 6px rgba(93, 173, 226, 0.5); }
-.online-player-item .dot-game   { background: #f39c12; box-shadow: 0 0 6px rgba(243, 156, 18, 0.5); }
-.online-count-header {
-    font-size: 14px;
-    color: #aaa;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.online-count-header .count-badge {
-    background: #0f3460;
-    padding: 1px 10px;
-    border-radius: 10px;
-    font-size: 13px;
-    color: #2ecc71;
-}
-
-/* ==================== 房间内玩家列表 ==================== */
-.player-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 16px;
-}
-.player-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    background: #0f3460;
-    border-radius: 20px;
-    font-size: 14px;
-}
-.player-chip .host-tag {
-    font-size: 10px;
-    background: #e94560;
-    color: #fff;
-    padding: 1px 6px;
-    border-radius: 8px;
-}
-.player-chip .ready-tag {
-    font-size: 10px;
-    background: #2a5;
-    color: #fff;
-    padding: 1px 6px;
-    border-radius: 8px;
-}
-.player-chip .not-ready-tag {
-    font-size: 10px;
-    background: #555;
-    color: #ccc;
-    padding: 1px 6px;
-    border-radius: 8px;
-}
-.room-header-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-.room-title { margin-bottom: 0; }
-.room-id-line {
-    font-size: 12px;
-    color: #888;
-    margin-bottom: 16px;
-}
-.room-id-val {
-    font-family: "Consolas", "Courier New", monospace;
-}
-.room-hint {
-    font-size: 12px;
-    color: #888;
-    margin-top: 8px;
-    text-align: center;
-}
-
 /* ---- 游戏结束弹窗 ---- */
 .game-over-overlay {
     position: fixed;
@@ -1302,6 +1298,145 @@ h3 {
     margin-bottom: 20px;
 }
 
+/* ---- 房间界面 ---- */
+.room-content {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    margin-right: 260px;
+    min-height: 0;
+}
+.room-content-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+}
+.room-content-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: #7ab0e8;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.room-content-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 24px;
+    padding: 16px;
+    min-height: 0;
+}
+
+.room-seat {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s, border-color 0.2s;
+    min-height: 0;
+    padding: 12px;
+}
+.room-seat:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+.seat-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+.seat-name {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.3);
+    font-weight: 500;
+    text-align: center;
+}
+.seat-status {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.15);
+    padding: 2px 10px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* ---- 创建房间命名提示框 ---- */
+.room-name-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+.room-name-box {
+    background: #16213e;
+    border-radius: 14px;
+    padding: 28px 32px;
+    min-width: 320px;
+    max-width: 400px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+    text-align: center;
+}
+.room-name-box h3 {
+    margin: 0 0 6px;
+    font-size: 18px;
+    color: #e0efff;
+}
+.room-name-hint {
+    font-size: 13px;
+    color: #888;
+    margin: 0 0 16px;
+}
+.room-name-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    color: #d0e4ff;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+    text-align: center;
+}
+.room-name-input:focus {
+    border-color: #3a7bd5;
+}
+.room-name-input::placeholder {
+    color: rgba(255, 255, 255, 0.2);
+}
+.room-name-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 16px;
+}
+.room-name-actions .btn {
+    min-width: 80px;
+}
+
 /* ---- 状态条 ---- */
 .status-bar {
     text-align: center;
@@ -1328,214 +1463,6 @@ h3 {
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
 
-/* ==================== 单机模式 · 房间设置弹窗 ==================== */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.65);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 200;
-    backdrop-filter: blur(3px);
-    -webkit-backdrop-filter: blur(3px);
-}
-.modal-card {
-    background: #16213e;
-    border-radius: 16px;
-    padding: 28px 32px 24px;
-    width: 480px;
-    max-width: 92vw;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.modal-title {
-    font-size: 20px;
-    color: #e94560;
-    margin-bottom: 4px;
-}
-.modal-subtitle {
-    font-size: 12px;
-    color: #777;
-    margin-bottom: 20px;
-    line-height: 1.5;
-}
-
-/* 设置区块 */
-.setting-section {
-    margin-bottom: 18px;
-}
-.setting-label {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    color: #bbb;
-    margin-bottom: 10px;
-    letter-spacing: 1px;
-}
-
-/* 人数选择按钮组 */
-.player-count-group {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-.count-btn {
-    flex: 1;
-    min-width: 48px;
-    padding: 8px 4px;
-    background: #0f3460;
-    border: 2px solid transparent;
-    border-radius: 8px;
-    color: #aaa;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
-    line-height: 1.3;
-}
-.count-btn:hover {
-    background: #1a4a8a;
-    color: #eee;
-    border-color: rgba(255, 255, 255, 0.1);
-}
-.count-btn.active {
-    background: rgba(233, 69, 96, 0.2);
-    border-color: #e94560;
-    color: #e94560;
-    box-shadow: 0 0 12px rgba(233, 69, 96, 0.15);
-}
-
-/* 身份配置选项组 */
-.identity-config-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.identity-option {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    background: #0f3460;
-    border: 2px solid transparent;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-.identity-option:hover {
-    background: #1a4a8a;
-    border-color: rgba(255, 255, 255, 0.08);
-}
-.identity-option.active {
-    background: rgba(233, 69, 96, 0.1);
-    border-color: #e94560;
-}
-.identity-radio {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 2px solid #555;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-.identity-option.active .identity-radio {
-    border-color: #e94560;
-}
-.identity-option.active .identity-radio::after {
-    content: '';
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #e94560;
-}
-.identity-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-.identity-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: #ddd;
-}
-.identity-desc {
-    font-size: 11px;
-    color: #888;
-}
-.identity-option.active .identity-name {
-    color: #e94560;
-}
-
-/* 配置摘要（留白区域） */
-.setting-summary {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 16px;
-    background: rgba(15, 52, 96, 0.4);
-    border: 1px dashed rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    margin-bottom: 20px;
-    min-height: 56px;
-}
-.summary-icon {
-    font-size: 22px;
-    opacity: 0.3;
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 8px;
-}
-.summary-text {
-    flex: 1;
-    min-width: 0;
-}
-.summary-line {
-    font-size: 14px;
-    font-weight: 600;
-    color: #ccc;
-    margin-bottom: 3px;
-}
-.summary-detail {
-    font-size: 12px;
-    color: #888;
-}
-
-/* 弹窗按钮行 */
-.modal-actions {
-    display: flex;
-    gap: 10px;
-}
-.modal-actions .btn {
-    flex: 1;
-    padding: 12px 0;
-    font-size: 15px;
-    border-radius: 10px;
-}
-.btn-secondary {
-    background: #0f3460;
-    color: #aaa;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
-.btn-secondary:hover {
-    background: #1a4a8a;
-    color: #eee;
-}
-
 /* ---- 响应式 ---- */
 @media (max-width: 900px) {
     .game-main-area { flex-direction: column; }
@@ -1545,8 +1472,6 @@ h3 {
     .seat-card { min-width: 55px; }
     .seat-card.sm { min-width: 45px; padding: 2px 4px; }
     .seat-card.sm .seat-name { font-size: 9px; }
-    .lobby-layout { flex-direction: column; }
-    .lobby-right { border-left: none; padding-left: 0; border-top: 1px solid #0f3460; padding-top: 12px; }
     .my-player-card { width: 130px; height: 76px; }
     .my-player-card .my-player-portrait { width: 58px; }
     .my-player-card .my-player-portrait .portrait-placeholder { width: 46px; height: 58px; font-size: 10px; }

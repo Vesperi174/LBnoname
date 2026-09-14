@@ -9,15 +9,6 @@ const STATE = {
     playerId: null,
     playerName: null,
     ws: null,
-    currentRoom: null,
-    isHost: false,
-    isReady: false,
-
-    /** 单机模式待发送配置（连接成功后发送） */
-    _pendingSinglePlayerConfig: null,
-
-    /** 是否为主动断开（不显示重定向） */
-    _intentionalDisconnect: false,
 
     // 游戏状态
     game: {
@@ -59,24 +50,31 @@ const ROLE_NAMES = {
     REBEL:    '反贼',
     INTRUDER: '内奸',
 };
+const ROLE_SHORT_NAMES = {
+    LORD:     '主公',
+    MINION:   '忠臣',
+    REBEL:    '反贼',
+    INTRUDER: '内奸',
+};
+
 // 势力底色
 const KINGDOM_COLORS = {
-    1:   '#b22222', // 蜀 — 赤红
-    2:   '#2a4a7f', // 魏 — 深蓝
-    3:   '#2d7d46', // 吴 — 暗绿
-    4:   '#5a5a5a', // 群 — 铁灰
-    101: '#2e8b57', // 艾欧尼亚 — 碧绿
-    102: '#8b1a1a', // 诺克萨斯 — 暗红
-    103: '#5b8cac', // 弗雷尔卓德 — 冰蓝
-    104: '#c8a84e', // 符文大陆 — 金黄
-    105: '#a0785a', // 皮尔特沃夫 — 铜棕
-    106: '#4a2c5a', // 暗影岛 — 暗紫
-    107: '#6b8e5a', // 班德尔城 — 草绿
-    108: '#8a7a4a', // 巨神锋 — 土黄
-    109: '#3a6b8a', // 德玛西亚 — 天蓝
-    110: '#7a5a3a', // 比尔吉沃特 — 棕褐
-    111: '#5a7a4a', // 以绪塔尔 — 墨绿
-    112: '#6a5a3a', // 祖安 — 烟灰
+    1:   '#b22222',
+    2:   '#2a4a7f',
+    3:   '#2d7d46',
+    4:   '#5a5a5a',
+    101: '#2e8b57',
+    102: '#8b1a1a',
+    103: '#5b8cac',
+    104: '#c8a84e',
+    105: '#a0785a',
+    106: '#4a2c5a',
+    107: '#6b8e5a',
+    108: '#8a7a4a',
+    109: '#3a6b8a',
+    110: '#7a5a3a',
+    111: '#5a7a4a',
+    112: '#6a5a3a',
 };
 const DEFAULT_KINGDOM_COLOR = '#3a3a3a';
 
@@ -85,53 +83,46 @@ const DEFAULT_KINGDOM_COLOR = '#3a3a3a';
 // ============================================================
 const $ = id => document.getElementById(id);
 const loginScreen       = $('loginScreen');
-const modeSelectScreen  = $('modeSelectScreen');
-const lobbyScreen       = $('lobbyScreen');
-const roomScreen        = $('roomScreen');
+const homeScreen        = $('homeScreen');
 const gameScreen        = $('gameScreen');
 const gameOverOverlay   = $('gameOverOverlay');
 const nameInput         = $('nameInput');
 const loginBtn          = $('loginBtn');
 const loginStatus       = $('loginStatus');
-const modePlayerName    = $('modePlayerName');
-const singleModeBtn     = $('singleModeBtn');
-const multiModeBtn      = $('multiModeBtn');
-const backToLoginBtn    = $('backToLoginBtn');
-const playerBadge       = $('playerBadge');
-const roomNameInput     = $('roomNameInput');
-const createRoomBtn     = $('createRoomBtn');
-const roomList          = $('roomList');
-const roomIdInput       = $('roomIdInput');
-const joinByIdBtn       = $('joinByIdBtn');
-const lobbyStatus       = $('lobbyStatus');
-const roomTitle         = $('roomTitle');
-const roomIdDisplay     = $('roomIdDisplay');
-const playerList        = $('playerList');
-const readyBtn          = $('readyBtn');
-const startGameBtn      = $('startGameBtn');
-const leaveRoomBtn      = $('leaveRoomBtn');
-const roomHint          = $('roomHint');
-const roomStatus        = $('roomStatus');
-const onlinePlayerList  = $('onlinePlayerList');
-const onlineCount       = $('onlineCount');
+const homePlayerName    = $('homePlayerName');
 
-// 单机模式 · 房间设置弹窗 DOM
-const singleRoomOverlay     = $('singleRoomOverlay');
-const singleRoomCancelBtn   = $('singleRoomCancelBtn');
-const singleRoomConfirmBtn  = $('singleRoomConfirmBtn');
-const playerCountGroup      = $('playerCountGroup');
-const identityConfigGroup   = $('identityConfigGroup');
-const doubleIntruderOption  = $('doubleIntruderOption');
-const summaryLine           = $('summaryLine');
-const summaryDetail         = $('summaryDetail');
+// 侧边栏 DOM
+const selfAvatar        = $('selfAvatar');
+const selfName          = $('selfName');
+const selfStatus        = $('selfStatus');
+const onlineCount       = $('onlineCount');
+const playerList        = $('playerList');
+const roomList          = $('roomList');
 
 // 游戏结束弹窗 DOM
 const gameOverTitle     = $('gameOverTitle');
 const gameOverDesc      = $('gameOverDesc');
 const gameOverOkBtn     = $('gameOverOkBtn');
+const createRoomBtn     = $('createRoomBtn');
+const roomScreen        = $('roomScreen');
+const roomTitle         = $('roomTitle');
+const roomSelfAvatar    = $('roomSelfAvatar');
+const roomSelfName      = $('roomSelfName');
+const roomSelfStatus    = $('roomSelfStatus');
+const roomOnlineCount   = $('roomOnlineCount');
+const roomPlayerList    = $('roomPlayerList');
+const roomLeaveBtn      = $('roomLeaveBtn');
+const roomNameOverlay   = $('roomNameOverlay');
+const roomNameInput     = $('roomNameInput');
+const roomNameConfirmBtn = $('roomNameConfirmBtn');
+const roomNameCancelBtn  = $('roomNameCancelBtn');
+const joinRoomOverlay    = $('joinRoomOverlay');
+const joinRoomHint       = $('joinRoomHint');
+const joinRoomConfirmBtn = $('joinRoomConfirmBtn');
+const joinRoomCancelBtn  = $('joinRoomCancelBtn');
 
 // 对局 UI
-const backToLobbyBtn    = $('backToLobbyBtn');
+const backToHomeBtn     = $('backToHomeBtn');
 const gtbRound          = $('gtbRound');
 const gtbTurn           = $('gtbTurn');
 const gtbPhase          = $('gtbPhase');
@@ -156,11 +147,6 @@ var LOG_CLASSES = {
     system:    'log-system',
     highlight: 'log-highlight',
 };
-/**
- * 向日志区追加一条记录
- * @param {string} text  日志文本
- * @param {string} type  类型: info / action / damage / heal / system / highlight
- */
 function addLog(text, type) {
     if (!logContent) return;
     type = type || 'info';
@@ -169,7 +155,6 @@ function addLog(text, type) {
     div.className = 'log-entry ' + cls;
     div.textContent = text;
     logContent.appendChild(div);
-    // 自动滚动到底部
     logContent.scrollTop = logContent.scrollHeight;
 }
 
@@ -212,7 +197,6 @@ function renderPlayerCard() {
     var g = STATE.game;
     var me = g && g.started ? g.players.find(function (p) { return p.playerId === STATE.playerId; }) : null;
 
-    // --- 名字和身份悬停 ---
     if (me) {
         pcNameOverlay.textContent = me.playerName + (me.bot ? ' (AI)' : '');
         var roleName = ROLE_NAMES[me.role] || me.role || '?';
@@ -222,7 +206,6 @@ function renderPlayerCard() {
         pcRoleOverlay.textContent = '?';
     }
 
-    // --- 座位号 ---
     if (me) {
         var seat = me.gameSeat !== undefined ? me.gameSeat + 1 : 1;
         pcSeatNum.textContent = CN_NUMS[seat] || seat;
@@ -230,7 +213,6 @@ function renderPlayerCard() {
         pcSeatNum.textContent = '零';
     }
 
-    // --- 势力底色 ---
     if (me && me.kingdom != null) {
         var color = KINGDOM_COLORS[me.kingdom] || DEFAULT_KINGDOM_COLOR;
         pcInfo.style.backgroundColor = color;
@@ -238,10 +220,8 @@ function renderPlayerCard() {
         pcInfo.style.backgroundColor = DEFAULT_KINGDOM_COLOR;
     }
 
-    // --- 角色名（顶部） ---
     pcCharName.textContent = me ? (me.charName || '卡斯奥佩娅') : '';
 
-    // --- 体力竖点/竖排文字（底部） ---
     if (!me) {
         pcHpArea.innerHTML = '';
         return;
@@ -261,12 +241,9 @@ function renderPlayerCard() {
         pcHpArea.innerHTML = '<span class="hp-text" id="pcHpText">' + txt + '</span>';
     }
 
-    // --- 自适应字号（保证不溢出） ---
     requestAnimationFrame(fitPlayerCard);
 
-    // --- 技能按钮（Bot 玩家不加载） ---
     if (me && me.bot) {
-        // Bot 玩家：隐藏技能栏
         var skillBarEl = document.getElementById('skillBar') || document.querySelector('.skill-bar');
         if (skillBarEl) skillBarEl.style.display = 'none';
     } else {
@@ -276,7 +253,6 @@ function renderPlayerCard() {
 
 /** 更新技能按钮 */
 function renderSkills(me) {
-    // 占位技能列表：后续根据武将信息动态生成
     var skills = me
         ? ['霸体', '神威', '极意', '无双', '天崩', '地裂', '涅槃', '鬼谋']
         : [];
@@ -284,7 +260,6 @@ function renderSkills(me) {
     var count = skills.length;
     var children = skillBar.children;
 
-    // 保证按钮数量匹配
     while (children.length < count) {
         var btn = document.createElement('button');
         btn.className = 'skill-btn';
@@ -299,9 +274,8 @@ function renderSkills(me) {
     }
 }
 
-/** 渲染对手（其他玩家）分布在上、左、右三区 */
+/** 渲染对手分布 */
 function calcOpponentDistribution(totalPlayers) {
-    // 返回值: { top, left, right } 对应各区域对手数量
     switch (totalPlayers) {
         case 2: return { top: 1, left: 0, right: 0 };
         case 3: return { top: 0, left: 1, right: 1 };
@@ -322,12 +296,10 @@ function renderOpponents(players) {
     oppLeft.innerHTML = '';
     oppRight.innerHTML = '';
 
-    // 非人类玩家（去掉自身）
     var others = players.filter(function (p) { return p.playerId !== STATE.playerId; });
     var dist = calcOpponentDistribution(players.length);
     var idx = 0;
 
-    // 填充顺序：上 → 左 → 右
     function createCard(player) {
         var card = document.createElement('div');
         card.className = 'opp-card';
@@ -337,7 +309,6 @@ function renderOpponents(players) {
         infoDiv.className = 'oppc-info';
         var nameDiv = document.createElement('div');
         nameDiv.className = 'oppc-char-name';
-        // 左侧竖排显示武将名称
         nameDiv.textContent = player.charName || player.playerName;
         infoDiv.appendChild(nameDiv);
 
@@ -345,13 +316,19 @@ function renderOpponents(players) {
         hpArea.className = 'oppc-hp-area';
         var maxHp = player.maxHp || 4;
         var curHp = player.currentHp != null ? player.currentHp : maxHp;
-        for (var h = 0; h < maxHp; h++) {
+        for (var i = 0; i < maxHp; i++) {
             var dot = document.createElement('div');
-            dot.className = 'oppc-hp-dot' + (h < curHp ? ' alive' : ' lost');
+            dot.className = 'oppc-hp-dot ' + (i < curHp ? 'alive' : 'lost');
             hpArea.appendChild(dot);
         }
         infoDiv.appendChild(hpArea);
-        card.appendChild(infoDiv);
+
+        if (player.kingdom != null) {
+            var kingdomColor = KINGDOM_COLORS[player.kingdom] || DEFAULT_KINGDOM_COLOR;
+            infoDiv.style.backgroundColor = kingdomColor;
+        } else {
+            infoDiv.style.backgroundColor = DEFAULT_KINGDOM_COLOR;
+        }
 
         var genCol = document.createElement('div');
         genCol.className = 'oppc-general-col';
@@ -362,113 +339,87 @@ function renderOpponents(players) {
         img.className = 'oppc-general-img';
         img.src = '/images/lol_EZ.png';
         img.alt = '武将';
-        genDiv.appendChild(img);
 
-        var nameOverlay = document.createElement('span');
+        var nameOverlay = document.createElement('div');
         nameOverlay.className = 'oppc-name-overlay';
-        // 真人→显示玩家名；机器人→显示武将名
-        nameOverlay.textContent = player.bot
-            ? (player.charName || player.playerName)
-            : player.playerName;
-        genDiv.appendChild(nameOverlay);
+        nameOverlay.textContent = player.playerName + (player.bot ? ' (AI)' : '');
 
-        var roleOverlay = document.createElement('span');
+        var roleOverlay = document.createElement('div');
         roleOverlay.className = 'oppc-role-overlay';
-        roleOverlay.textContent = ROLE_SHORT_NAMES[player.role] || '?';
-        genDiv.appendChild(roleOverlay);
+        roleOverlay.textContent = ROLE_SHORT_NAMES[player.role] || player.role || '?';
 
-        var seatNum = document.createElement('span');
+        var seatNum = document.createElement('div');
         seatNum.className = 'oppc-seat-num';
-        seatNum.textContent = CN_NUMS[player.gameSeat + 1] || (player.gameSeat + 1);
+        var seat = player.gameSeat !== undefined ? player.gameSeat + 1 : 0;
+        seatNum.textContent = CN_NUMS[seat] || seat;
+
+        genDiv.appendChild(img);
+        genDiv.appendChild(nameOverlay);
+        genDiv.appendChild(roleOverlay);
         genDiv.appendChild(seatNum);
-
-        // 牌堆按钮（上/旁）
-        var deckBtns = document.createElement('div');
-        deckBtns.className = 'oppc-deck-btns';
-        var aboveBtn = document.createElement('button');
-        aboveBtn.className = 'oppc-deck-btn';
-        aboveBtn.textContent = '上';
-        deckBtns.appendChild(aboveBtn);
-        var sideBtn = document.createElement('button');
-        sideBtn.className = 'oppc-deck-btn';
-        sideBtn.textContent = '旁';
-        deckBtns.appendChild(sideBtn);
-        genDiv.appendChild(deckBtns);
-
         genCol.appendChild(genDiv);
+
+        card.appendChild(infoDiv);
         card.appendChild(genCol);
         return card;
     }
 
-    // top row
-    for (var t = 0; t < dist.top && idx < others.length; t++, idx++) {
+    var topCount = dist.top;
+    for (var t = 0; t < topCount && idx < others.length; t++, idx++) {
         oppTop.appendChild(createCard(others[idx]));
     }
-    // left column
     for (var l = 0; l < dist.left && idx < others.length; l++, idx++) {
         oppLeft.appendChild(createCard(others[idx]));
     }
-    // right column
     for (var r = 0; r < dist.right && idx < others.length; r++, idx++) {
         oppRight.appendChild(createCard(others[idx]));
     }
 }
 
-/** 渲染装备模块（左下角五行） */
+// 装备渲染
 function renderEquipment() {
-    var equip = STATE.game.myEquipment || {};
-
-    // 保证五行 DOM 存在
-    var children = eqRows.children;
-    var configLen = EQUIP_CONFIG.length;
-
-    while (children.length < configLen) {
+    if (!eqRows) return;
+    var eq = STATE.game.myEquipment || {};
+    eqRows.innerHTML = '';
+    EQUIP_CONFIG.forEach(function (cfg) {
         var row = document.createElement('div');
         row.className = 'eq-row';
-
         var label = document.createElement('span');
         label.className = 'eq-label';
+        label.textContent = cfg.label + ':';
         row.appendChild(label);
-
-        var name = document.createElement('span');
-        name.className = 'eq-card-name';
-        row.appendChild(name);
-
-        eqRows.appendChild(row);
-    }
-    while (children.length > configLen) {
-        eqRows.removeChild(children[children.length - 1]);
-    }
-
-    // 填充数据
-    for (var i = 0; i < configLen; i++) {
-        var cfg = EQUIP_CONFIG[i];
-        var row = children[i];
-        row.className = 'eq-row';
-
-        var labelEl = row.children[0];
-        var nameEl = row.children[1];
-
-        labelEl.textContent = cfg.label;
-
-        var card = equip[cfg.key];
-        if (card) {
-            nameEl.textContent = card.name || card.cardName || (card.id || '???');
-            nameEl.className = 'eq-card-name';
+        var nameSpan = document.createElement('span');
+        nameSpan.className = 'eq-card-name';
+        var card = eq[cfg.key];
+        if (card && card.name) {
+            nameSpan.textContent = card.name;
+            nameSpan.classList.remove('empty');
         } else {
-            nameEl.textContent = cfg.placeholder;
-            nameEl.className = 'eq-card-name empty';
+            nameSpan.textContent = cfg.placeholder || '无';
+            nameSpan.classList.add('empty');
         }
-    }
+        row.appendChild(nameSpan);
+        eqRows.appendChild(row);
+    });
 }
 
-// ============================================================
-//  自适应字号
-// ============================================================
+// 武将卡自适应字号
 function fitPlayerCard() {
-    // 角色名：根据剩余空间缩放
-    fitVertText(pcCharName, 18, 7);
-    // HP 文字（超过 5 点时）
+    var charEl = document.querySelector('.pc-char-name');
+    if (!charEl || !charEl.textContent) return;
+    var parent = charEl.closest('.pc-info');
+    if (!parent) return;
+    var parentH = parent.clientHeight || 135;
+    var hpH = pcHpArea.clientHeight || 0;
+    var pad = 16;
+    var available = parentH - hpH - pad;
+    if (available < 15) available = 15;
+    var len = charEl.textContent.length;
+    if (len === 0) return;
+    var size = Math.floor(available / (len * 1.2));
+    size = Math.max(8, Math.min(24, size));
+    charEl.style.fontSize = size + 'px';
+
     var hpTxt = document.getElementById('pcHpText');
     if (hpTxt) fitVertText(hpTxt, 24, 8);
 }
@@ -489,12 +440,106 @@ function fitVertText(el, maxSize, minSize) {
 }
 
 // ============================================================
+//  侧边栏 - 在线玩家渲染
+// ============================================================
+function renderOnlinePlayers(players, count) {
+    var total = count || (players ? players.length : 0);
+    // 同时更新主页和房间界面的侧边栏
+    onlineCount.textContent = total;
+    roomOnlineCount.textContent = total;
+
+    var listEl = playerList;
+    var roomListEl = roomPlayerList;
+    if (!players) return;
+
+    // 找到自己在列表中的状态并更新
+    var me = null;
+    for (var i = 0; i < players.length; i++) {
+        if (players[i].playerId === STATE.playerId) {
+            me = players[i];
+            break;
+        }
+    }
+    if (me) {
+        var myStatusClass = 'status-' + (me.status || 'online').toLowerCase();
+        var myStatusText = statusLabel(me.status);
+        selfStatus.className = 'sidebar-status ' + myStatusClass;
+        selfStatus.textContent = myStatusText;
+        roomSelfStatus.className = 'sidebar-status ' + myStatusClass;
+        roomSelfStatus.textContent = myStatusText;
+    }
+
+    // 过滤掉自己（已经在顶部显示）
+    var others = players.filter(function (p) { return p.playerId !== STATE.playerId; });
+
+    var html = '';
+    for (var i = 0; i < others.length; i++) {
+        var p = others[i];
+        var initial = p.playerName ? p.playerName.charAt(0).toUpperCase() : '?';
+        var statusClass = 'status-' + (p.status || 'online').toLowerCase();
+        var statusText = statusLabel(p.status);
+        html += '<div class="sidebar-player-item">'
+              +   '<div class="sidebar-avatar">' + escHtml(initial) + '</div>'
+              +   '<div class="sidebar-info">'
+              +     '<span class="sidebar-name">' + escHtml(p.playerName) + '</span>'
+              +     '<span class="sidebar-status ' + statusClass + '">' + statusText + '</span>'
+              +   '</div>'
+              + '</div>';
+    }
+
+    if (listEl) listEl.innerHTML = html;
+    if (roomListEl) roomListEl.innerHTML = html;
+}
+
+function statusLabel(status) {
+    switch ((status || '').toLowerCase()) {
+        case 'online':  return '在线';
+        case 'in_room': return '房间中';
+        case 'in_game': return '对局中';
+        default:        return '未知';
+    }
+}
+
+// ============================================================
+//  房间列表渲染
+// ============================================================
+function renderRoomList(rooms) {
+    if (!roomList) return;
+    if (!rooms || rooms.length === 0) {
+        roomList.innerHTML = '<div class="room-empty">暂无房间</div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < rooms.length; i++) {
+        var r = rooms[i];
+        var ownerName = '';
+        if (r.players) {
+            for (var j = 0; j < r.players.length; j++) {
+                if (r.players[j].playerId === r.ownerPlayerId) {
+                    ownerName = r.players[j].playerName;
+                    break;
+                }
+            }
+        }
+        if (!ownerName) ownerName = '未知';
+
+        var statusText = (r.status === 'PLAYING') ? '对局中' : '等待中';
+        var statusClass = (r.status === 'PLAYING') ? 'room-status-playing' : 'room-status-waiting';
+
+        html += '<div class="room-item" data-room-id="' + r.roomId + '">'
+              +   '<span class="room-name">' + escHtml(r.roomName) + '</span>'
+              +   '<span class="room-meta">' + escHtml(ownerName) + ' · ' + (r.playerCount || 0) + '/' + (r.maxPlayers || 0) + '</span>'
+              +   '<span class="room-status ' + statusClass + '">' + statusText + '</span>'
+              + '</div>';
+    }
+    roomList.innerHTML = html;
+}
+
+// ============================================================
 //  辅助函数
 // ============================================================
 const containerEl = document.querySelector('.container');
-const bodyEl = document.body;
 
-/** 检测视口尺寸并设置 CSS 自定义属性 */
 function adaptScreenSize() {
     var w = window.innerWidth;
     var h = window.innerHeight;
@@ -505,13 +550,11 @@ function adaptScreenSize() {
 window.addEventListener('resize', adaptScreenSize);
 
 function showScreen(screen) {
-    [loginScreen, modeSelectScreen, lobbyScreen, roomScreen, gameScreen].forEach(s => s.classList.add('hidden'));
-    // 切换主屏时自动关闭单机设置弹窗
-    singleRoomOverlay.classList.add('hidden');
+    [loginScreen, homeScreen, gameScreen, roomScreen].forEach(function (s) { s.classList.add('hidden'); });
     screen.classList.remove('hidden');
     containerEl.classList.toggle('game-active', screen === gameScreen);
-    containerEl.classList.toggle('lobby-active', screen === lobbyScreen || screen === modeSelectScreen);
-    bodyEl.classList.toggle('game-body-lobby', screen !== gameScreen);
+    containerEl.classList.toggle('home-active', screen === homeScreen);
+    containerEl.classList.toggle('room-active', screen === roomScreen);
     if (screen === gameScreen) adaptScreenSize();
 }
 
@@ -520,9 +563,9 @@ function status(el, msg, type) {
     el.innerHTML = '<span class="' + type + '">' + msg + '</span>';
 }
 
-function showError(msg)   { status(lobbyStatus, msg, 'error'); }
-function showInfo(msg)    { status(lobbyStatus, msg, 'info'); }
-function showSuccess(msg) { status(lobbyStatus, msg, 'success'); }
+function showError(msg)   { status(loginStatus, msg, 'error'); }
+function showInfo(msg)    { status(loginStatus, msg, 'info'); }
+function showSuccess(msg) { status(loginStatus, msg, 'success'); }
 
 function sendMsg(data) {
     if (STATE.ws && STATE.ws.readyState === WebSocket.OPEN) {
@@ -570,12 +613,6 @@ function connectWebSocket(name) {
     ws.onclose = function () {
         showError('与服务器断开连接');
         STATE.ws = null;
-        multiModeBtn.disabled = false;
-        // 如果是主动断开（如返回模式选择），不跳转到登录页
-        if (STATE._intentionalDisconnect) {
-            STATE._intentionalDisconnect = false;
-            return;
-        }
         setTimeout(function () {
             showScreen(loginScreen);
             status(loginStatus, '连接已断开，刷新页面重试', 'error');
@@ -584,7 +621,6 @@ function connectWebSocket(name) {
 
     ws.onerror = function () {
         showError('连接错误，请确认服务端已启动');
-        multiModeBtn.disabled = false;
     };
 
     STATE.ws = ws;
@@ -598,62 +634,55 @@ function handleMessage(msg) {
         case 'CONNECTED':
             STATE.playerId = msg.playerId;
             STATE.playerName = msg.playerName;
-            playerBadge.textContent = msg.playerName;
-            // 如果有待发送的单机配置，直接启动单机游戏
-            if (STATE._pendingSinglePlayerConfig) {
-                var cfg = STATE._pendingSinglePlayerConfig;
-                STATE._pendingSinglePlayerConfig = null;
-                sendMsg({
-                    type: 'START_SINGLE_PLAYER',
-                    totalPlayers: cfg.totalPlayers,
-                    identityConfig: cfg.config,
-                });
-            } else {
-                showSuccess('以"' + msg.playerName + '"身份进入大厅');
-                showScreen(lobbyScreen);
-            }
+            homePlayerName.textContent = msg.playerName;
+            // 侧边栏 - 自己（主页和房间界面共用）
+            selfAvatar.textContent = msg.playerName.charAt(0).toUpperCase();
+            selfName.textContent = msg.playerName;
+            roomSelfAvatar.textContent = msg.playerName.charAt(0).toUpperCase();
+            roomSelfName.textContent = msg.playerName;
+            showScreen(homeScreen);
+            showInfo('已连接服务器');
+            break;
+
+        case 'ONLINE_PLAYERS':
+            renderOnlinePlayers(msg.players, msg.count);
             break;
 
         case 'ROOM_LIST':
             renderRoomList(msg.rooms || []);
             break;
 
-        case 'ONLINE_PLAYERS':
-            renderOnlinePlayers(msg.players || [], msg.count || 0);
-            break;
-
         case 'ROOM_CREATED':
+            var room = msg.room || {};
+            roomTitle.textContent = room.roomName || (STATE.playerName + '的房间');
+            roomSelfAvatar.textContent = STATE.playerName.charAt(0).toUpperCase();
+            roomSelfName.textContent = STATE.playerName;
+            // 立即将状态设为"房间中"，不等 ONLINE_PLAYERS 广播
+            selfStatus.className = 'sidebar-status status-in_room';
+            selfStatus.textContent = '房间中';
+            roomSelfStatus.className = 'sidebar-status status-in_room';
+            roomSelfStatus.textContent = '房间中';
+            showScreen(roomScreen);
+            break;
+
         case 'ROOM_JOINED':
-            STATE.currentRoom = msg.room;
-            enterRoomView(msg.room);
+            var joinedRoom = msg.room || {};
+            roomTitle.textContent = joinedRoom.roomName || '房间';
+            roomSelfAvatar.textContent = STATE.playerName.charAt(0).toUpperCase();
+            roomSelfName.textContent = STATE.playerName;
+            // 立即将状态设为"房间中"
+            selfStatus.className = 'sidebar-status status-in_room';
+            selfStatus.textContent = '房间中';
+            roomSelfStatus.className = 'sidebar-status status-in_room';
+            roomSelfStatus.textContent = '房间中';
+            showScreen(roomScreen);
             break;
 
-        case 'ROOM_UPDATE':
-            STATE.currentRoom = msg.room;
-            updateRoomView(msg.room);
+        case 'OWNER_CHANGED':
+            showInfo('新房主：' + (msg.newOwnerName || '未知'));
             break;
 
-        case 'ROOM_LEFT':
-            STATE.currentRoom = null;
-            STATE.isHost = false;
-            STATE.isReady = false;
-            showScreen(lobbyScreen);
-            showInfo('已离开房间');
-            break;
-
-        case 'PLAYER_JOINED':
-            showInfo(msg.playerName + ' 加入了房间');
-            break;
-
-        case 'PLAYER_LEFT':
-            if (msg.bot) {
-                showInfo(msg.playerName + ' 已离线，机器人接管');
-            } else {
-                showInfo(msg.playerName + ' 离开了房间');
-            }
-            break;
-
-        // ==================== 游戏事件（UI 待重建） ====================
+        // ==================== 游戏事件 ====================
         case 'GAME_START':
             var players = msg.players || [];
             STATE.game.started = true;
@@ -668,7 +697,6 @@ function handleMessage(msg) {
 
             showScreen(gameScreen);
 
-            // 判断当前玩家是否为 Bot — Bot 玩家不需要加载交互界面
             var me = players.find(function (p) { return p.playerId === STATE.playerId; });
             var isBot = me && me.bot === true;
 
@@ -680,7 +708,6 @@ function handleMessage(msg) {
                 document.getElementById('handCards') && (document.getElementById('handCards').style.display = '');
                 document.getElementById('skillBar') && (document.getElementById('skillBar').style.display = '');
             } else {
-                // Bot 玩家：隐藏手牌区、技能栏、装备栏等交互UI
                 if (document.getElementById('handCards')) {
                     document.getElementById('handCards').style.display = 'none';
                 }
@@ -700,11 +727,9 @@ function handleMessage(msg) {
                 STATE.game.players[myIdx].role = msg.role;
             }
             renderPlayerCard();
-            var roleName = ROLE_NAMES[msg.role] || msg.role;
             var roleShort = ROLE_SHORT_NAMES[msg.role] || msg.role;
             var totalPlayers = STATE.game.players.length;
 
-            // 首次收到身份信息时初始化日志
             if (logContent && !STATE.game._logInited) {
                 STATE.game._logInited = true;
                 logContent.innerHTML = '';
@@ -714,14 +739,13 @@ function handleMessage(msg) {
                 addLog('等待你的第一个回合...', 'system');
             }
 
-            console.log('你的身份：' + roleName + '，手牌数：' + msg.handCardCount);
+            console.log('你的身份：' + (ROLE_NAMES[msg.role] || msg.role) + '，手牌数：' + msg.handCardCount);
             break;
 
         case 'ROUND_CHANGE':
             STATE.game.round = msg.round;
             updateTopBar();
             renderPlayerCard();
-            console.log('进入第 ' + msg.round + ' 轮');
             break;
 
         case 'TURN_START':
@@ -731,37 +755,28 @@ function handleMessage(msg) {
             STATE.game.round = msg.round || STATE.game.round;
             updateTopBar();
             renderPlayerCard();
-            var name = msg.playerName || '未知';
-            var phaseName = PHASE_NAMES[msg.phase] || msg.phase;
-            console.log(name + ' 的回合开始（阶段：' + phaseName + '）');
             break;
 
         case 'PHASE_CHANGE':
             STATE.game.phase = msg.toPhase;
             updateTopBar();
             renderPlayerCard();
-            var fromName = PHASE_NAMES[msg.fromPhase] || msg.fromPhase;
-            var toName = PHASE_NAMES[msg.toPhase] || msg.toPhase;
-            console.log(fromName + ' -> ' + toName);
             break;
 
-        case 'FIELD_CARDS': {
+        case 'FIELD_CARDS':
             STATE.game.fieldCards = msg.cards || [];
             break;
-        }
 
-        case 'MY_HAND': {
+        case 'MY_HAND':
             STATE.game.myHandCards = msg.cards || [];
             break;
-        }
 
-        case 'MY_EQUIPMENT': {
+        case 'MY_EQUIPMENT':
             STATE.game.myEquipment = msg.equipment || STATE.game.myEquipment;
             renderEquipment();
             break;
-        }
 
-        case 'PLAYER_UPDATE': {
+        case 'PLAYER_UPDATE':
             var updatedPlayers = msg.players || [];
             updatedPlayers.forEach(function (up) {
                 var target = STATE.game.players.find(function (p) { return p.playerId === up.playerId; });
@@ -774,36 +789,21 @@ function handleMessage(msg) {
             updateTopBar();
             renderPlayerCard();
             break;
-        }
 
         case 'GAME_OVER':
             if (msg.winnerRole === 'NONE') {
                 STATE.game.started = false;
                 STATE.game.players = [];
                 STATE.game.myPrivateInfo = {};
-                showScreen(lobbyScreen);
-                showInfo('对局已销毁（所有玩家离开）');
-                sendMsg({ type: 'LIST_ROOMS' });
+                showScreen(homeScreen);
+                showInfo('对局已销毁');
                 break;
             }
             var winnerDesc = msg.winnerDesc || msg.winnerRole || '未知';
             STATE.game.started = false;
             updateTopBar();
             renderPlayerCard();
-            console.log('游戏结束！胜者：' + winnerDesc);
             showGameOver(winnerDesc);
-            break;
-
-        case 'ROOM_CLOSED':
-            STATE.currentRoom = null;
-            STATE.isHost = false;
-            STATE.isReady = false;
-            STATE.game.started = false;
-            STATE.game.players = [];
-            STATE.game.myPrivateInfo = {};
-            showScreen(lobbyScreen);
-            showInfo(msg.message || '房间已关闭');
-            sendMsg({ type: 'LIST_ROOMS' });
             break;
 
         case 'HEARTBEAT_ACK':
@@ -816,136 +816,6 @@ function handleMessage(msg) {
         default:
             console.log('未处理的消息类型:', msg.type, msg);
     }
-}
-
-// ============================================================
-//  房间列表渲染
-// ============================================================
-function renderRoomList(rooms) {
-    if (!rooms || rooms.length === 0) {
-        roomList.innerHTML = '<div class="empty-hint">暂无房间，创建第一个吧</div>';
-        return;
-    }
-    var html = '';
-    for (var i = 0; i < rooms.length; i++) {
-        var r = rooms[i];
-        var canJoin = r.playerCount < r.maxPlayers && r.status === 'WAITING';
-        var statusText = r.status === 'WAITING' ? '等待中' : '进行中';
-        var btnText = canJoin ? '加入' : (r.status !== 'WAITING' ? '进行中' : '已满');
-        html += '<div class="room-item">' +
-            '<div class="info">' +
-            '<div class="name">' + escHtml(r.roomName) + '</div>' +
-            '<div class="meta">' + r.playerCount + '/' + r.maxPlayers + ' 人 · ' + statusText + '</div>' +
-            '</div>' +
-            '<button class="btn btn-success btn-sm join-room-btn" data-room-id="' + r.roomId + '"' +
-            (canJoin ? '' : ' disabled') + '>' + btnText + '</button>' +
-            '</div>';
-    }
-    roomList.innerHTML = html;
-    document.querySelectorAll('.join-room-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            sendMsg({ type: 'JOIN_ROOM', roomId: btn.dataset.roomId });
-        });
-    });
-}
-
-// ============================================================
-//  在线玩家列表渲染
-// ============================================================
-var STATUS_MAP = {
-    ONLINE:  { text: '在线',   dotClass: 'dot-online',  lineClass: 'status-online' },
-    IN_ROOM: { text: '房间中', dotClass: 'dot-room',    lineClass: 'status-room'   },
-    IN_GAME: { text: '游戏中', dotClass: 'dot-game',    lineClass: 'status-game'   },
-};
-
-function renderOnlinePlayers(players, count) {
-    onlineCount.textContent = count;
-    if (!players || players.length === 0) {
-        onlinePlayerList.innerHTML = '<div class="empty-hint">暂无在线玩家</div>';
-        return;
-    }
-    var html = '';
-    for (var i = 0; i < players.length; i++) {
-        var p = players[i];
-        var isMe = p.playerId === STATE.playerId;
-        var initial = (p.playerName || '?').charAt(0);
-        var st = STATUS_MAP[p.status] || STATUS_MAP.ONLINE;
-        var meBadge = isMe ? '<span class="me-badge">我</span>' : '';
-        html += '<div class="online-player-item">' +
-            '<div class="avatar">' + initial + '</div>' +
-            '<div class="info">' +
-            '<div class="name-line">' +
-            '<span class="name-text">' + escHtml(p.playerName) + '</span>' +
-            meBadge +
-            '</div>' +
-            '<div class="status-line ' + st.lineClass + '">' + st.text + '</div>' +
-            '</div>' +
-            '<div class="status-dot ' + st.dotClass + '"></div>' +
-            '</div>';
-    }
-    onlinePlayerList.innerHTML = html;
-}
-
-// ============================================================
-//  房间界面
-// ============================================================
-function enterRoomView(room) {
-    STATE.currentRoom = room;
-    STATE.isHost = room.ownerPlayerId === STATE.playerId;
-    var me = room.players.find(function (p) { return p.playerId === STATE.playerId; });
-    STATE.isReady = me ? me.isReady : false;
-    showScreen(roomScreen);
-    updateRoomView(room);
-}
-
-function updateRoomView(room) {
-    STATE.currentRoom = room;
-    STATE.isHost = room.ownerPlayerId === STATE.playerId;
-    var me = room.players.find(function (p) { return p.playerId === STATE.playerId; });
-    STATE.isReady = me ? me.isReady : false;
-
-    roomTitle.textContent = escHtml(room.roomName);
-    roomIdDisplay.textContent = room.roomId;
-
-    var playerHtml = '';
-    for (var i = 0; i < room.players.length; i++) {
-        var p = room.players[i];
-        var isOwner = p.playerId === room.ownerPlayerId;
-        var readyText = p.isReady ? '已准备' : '未准备';
-        var readyClass = p.isReady ? 'ready-tag' : 'not-ready-tag';
-        var isMe = p.playerId === STATE.playerId;
-        var meSpan = isMe ? '<span style="color:#4a8af4;font-size:11px;">[我]</span>' : '';
-        var ownerTag = isOwner ? '<span class="host-tag">房主</span>' : '';
-        playerHtml += '<div class="player-chip">' +
-            '<span>' + escHtml(p.playerName) + '</span>' +
-            ownerTag + meSpan +
-            '<span class="' + readyClass + '">' + readyText + '</span>' +
-            '</div>';
-    }
-    playerList.innerHTML = playerHtml;
-
-    readyBtn.textContent = STATE.isReady ? '取消准备' : '准备';
-    readyBtn.className = 'btn btn-block ' + (STATE.isReady ? 'btn-warning' : 'btn-success');
-
-    if (STATE.isHost) {
-        startGameBtn.classList.remove('hidden');
-        var allReady = room.players.every(function (x) { return x.isReady; });
-        startGameBtn.disabled = !allReady || room.players.length < 2;
-        startGameBtn.textContent = '开始游戏 (' + room.players.length + '人)';
-    } else {
-        startGameBtn.classList.add('hidden');
-    }
-
-    if (room.players.length < 2) {
-        roomHint.textContent = '至少需要 2 名玩家才能开始游戏';
-    } else if (STATE.isHost && room.players.some(function (p) { return !p.isReady; })) {
-        roomHint.textContent = '等待所有玩家准备...';
-    } else if (STATE.isHost) {
-        roomHint.textContent = '全员已准备，可以开始游戏！';
-    } else {
-        roomHint.textContent = '等待房主开始游戏';
-    }
-    status(roomStatus, '房间内有 ' + room.players.length + ' 名玩家', 'info');
 }
 
 // ============================================================
@@ -964,202 +834,29 @@ function escHtml(str) {
 // 登录
 loginBtn.addEventListener('click', function () {
     var name = nameInput.value.trim();
-    if (!name) { status(loginStatus, '请输入昵称', 'error'); return; }
+    if (!name) { showError('请输入昵称'); return; }
     localStorage.setItem(STORAGE_KEY, name);
     STATE.playerName = name;
-    modePlayerName.textContent = name;
-    showScreen(modeSelectScreen);
-});
-nameInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') loginBtn.click(); });
-
-// 返回登录（模式选择页）
-backToLoginBtn.addEventListener('click', function () {
-    showScreen(loginScreen);
-    nameInput.focus();
-});
-
-// ============================================================
-//  单机模式 · 身份配置逻辑
-// ============================================================
-
-/** 角色中文名映射（仅用于前端展示） */
-const ROLE_SHORT_NAMES = {
-    LORD:     '主公',
-    MINION:   '忠臣',
-    REBEL:    '反贼',
-    INTRUDER: '内奸',
-};
-
-/** 身份配置名称映射 */
-const CONFIG_NAMES = {
-    standard:        '标准身份',
-    double_intruder: '双内模式',
-};
-
-/** 更新摘要显示（纯展示层，身份分配由后端计算） */
-function updateSummary() {
-    var countEl = playerCountGroup.querySelector('.active');
-    var configEl = identityConfigGroup.querySelector('.active');
-    var totalPlayers = countEl ? parseInt(countEl.dataset.count, 10) : 6;
-    var config = configEl ? configEl.dataset.config : 'standard';
-    summaryLine.textContent = '当前配置：' + totalPlayers + '人局 · ' + (CONFIG_NAMES[config] || config);
-    summaryDetail.textContent = '身份将由服务器分配';
-}
-
-// 单机模式按钮 → 弹出房间设置
-singleModeBtn.addEventListener('click', function () {
-    singleRoomOverlay.classList.remove('hidden');
-});
-
-// 单机模式 · 取消
-singleRoomCancelBtn.addEventListener('click', function () {
-    singleRoomOverlay.classList.add('hidden');
-});
-
-// 点击遮罩层也关闭
-singleRoomOverlay.addEventListener('click', function (e) {
-    if (e.target === singleRoomOverlay) {
-        singleRoomOverlay.classList.add('hidden');
-    }
-});
-
-// 人数选择切换
-playerCountGroup.addEventListener('click', function (e) {
-    var btn = e.target.closest('.count-btn');
-    if (!btn) return;
-    playerCountGroup.querySelectorAll('.count-btn').forEach(function (b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-
-    var totalPlayers = parseInt(btn.dataset.count, 10);
-
-    // 双内模式仅对 8 人局可见
-    if (totalPlayers === 8) {
-        doubleIntruderOption.classList.remove('hidden');
-    } else {
-        doubleIntruderOption.classList.add('hidden');
-        // 如果当前选中了双内模式，切回标准模式
-        if (doubleIntruderOption.classList.contains('active')) {
-            doubleIntruderOption.classList.remove('active');
-            identityConfigGroup.querySelector('[data-config="standard"]').classList.add('active');
-        }
-    }
-
-    updateSummary();
-});
-
-// 身份配置切换
-identityConfigGroup.addEventListener('click', function (e) {
-    var option = e.target.closest('.identity-option');
-    if (!option) return;
-    identityConfigGroup.querySelectorAll('.identity-option').forEach(function (o) { o.classList.remove('active'); });
-    option.classList.add('active');
-    updateSummary();
-});
-
-// 单机模式 · 确认开始 → 通过 WebSocket 连接后端启动
-singleRoomConfirmBtn.addEventListener('click', function () {
-    var countEl = playerCountGroup.querySelector('.active');
-    var configEl = identityConfigGroup.querySelector('.active');
-    if (!countEl || !configEl) return;
-
-    var totalPlayers = parseInt(countEl.dataset.count, 10);
-    var config = configEl.dataset.config;
-
-    singleRoomOverlay.classList.add('hidden');
-
-    // 保存配置，连接成功后自动发送
-    STATE._pendingSinglePlayerConfig = { totalPlayers: totalPlayers, config: config };
-
-    if (!STATE.ws || STATE.ws.readyState !== WebSocket.OPEN) {
-        connectWebSocket(STATE.playerName);
-    } else {
-        // 已连接，直接发送
-        var cfg = STATE._pendingSinglePlayerConfig;
-        STATE._pendingSinglePlayerConfig = null;
-        sendMsg({
-            type: 'START_SINGLE_PLAYER',
-            totalPlayers: cfg.totalPlayers,
-            identityConfig: cfg.config,
-        });
-    }
-});
-
-/**
- * 启动单机游戏（本地 AI 对局）
- * 目前：已废弃，改用 WebSocket + 后端 GameServiceImpl.startSinglePlayer()
- */
-
-// 联机模式 → 连接 WebSocket 进入大厅
-multiModeBtn.addEventListener('click', function () {
-    var name = STATE.playerName;
-    if (!name) { showError('昵称丢失，请重新登录'); return; }
-    status(loginStatus, '正在连接服务器...', 'info');
-    multiModeBtn.disabled = true;
+    showInfo('正在连接服务器...');
+    loginBtn.disabled = true;
     connectWebSocket(name);
 });
-
-// 创建房间
-createRoomBtn.addEventListener('click', function () {
-    var name = roomNameInput.value.trim() || STATE.playerName + '的房间';
-    sendMsg({ type: 'CREATE_ROOM', roomName: name, maxPlayers: 8 });
-    roomNameInput.value = '';
-});
-roomNameInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') createRoomBtn.click(); });
-
-// 按 ID 加入
-joinByIdBtn.addEventListener('click', function () {
-    var roomId = roomIdInput.value.trim();
-    if (!roomId) { showError('请输入房间ID'); return; }
-    sendMsg({ type: 'JOIN_ROOM', roomId: roomId });
-    roomIdInput.value = '';
-});
-roomIdInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') joinByIdBtn.click(); });
-
-// 准备
-readyBtn.addEventListener('click', function () {
-    sendMsg({ type: 'PLAYER_READY', ready: !STATE.isReady });
+nameInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') loginBtn.click();
 });
 
-// 开始游戏
-startGameBtn.addEventListener('click', function () {
-    sendMsg({ type: 'START_GAME' });
-});
-
-// 联机大厅 · 返回模式选择页
-const lobbyBackBtn = $('lobbyBackBtn');
-lobbyBackBtn.addEventListener('click', function () {
-    // 标记为主动断开，防止 onclose 跳转到登录页
-    STATE._intentionalDisconnect = true;
+// 对局界面 → 返回主页
+backToHomeBtn.addEventListener('click', function () {
+    if (!STATE.game.started) return;
+    STATE.game.started = false;
+    STATE.game.players = [];
+    STATE.game.myPrivateInfo = {};
+    STATE.game._logInited = false;
     if (STATE.ws) {
         STATE.ws.close();
         STATE.ws = null;
     }
-    STATE.currentRoom = null;
-    showScreen(modeSelectScreen);
-});
-
-// 离开房间
-leaveRoomBtn.addEventListener('click', function () {
-    sendMsg({ type: 'LEAVE_ROOM' });
-});
-
-// 返回（对局界面）— 根据模式不同回到不同页面
-backToLobbyBtn.addEventListener('click', function () {
-    if (!STATE.game.started) return;
-
-    // 单机模式 → 回到模式选择页
-    var isSinglePlayer = STATE.currentRoom && STATE.currentRoom.roomId && STATE.currentRoom.roomId.indexOf('single_') === 0;
-    if (isSinglePlayer) {
-        STATE.game.started = false;
-        STATE.game.players = [];
-        STATE.game.myPrivateInfo = {};
-        STATE.currentRoom = null;
-        showScreen(modeSelectScreen);
-        return;
-    }
-
-    // 联机模式 → 回到大厅（通过 WebSocket 离开房间，服务端会发 ROOM_LEFT）
-    sendMsg({ type: 'LEAVE_ROOM' });
+    showScreen(homeScreen);
 });
 
 // 游戏结束弹窗确认
@@ -1168,10 +865,89 @@ gameOverOkBtn.addEventListener('click', function () {
     STATE.game.started = false;
     STATE.game.players = [];
     STATE.game.myPrivateInfo = {};
-    showScreen(lobbyScreen);
-    showInfo('游戏已结束，返回大厅');
-    sendMsg({ type: 'LIST_ROOMS' });
+    STATE.game._logInited = false;
+    if (STATE.ws) {
+        STATE.ws.close();
+        STATE.ws = null;
+    }
+    showScreen(homeScreen);
+    showInfo('游戏已结束，返回主页');
 });
+
+// 创建房间 → 输入名称 → 发送到服务器
+createRoomBtn.addEventListener('click', function () {
+    roomNameInput.value = STATE.playerName + '的房间';
+    roomNameOverlay.classList.remove('hidden');
+    roomNameInput.focus();
+    roomNameInput.select();
+});
+function doCreateRoom() {
+    var name = roomNameInput.value.trim();
+    if (!name) { name = STATE.playerName + '的房间'; }
+    roomNameOverlay.classList.add('hidden');
+    // 发送创建房间请求到服务器
+    sendMsg({ type: 'CREATE_ROOM', roomName: name });
+    showInfo('正在创建房间...');
+}
+roomNameConfirmBtn.addEventListener('click', doCreateRoom);
+roomNameCancelBtn.addEventListener('click', function () {
+    roomNameOverlay.classList.add('hidden');
+});
+roomNameInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { doCreateRoom(); }
+});
+roomLeaveBtn.addEventListener('click', function () {
+    // 通知服务器离开房间
+    sendMsg({ type: 'LEAVE_ROOM' });
+    // 立即将状态恢复为"在线"
+    selfStatus.className = 'sidebar-status status-online';
+    selfStatus.textContent = '在线';
+    roomSelfStatus.className = 'sidebar-status status-online';
+    roomSelfStatus.textContent = '在线';
+    showScreen(homeScreen);
+});
+
+// ============================================================
+//  加入房间
+// ============================================================
+/** 待加入的房间 ID */
+var pendingJoinRoomId = null;
+
+// 事件委托：点击房间列表中的房间项
+roomList.addEventListener('click', function (e) {
+    var item = e.target.closest('.room-item');
+    if (!item) return;
+    var roomId = item.dataset.roomId;
+    var nameEl = item.querySelector('.room-name');
+    var roomName = nameEl ? nameEl.textContent : '未知房间';
+
+    pendingJoinRoomId = roomId;
+    joinRoomHint.textContent = '是否加入房间「' + roomName + '」？';
+    joinRoomOverlay.classList.remove('hidden');
+});
+
+joinRoomConfirmBtn.addEventListener('click', function () {
+    if (pendingJoinRoomId) {
+        sendMsg({ type: 'JOIN_ROOM', roomId: pendingJoinRoomId });
+        showInfo('正在加入房间...');
+    }
+    joinRoomOverlay.classList.add('hidden');
+    pendingJoinRoomId = null;
+});
+
+joinRoomCancelBtn.addEventListener('click', function () {
+    joinRoomOverlay.classList.add('hidden');
+    pendingJoinRoomId = null;
+});
+
+// ============================================================
+//  游戏结束弹窗
+// ============================================================
+function showGameOver(winnerDesc) {
+    gameOverTitle.textContent = '游戏结束';
+    gameOverDesc.textContent = '胜者阵营：' + winnerDesc;
+    gameOverOverlay.classList.remove('hidden');
+}
 
 // ============================================================
 //  初始化
@@ -1181,12 +957,9 @@ gameOverOkBtn.addEventListener('click', function () {
     var savedName = localStorage.getItem(STORAGE_KEY);
     if (savedName) {
         nameInput.value = savedName;
-        modePlayerName.textContent = savedName;
         STATE.playerName = savedName;
-        showScreen(modeSelectScreen);
-    } else {
-        nameInput.focus();
     }
+    nameInput.focus();
 })();
 
 console.log('三国杀 · 桌面对局界面已加载');

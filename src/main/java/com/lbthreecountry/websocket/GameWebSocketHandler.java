@@ -204,7 +204,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 "room", room.toRoomInfoMap()
         ));
 
-        // 广播房间列表更新给所有人
+        // 广播房间列表和在线玩家状态更新
         broadcastRoomList();
         broadcastOnlinePlayers();
     }
@@ -279,6 +279,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
+        boolean wasOwner = room.getOwnerPlayerId().equals(playerId);
         roomService.leaveRoom(roomId, playerId);
 
         // 通知离开者
@@ -296,6 +297,21 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "type", "ROOM_UPDATE",
                     "room", updatedRoom.toRoomInfoMap()
             ), null);
+
+            // 如果离开者是房主，通知新房主变更
+            if (wasOwner) {
+                String newOwnerId = updatedRoom.getOwnerPlayerId();
+                String newOwnerName = updatedRoom.getPlayerInfoList().stream()
+                        .filter(p -> p.getPlayerId().equals(newOwnerId))
+                        .findFirst()
+                        .map(PlayerInfo::getName)
+                        .orElse("未知");
+                broadcastToRoom(updatedRoom, Map.of(
+                        "type", "OWNER_CHANGED",
+                        "newOwnerId", newOwnerId,
+                        "newOwnerName", newOwnerName
+                ), null);
+            }
         }
 
         // 广播大厅房间列表更新
