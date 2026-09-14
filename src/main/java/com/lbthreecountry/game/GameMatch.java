@@ -152,4 +152,18 @@ public class GameMatch {
     public int turnIndexInRound() {
         return currentPlayerIndex;
     }
+
+    /**
+     * 根据玩家 ID 查找玩家
+     *
+     * @param playerId 玩家 ID
+     * @return 对应的 GamePlayer，未找到返回 null
+     */
+    public GamePlayer findPlayer(String playerId) {
+        if (playerId == null || players == null) return null;
+        return players.stream()
+                .filter(p -> playerId.equals(p.getPlayerId()))
+                .findFirst()
+                .orElse(null);
+    }
 }

@@ -1,0 +1,289 @@
+{
+  "version": "1.0",
+  "mode": "standard",
+  "description": "三国杀标准版 108 张卡牌 — 仅保存固有属性（名称、描述、花色、点数），行为属性由 CardRegistry 注册",
+  "cards": [
+    {
+      "id": "sha",
+      "name": "杀",
+      "description": "出牌阶段对一名角色使用，目标需打出一张闪，否则受到1点伤害",
+      "copies": [
+        { "suit": "SPADES",   "point": 7 },
+        { "suit": "SPADES",   "point": 8 },
+        { "suit": "SPADES",   "point": 9 },
+        { "suit": "SPADES",   "point": 10 },
+        { "suit": "CLUBS",    "point": 2 },
+        { "suit": "CLUBS",    "point": 3 },
+        { "suit": "CLUBS",    "point": 4 },
+        { "suit": "CLUBS",    "point": 5 },
+        { "suit": "CLUBS",    "point": 6 },
+        { "suit": "CLUBS",    "point": 7 },
+        { "suit": "CLUBS",    "point": 8 },
+        { "suit": "CLUBS",    "point": 9 },
+        { "suit": "CLUBS",    "point": 10 },
+        { "suit": "CLUBS",    "point": 11 },
+        { "suit": "DIAMONDS", "point": 6 },
+        { "suit": "DIAMONDS", "point": 7 },
+        { "suit": "DIAMONDS", "point": 8 },
+        { "suit": "DIAMONDS", "point": 9 },
+        { "suit": "DIAMONDS", "point": 10 },
+        { "suit": "HEARTS",   "point": 10 },
+        { "suit": "HEARTS",   "point": 11 },
+        { "suit": "HEARTS",   "point": 12 }
+      ]
+    },
+    {
+      "id": "shan",
+      "name": "闪",
+      "description": "响应杀时使用，抵消一次杀的效果",
+      "copies": [
+        { "suit": "DIAMONDS", "point": 2 },
+        { "suit": "DIAMONDS", "point": 3 },
+        { "suit": "DIAMONDS", "point": 4 },
+        { "suit": "DIAMONDS", "point": 5 },
+        { "suit": "DIAMONDS", "point": 6 },
+        { "suit": "DIAMONDS", "point": 7 },
+        { "suit": "DIAMONDS", "point": 8 },
+        { "suit": "DIAMONDS", "point": 9 },
+        { "suit": "DIAMONDS", "point": 10 },
+        { "suit": "DIAMONDS", "point": 11 },
+        { "suit": "HEARTS",   "point": 2 },
+        { "suit": "HEARTS",   "point": 3 },
+        { "suit": "HEARTS",   "point": 4 },
+        { "suit": "HEARTS",   "point": 5 },
+        { "suit": "HEARTS",   "point": 8 },
+        { "suit": "HEARTS",   "point": 9 }
+      ]
+    },
+    {
+      "id": "tao",
+      "name": "桃",
+      "description": "出牌阶段对自己使用，回复1点体力；角色濒死时可用",
+      "copies": [
+        { "suit": "DIAMONDS", "point": 12 },
+        { "suit": "DIAMONDS", "point": 13 },
+        { "suit": "HEARTS",   "point": 4 },
+        { "suit": "HEARTS",   "point": 6 },
+        { "suit": "HEARTS",   "point": 7 },
+        { "suit": "HEARTS",   "point": 8 },
+        { "suit": "HEARTS",   "point": 9 },
+        { "suit": "HEARTS",   "point": 12 }
+      ]
+    },
+    {
+      "id": "juedou",
+      "name": "决斗",
+      "description": "对一名角色使用，由目标开始交替打出杀，先不出者受到1点伤害",
+      "copies": [
+        { "suit": "SPADES",   "point": 1 },
+        { "suit": "CLUBS",    "point": 1 },
+        { "suit": "DIAMONDS", "point": 1 }
+      ]
+    },
+    {
+      "id": "nanman",
+      "name": "南蛮入侵",
+      "description": "对所有其他角色使用，需依次打出杀，否则受到1点伤害",
+      "copies": [
+        { "suit": "SPADES",   "point": 7 },
+        { "suit": "CLUBS",    "point": 7 },
+        { "suit": "SPADES",   "point": 13 }
+      ]
+    },
+    {
+      "id": "wanjian",
+      "name": "万箭齐发",
+      "description": "对所有其他角色使用，需依次打出闪，否则受到1点伤害",
+      "copies": [
+        { "suit": "HEARTS", "point": 1 }
+      ]
+    },
+    {
+      "id": "taoyuan",
+      "name": "桃园结义",
+      "description": "所有角色回复至满体力",
+      "copies": [
+        { "suit": "HEARTS", "point": 3 }
+      ]
+    },
+    {
+      "id": "wuzhong",
+      "name": "无中生有",
+      "description": "摸两张牌",
+      "copies": [
+        { "suit": "HEARTS",   "point": 7 },
+        { "suit": "HEARTS",   "point": 8 },
+        { "suit": "HEARTS",   "point": 9 },
+        { "suit": "HEARTS",   "point": 11 }
+      ]
+    },
+    {
+      "id": "shunshou",
+      "name": "顺手牵羊",
+      "description": "对距离1以内的一名角色使用，获得其一张牌",
+      "copies": [
+        { "suit": "SPADES",   "point": 3 },
+        { "suit": "SPADES",   "point": 4 },
+        { "suit": "SPADES",   "point": 11 },
+        { "suit": "DIAMONDS", "point": 3 },
+        { "suit": "DIAMONDS", "point": 4 }
+      ]
+    },
+    {
+      "id": "guohe",
+      "name": "过河拆桥",
+      "description": "对一名角色使用，弃置其一张牌",
+      "copies": [
+        { "suit": "SPADES",   "point": 3 },
+        { "suit": "SPADES",   "point": 4 },
+        { "suit": "SPADES",   "point": 12 },
+        { "suit": "CLUBS",    "point": 3 },
+        { "suit": "CLUBS",    "point": 4 },
+        { "suit": "CLUBS",    "point": 12 }
+      ]
+    },
+    {
+      "id": "wuxie",
+      "name": "无懈可击",
+      "description": "抵消一张锦囊牌对一名角色的效果",
+      "copies": [
+        { "suit": "SPADES",   "point": 12 },
+        { "suit": "CLUBS",    "point": 12 },
+        { "suit": "CLUBS",    "point": 13 },
+        { "suit": "DIAMONDS", "point": 12 },
+        { "suit": "DIAMONDS", "point": 13 },
+        { "suit": "HEARTS",   "point": 1 },
+        { "suit": "HEARTS",   "point": 13 }
+      ]
+    },
+    {
+      "id": "jiedao",
+      "name": "借刀杀人",
+      "description": "对一名有武器的角色使用，令其选择：攻击另一角色，或交出武器",
+      "copies": [
+        { "suit": "SPADES",   "point": 2 },
+        { "suit": "CLUBS",    "point": 2 }
+      ]
+    },
+    {
+      "id": "wugu",
+      "name": "五谷丰登",
+      "description": "亮出牌堆顶存活人数张牌，每人选择获得其中一张",
+      "copies": [
+        { "suit": "HEARTS", "point": 2 },
+        { "suit": "HEARTS", "point": 10 }
+      ]
+    },
+    {
+      "id": "legion",
+      "name": "乐不思蜀",
+      "description": "对一名角色使用，其判定结果不为红桃则跳过出牌阶段",
+      "copies": [
+        { "suit": "SPADES",   "point": 6 },
+        { "suit": "CLUBS",    "point": 6 },
+        { "suit": "HEARTS",   "point": 6 }
+      ]
+    },
+    {
+      "id": "lightning",
+      "name": "闪电",
+      "description": "置于判定区，判定结果为黑桃2~9则受到3点雷伤",
+      "copies": [
+        { "suit": "SPADES", "point": 1 },
+        { "suit": "HEARTS", "point": 12 }
+      ]
+    },
+    {
+      "id": "bingliang",
+      "name": "兵粮寸断",
+      "description": "对距离1以内角色使用，判定不为草花则跳过摸牌阶段",
+      "copies": [
+        { "suit": "SPADES",   "point": 10 },
+        { "suit": "CLUBS",    "point": 10 }
+      ]
+    },
+    {
+      "id": "qinglong_blade",
+      "name": "青龙偃月刀",
+      "description": "攻击范围3，杀被闪避后可立即追刀",
+      "copies": [
+        { "suit": "SPADES", "point": 5 },
+        { "suit": "CLUBS",  "point": 5 }
+      ]
+    },
+    {
+      "id": "zhangba",
+      "name": "丈八蛇矛",
+      "description": "攻击范围3，可用两张牌当杀使用",
+      "copies": [
+        { "suit": "SPADES", "point": 12 }
+      ]
+    },
+    {
+      "id": "fangtian",
+      "name": "方天画戟",
+      "description": "攻击范围4，最后一张手牌杀可指定至多三名目标",
+      "copies": [
+        { "suit": "DIAMONDS", "point": 12 }
+      ]
+    },
+    {
+      "id": "renwang",
+      "name": "仁王盾",
+      "description": "防止黑色杀造成的伤害",
+      "copies": [
+        { "suit": "CLUBS", "point": 5 }
+      ]
+    },
+    {
+      "id": "bagua",
+      "name": "八卦阵",
+      "description": "需要出闪时可进行判定，红色视为出闪",
+      "copies": [
+        { "suit": "SPADES", "point": 2 },
+        { "suit": "CLUBS",  "point": 2 }
+      ]
+    },
+    {
+      "id": "zhulu_niu",
+      "name": "诸葛连弩",
+      "description": "攻击范围1，可连续使用任意张杀",
+      "copies": [
+        { "suit": "DIAMONDS", "point": 1 },
+        { "suit": "CLUBS",    "point": 1 }
+      ]
+    },
+    {
+      "id": "chitu",
+      "name": "赤兔",
+      "description": "-1马，计算距离时减1",
+      "copies": [
+        { "suit": "HEARTS", "point": 5 }
+      ]
+    },
+    {
+      "id": "da_yuan",
+      "name": "大宛",
+      "description": "-1马，计算距离时减1",
+      "copies": [
+        { "suit": "SPADES", "point": 13 }
+      ]
+    },
+    {
+      "id": "di_lu",
+      "name": "的卢",
+      "description": "+1马，计算距离时加1",
+      "copies": [
+        { "suit": "CLUBS", "point": 5 }
+      ]
+    },
+    {
+      "id": "zi_yan",
+      "name": "紫骍",
+      "description": "+1马，计算距离时加1",
+      "copies": [
+        { "suit": "HEARTS", "point": 13 }
+      ]
+    }
+  ]
+}
