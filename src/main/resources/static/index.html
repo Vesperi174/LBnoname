@@ -637,9 +637,9 @@ function renderRoomList(rooms) {
 //  在线玩家列表渲染（QQ 联系人风格）
 // ============================================================
 const STATUS_MAP = {
-    ONLINE:  { text: '🟢 在线',   dotClass: 'dot-online',  lineClass: 'status-online' },
-    IN_ROOM: { text: '🔵 房间中', dotClass: 'dot-room',    lineClass: 'status-room'   },
-    IN_GAME: { text: '🟡 游戏中', dotClass: 'dot-game',    lineClass: 'status-game'   },
+    ONLINE:  { text: '在线',   dotClass: 'dot-online',  lineClass: 'status-online' },
+    IN_ROOM: { text: '房间中', dotClass: 'dot-room',    lineClass: 'status-room'   },
+    IN_GAME: { text: '游戏中', dotClass: 'dot-game',    lineClass: 'status-game'   },
 };
 function renderOnlinePlayers(players, count) {
     onlineCount.textContent = count;
