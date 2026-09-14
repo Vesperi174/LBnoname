@@ -7,7 +7,8 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: "Microsoft YaHei", sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 20px 0; }
-        .container { width: 100%; max-width: 640px; padding: 20px; }
+        .container { width: 100%; max-width: 640px; padding: 20px; transition: max-width .3s; }
+        .container.game-active { max-width: 960px; }
         .card { background: #16213e; border-radius: 12px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
         .card + .card { margin-top: 16px; }
         h2 { font-size: 18px; margin-bottom: 16px; color: #e94560; }
@@ -66,29 +67,16 @@
         .phase-END     { background: #555; color: #ccc; }
 
         /* 当前回合玩家高亮 */
-        .turn-indicator { text-align: center; padding: 8px; margin-bottom: 12px; font-size: 15px; background: #0f3460; border-radius: 8px; }
+        .turn-indicator { text-align: center; padding: 8px; margin-bottom: 8px; font-size: 15px; background: #0f3460; border-radius: 8px; }
         .turn-indicator .highlight { color: #e94560; font-weight: bold; }
 
-        /* 玩家卡片（游戏内） */
-        .game-player-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
-        .game-player-card { background: #0f3460; border-radius: 10px; padding: 12px; border: 2px solid transparent; transition: all .3s; }
-        .game-player-card.active-turn { border-color: #e94560; box-shadow: 0 0 12px rgba(233,69,96,0.4); }
-        .game-player-card .name { font-weight: bold; font-size: 14px; }
-        .game-player-card .name .me-tag { font-size: 10px; background: #e94560; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
-        .game-player-card .role-tag { font-size: 11px; padding: 1px 8px; border-radius: 8px; margin-left: 6px; }
-        .game-player-card .hp-bar { display: flex; gap: 2px; margin: 6px 0; }
-        .game-player-card .hp-dot { width: 14px; height: 14px; border-radius: 50%; }
-        .game-player-card .hp-dot.alive { background: #2ecc71; }
-        .game-player-card .hp-dot.lost  { background: #555; }
-        .game-player-card .hp-dot.wound { background: #e74c3c; }
-        .game-player-card .hand-count { font-size: 12px; color: #aaa; }
-        .game-player-card .status-tag { font-size: 11px; padding: 1px 8px; border-radius: 8px; }
-        .game-player-card .status-tag.alive { background: #1e8449; color: #8f8; }
-        .game-player-card .status-tag.dead  { background: #533; color: #f88; }
-        .game-player-card .seat-label { font-size: 10px; color: #666; }
+        /* ==================== 游戏双列布局 ==================== */
+        .game-layout { display: flex; gap: 16px; margin: 8px 0 12px; }
+        .game-layout-left { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .game-layout-right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
-        /* 游戏日志 */
-        .game-log { background: #0a0a1a; border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-size: 13px; font-family: monospace; line-height: 1.6; }
+        /* 游戏日志（左侧） */
+        .game-log { background: #0a0a1a; border-radius: 8px; padding: 12px; height: 360px; overflow-y: auto; font-size: 13px; font-family: monospace; line-height: 1.6; flex-shrink: 0; }
         .game-log .entry { padding: 2px 0; border-bottom: 1px solid #1a1a2e; }
         .game-log .entry .time { color: #555; }
         .game-log .entry .event-highlight { color: #e94560; font-weight: bold; }
@@ -96,8 +84,29 @@
         .game-log .entry .success-text { color: #8f8; }
         .game-log .entry .warn-text { color: #ff8; }
 
+        /* 玩家列表（右侧） */
+        .game-player-grid { display: flex; flex-direction: column; gap: 8px; height: 360px; overflow-y: auto; padding-right: 4px; }
+        .game-player-card { background: #0f3460; border-radius: 10px; padding: 10px 14px; border: 2px solid transparent; transition: all .3s; flex-shrink: 0; }
+        .game-player-card.active-turn { border-color: #e94560; box-shadow: 0 0 12px rgba(233,69,96,0.4); }
+        .game-player-card .card-top { display: flex; align-items: center; justify-content: space-between; }
+        .game-player-card .name { font-weight: bold; font-size: 14px; }
+        .game-player-card .name .me-tag { font-size: 10px; background: #e94560; padding: 1px 6px; border-radius: 8px; margin-left: 4px; }
+        .game-player-card .role-tag { font-size: 11px; padding: 1px 8px; border-radius: 8px; }
+        .game-player-card .card-body { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+        .game-player-card .hp-bar { display: flex; gap: 2px; }
+        .game-player-card .hp-dot { width: 14px; height: 14px; border-radius: 50%; }
+        .game-player-card .hp-dot.alive { background: #2ecc71; }
+        .game-player-card .hp-dot.lost  { background: #555; }
+        .game-player-card .hp-dot.wound { background: #e74c3c; }
+        .game-player-card .hand-count { font-size: 12px; color: #aaa; }
+        .game-player-card .status-tag { font-size: 11px; padding: 1px 8px; border-radius: 8px; white-space: nowrap; }
+        .game-player-card .status-tag.alive { background: #1e8449; color: #8f8; }
+        .game-player-card .status-tag.dead  { background: #533; color: #f88; }
+        .game-player-card .bot-tag { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #6c3483; color: #d8b; white-space: nowrap; }
+        .game-player-card .seat-label { font-size: 10px; color: #666; }
+
         /* 游戏操作栏 */
-        .game-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .game-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
         .game-actions .btn { flex: 1; min-width: 100px; }
 
         /* 游戏结束弹窗 */
@@ -194,16 +203,22 @@
             <!-- 当前回合玩家 -->
             <div class="turn-indicator" id="turnIndicator">🎯 当前回合：<span class="highlight">等待中</span></div>
 
-            <!-- 玩家列表（游戏内） -->
-            <h3>👥 玩家状态</h3>
-            <div id="gamePlayerGrid" class="game-player-grid">
-                <div style="color:#666;font-size:13px;grid-column:1/-1;text-align:center;padding:20px;">等待游戏开始...</div>
-            </div>
-
-            <!-- 游戏日志 -->
-            <h3 style="margin-top:8px;">📜 游戏日志</h3>
-            <div id="gameLog" class="game-log">
-                <div class="entry"><span class="time">[--:--:--]</span> 游戏尚未开始</div>
+            <!-- 双列布局：左日志 + 右玩家 -->
+            <div class="game-layout">
+                <!-- 左侧：游戏日志 -->
+                <div class="game-layout-left">
+                    <h3>📜 游戏日志</h3>
+                    <div id="gameLog" class="game-log">
+                        <div class="entry"><span class="time">[--:--:--]</span> 游戏尚未开始</div>
+                    </div>
+                </div>
+                <!-- 右侧：玩家状态 -->
+                <div class="game-layout-right">
+                    <h3>👥 玩家状态</h3>
+                    <div id="gamePlayerGrid" class="game-player-grid">
+                        <div style="color:#666;font-size:13px;text-align:center;padding:20px;">等待游戏开始...</div>
+                    </div>
+                </div>
             </div>
 
             <!-- 游戏操作 -->
@@ -315,9 +330,13 @@ const gameOverOkBtn     = $('gameOverOkBtn');
 // ============================================================
 //  辅助
 // ============================================================
+const containerEl = document.querySelector('.container');
+
 function showScreen(screen) {
     [loginScreen, lobbyScreen, roomScreen, gameScreen].forEach(s => s.classList.add('hidden'));
     screen.classList.remove('hidden');
+    // 进入游戏界面时放宽容器宽度
+    containerEl.classList.toggle('game-active', screen === gameScreen);
 }
 
 function status(el, msg, type = 'info') {
@@ -421,6 +440,10 @@ function handleMessage(msg) {
             if (isBot) {
                 showInfo(`🤖 ${msg.playerName} 已离线，机器人接管`);
                 addGameLog(`🤖 ${msg.playerName} 已离线，由机器人接管`, 'warn-text');
+                // 更新玩家状态中的 bot 标记，刷新卡片显示 🤖 托管
+                const p = STATE.game.players.find(x => x.playerId === msg.playerId);
+                if (p) p.bot = true;
+                updateGameView();
             } else {
                 showInfo(`${msg.playerName} 离开了房间`);
             }
@@ -522,6 +545,7 @@ function handleMessage(msg) {
             showError(msg.message);
             if (STATE.currentRoom && !gameScreen.classList.contains('hidden')) {
                 status(gameStatus, '❌ ' + msg.message, 'error');
+                addGameLog('❌ ' + msg.message, 'warn-text');
             } else if (STATE.currentRoom) {
                 status(roomStatus, '❌ ' + msg.message, 'error');
             }
@@ -644,7 +668,7 @@ function updateGameView() {
 
     // 玩家卡片
     if (g.players.length === 0) {
-        gamePlayerGrid.innerHTML = '<div style="color:#666;font-size:13px;grid-column:1/-1;text-align:center;padding:20px;">等待游戏开始...</div>';
+        gamePlayerGrid.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:20px;">等待游戏开始...</div>';
         return;
     }
 
@@ -660,19 +684,27 @@ function updateGameView() {
         }).join('');
         const handCount = p.handCardCount ?? p.handCards?.length ?? 0;
         const isDead = (p.status === 'DEAD' || p.currentHp <= 0);
+        const isBot = p.bot;
         const statusTag = isDead
             ? '<span class="status-tag dead">阵亡</span>'
             : '<span class="status-tag alive">存活</span>';
+        const botTag = isBot ? '<span class="bot-tag">🤖 托管</span>' : '';
 
         return `
             <div class="game-player-card ${isActive ? 'active-turn pulse' : ''}">
-                <div class="name">
-                    ${escHtml(p.playerName)} ${isMe ? '<span class="me-tag">我</span>' : ''}
+                <div class="card-top">
+                    <div class="name">
+                        ${escHtml(p.playerName)} ${isMe ? '<span class="me-tag">我</span>' : ''}
+                        ${botTag}
+                    </div>
                     <span class="role-tag">${roleDisplay}</span>
                 </div>
-                <div class="seat-label">座位 #${p.gameSeat} ${statusTag}</div>
-                <div class="hp-bar">${hpDots}</div>
-                <div class="hand-count">🃏 手牌：${handCount} 张</div>
+                <div class="card-body">
+                    <div class="hp-bar">${hpDots}</div>
+                    <span style="color:#888;font-size:12px;">#${p.gameSeat}</span>
+                    ${statusTag}
+                    <span class="hand-count">🃏${handCount}</span>
+                </div>
             </div>
         `;
     }).join('');
