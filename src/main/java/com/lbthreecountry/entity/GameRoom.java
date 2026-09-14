@@ -8,7 +8,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -159,6 +161,41 @@ public class GameRoom {
                         .playerId(rp.getPlayerId())
                         .name(rp.getPlayerName())
                         .build())
+                .toList();
+    }
+
+    /**
+     * 将房间信息转为 Map（JSON 友好），用于 WebSocket 消息
+     */
+    public Map<String, Object> toRoomInfoMap() {
+        Map<String, Object> info = new HashMap<>();
+        info.put("roomId", roomId);
+        info.put("roomName", roomName);
+        info.put("ownerPlayerId", ownerPlayerId);
+        info.put("status", status.name());
+        info.put("maxPlayers", maxPlayers);
+        info.put("playerCount", playerCount);
+
+        List<Map<String, Object>> playerList = players.stream().map(rp -> {
+            Map<String, Object> p = new HashMap<>();
+            p.put("playerId", rp.getPlayerId());
+            p.put("playerName", rp.getPlayerName());
+            p.put("seatNumber", rp.getSeatNumber());
+            p.put("isReady", rp.isReady());
+            p.put("isAlive", rp.isAlive());
+            return p;
+        }).toList();
+        info.put("players", playerList);
+
+        return info;
+    }
+
+    /**
+     * 获取房间内所有玩家的 playerId 列表
+     */
+    public List<String> getPlayerIdList() {
+        return players.stream()
+                .map(RoomPlayer::getPlayerId)
                 .toList();
     }
 }

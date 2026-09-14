@@ -8,6 +8,7 @@ import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -110,18 +111,44 @@ public class WebSocketSessionManager {
     }
 
     /**
-     * 向单个玩家发送消息
+     * 向指定 sessionId 的玩家发送消息（最底层，不抛异常）
+     *
+     * @param sessionId 目标会话 ID
+     * @param message   消息内容
+     */
+    public void sendMessageBySessionId(String sessionId, String message) {
+        PlayerSession playerSession = sessionMap.get(sessionId);
+        if (playerSession != null && playerSession.isValid()) {
+            sendRawMessage(playerSession.getSession(), message);
+        }
+    }
+
+    /**
+     * 向指定 playerId 的玩家发送消息
      *
      * @param playerId 目标玩家 ID
      * @param message  消息内容
      */
-    public void sendMessage(String playerId, String message) throws IOException {
+    public void sendMessage(String playerId, String message) {
         PlayerSession playerSession = getByPlayerId(playerId);
         if (playerSession != null && playerSession.isValid()) {
-            synchronized (playerSession.getSession()) {
-                playerSession.getSession().sendMessage(
-                        new org.springframework.web.socket.TextMessage(message));
+            sendRawMessage(playerSession.getSession(), message);
+        }
+    }
+
+    /**
+     * 向房间内所有玩家广播（排除指定玩家）
+     *
+     * @param roomPlayers 房间内的玩家 ID 列表
+     * @param message     消息内容
+     * @param excludePlayerId 排除的玩家 ID（可为 null）
+     */
+    public void broadcastToRoom(List<String> playerIds, String message, String excludePlayerId) {
+        for (String playerId : playerIds) {
+            if (excludePlayerId != null && excludePlayerId.equals(playerId)) {
+                continue;
             }
+            sendMessage(playerId, message);
         }
     }
 
@@ -130,14 +157,24 @@ public class WebSocketSessionManager {
      *
      * @param message 消息内容
      */
-    public void broadcast(String message) throws IOException {
+    public void broadcast(String message) {
         for (PlayerSession playerSession : sessionMap.values()) {
             if (playerSession.isValid()) {
-                synchronized (playerSession.getSession()) {
-                    playerSession.getSession().sendMessage(
-                            new org.springframework.web.socket.TextMessage(message));
-                }
+                sendRawMessage(playerSession.getSession(), message);
             }
+        }
+    }
+
+    /**
+     * 原始发送（含异常处理）
+     */
+    private void sendRawMessage(WebSocketSession session, String message) {
+        try {
+            synchronized (session) {
+                session.sendMessage(new org.springframework.web.socket.TextMessage(message));
+            }
+        } catch (IOException e) {
+            System.err.println("[错误] 发送消息失败: " + e.getMessage());
         }
     }
 
