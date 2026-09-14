@@ -126,4 +126,48 @@ public class RoomServiceImpl implements RoomService {
         }
         return roomMap.get(roomId);
     }
+
+    @Override
+    public boolean closeSeat(String roomId, String playerId) {
+        GameRoom room = roomMap.get(roomId);
+        if (room == null) {
+            return false;
+        }
+        // 只有房主可以关闭座位
+        if (!room.getOwnerPlayerId().equals(playerId)) {
+            return false;
+        }
+        // 至少保留 2 个座位（最少需要 2 人才能游戏）
+        if (room.getMaxPlayers() <= 2) {
+            return false;
+        }
+        // 不能关闭到少于当前玩家人数
+        if (room.getMaxPlayers() - 1 < room.getPlayerCount()) {
+            return false;
+        }
+
+        room.setMaxPlayers(room.getMaxPlayers() - 1);
+        System.out.println("[房间] 关闭一个座位，当前最大人数: " + room.getMaxPlayers());
+        return true;
+    }
+
+    @Override
+    public boolean openSeat(String roomId, String playerId) {
+        GameRoom room = roomMap.get(roomId);
+        if (room == null) {
+            return false;
+        }
+        // 只有房主可以打开座位
+        if (!room.getOwnerPlayerId().equals(playerId)) {
+            return false;
+        }
+        // 不能超过初始最大人数 8
+        if (room.getMaxPlayers() >= 8) {
+            return false;
+        }
+
+        room.setMaxPlayers(room.getMaxPlayers() + 1);
+        System.out.println("[房间] 打开一个座位，当前最大人数: " + room.getMaxPlayers());
+        return true;
+    }
 }

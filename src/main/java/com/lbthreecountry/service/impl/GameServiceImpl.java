@@ -238,13 +238,25 @@ public class GameServiceImpl implements GameService {
                     .build());
         }
 
-        // 随机分配游戏座位
-        Collections.shuffle(gamePlayers);
-        for (int i = 0; i < gamePlayers.size(); i++) gamePlayers.get(i).setGameSeat(i);
-        gamePlayers.sort(Comparator.comparingInt(GamePlayer::getGameSeat));
+        // 1) 随机分配身份（包含主公，所有人的身份完全随机）
+        assignRolesRandomly(gamePlayers, identityConfig);
 
-        // 分配身份与初始体力
-        assignRoles(gamePlayers, identityConfig);
+        // 2) 按主公座位重排：主公 → seat 0，其余玩家按加入顺序逆时针排列
+        List<GamePlayer> rearranged = new ArrayList<>();
+        GamePlayer lordPlayer = null;
+        for (GamePlayer gp : gamePlayers) {
+            if (gp.getRole() == RoleType.LORD) {
+                lordPlayer = gp;
+            } else {
+                rearranged.add(gp);
+            }
+        }
+        gamePlayers.clear();
+        if (lordPlayer != null) gamePlayers.add(lordPlayer);
+        gamePlayers.addAll(rearranged);
+        for (int i = 0; i < gamePlayers.size(); i++) gamePlayers.get(i).setGameSeat(i);
+
+        // 3) 初始体力
         for (GamePlayer gp : gamePlayers) {
             gp.setMaxHp(4);
             gp.setCurrentHp(4);
@@ -302,12 +314,6 @@ public class GameServiceImpl implements GameService {
     //  单机模式
     // ================================================================
 
-    /** Bot 占位武将名 */
-    private static final String[] BOT_CHAR_NAMES = {
-        "卡斯奥佩娅", "神·赵云", "神·关羽", "神·吕布",
-        "神·曹操", "神·周瑜", "神·诸葛亮", "神·司马懿"
-    };
-
     @Override
     public GameMatch startSinglePlayer(String playerId, String playerName, int totalPlayers, String identityConfig) {
         // 1. 创建房间（人类玩家为房主）
@@ -321,7 +327,7 @@ public class GameServiceImpl implements GameService {
         // 2. 填充 Bot
         for (int i = 1; i < totalPlayers; i++) {
             String botId = "bot_sp_" + roomId + "_" + i;
-            String botName = "AI·" + BOT_CHAR_NAMES[(i - 1) % BOT_CHAR_NAMES.length];
+            String botName = "机器人" + i;
             PlayerInfo botInfo = PlayerInfo.builder()
                     .playerId(botId)
                     .name(botName)
@@ -368,21 +374,18 @@ public class GameServiceImpl implements GameService {
         return template;
     }
 
-    private void assignRoles(List<GamePlayer> players, String identityConfig) {
+    /**
+     * 完全随机分配身份：所有身份（含主公）打乱后随机分给每个玩家，与座位号无关
+     */
+    private void assignRolesRandomly(List<GamePlayer> players, String identityConfig) {
         int count = players.size();
         List<RoleType> template = getRoleTemplate(count, identityConfig);
 
         List<RoleType> shuffled = new ArrayList<>(template);
-        RoleType lordRole = shuffled.remove(0);
         Collections.shuffle(shuffled);
 
-        for (GamePlayer gp : players) {
-            if (gp.getGameSeat() == 0) gp.setRole(lordRole);
-        }
-
-        int idx = 0;
-        for (GamePlayer gp : players) {
-            if (gp.getGameSeat() != 0) gp.setRole(shuffled.get(idx++));
+        for (int i = 0; i < players.size(); i++) {
+            players.get(i).setRole(shuffled.get(i));
         }
     }
 }

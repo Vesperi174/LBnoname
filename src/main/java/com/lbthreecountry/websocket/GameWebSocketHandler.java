@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
  *   <li>{@code ROOM_LIST} — 查询房间列表</li>
  *   <li>{@code PLAYER_READY} — 准备/取消准备</li>
  *   <li>{@code START_GAME} — 开始游戏（仅房主）</li>
+ *   <li>{@code CLOSE_SEAT} — 关闭空座位（仅房主）</li>
+ *   <li>{@code OPEN_SEAT} — 打开已关闭的座位（仅房主）</li>
  * </ul>
  */
 @Component
@@ -173,6 +175,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "START_SINGLE_PLAYER" -> handleStartSinglePlayer(session, playerSession, msg);
             case "NEXT_PHASE"    -> handleNextPhase(session, playerSession);
             case "LIST_ONLINE_PLAYERS" -> broadcastOnlinePlayers();
+            case "CLOSE_SEAT"    -> handleCloseSeat(session, playerSession, msg);
+            case "OPEN_SEAT"     -> handleOpenSeat(session, playerSession, msg);
+            case "UPDATE_ROOM_SETTINGS" -> handleUpdateRoomSettings(session, playerSession, msg);
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -363,11 +368,48 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         try {
+            // ── 用 Bot 填满空位 ──
+            int botsNeeded = room.getMaxPlayers() - room.getPlayerCount();
+            if (botsNeeded > 0) {
+                String roomId = room.getRoomId();
+                for (int i = 0; i < botsNeeded; i++) {
+                    String botId = "bot_" + roomId + "_" + (i + 1);
+                    String botName = "机器人" + (i + 1);
+                    PlayerInfo botInfo = PlayerInfo.builder()
+                            .playerId(botId)
+                            .name(botName)
+                            .build();
+                    roomService.joinRoom(roomId, botInfo);
+                    room.getPlayers().stream()
+                            .filter(p -> p.getPlayerId().equals(botId))
+                            .findFirst()
+                            .ifPresent(p -> {
+                                p.setReady(true);
+                                p.setBot(true);
+                            });
+                }
+                System.out.println("[房间] 已添加 " + botsNeeded + " 个 Bot 填充空位");
+            }
+
+            // 从房间设置中读取身份配置
+            Map<String, Object> settings = room.getRoomSettings();
+            boolean doubleIntruder = false;
+            if (settings != null && Boolean.TRUE.equals(settings.get("doubleIntruder"))) {
+                doubleIntruder = true;
+            }
+            String identityConfig = doubleIntruder ? "double_intruder" : "standard";
+
             // 交由游戏服务创建对局
-            GameMatch match = gameService.startGame(room.getRoomId());
+            GameMatch match = gameService.startGame(room.getRoomId(), identityConfig);
 
             // 为每个玩家构建其私有信息（包含手牌和身份）
             Map<String, Object> gameStartData = buildGameStartData(match, null);
+
+            // 获取出手时间
+            int turnTime = 15;
+            if (settings != null && settings.get("turnTime") instanceof Number) {
+                turnTime = ((Number) settings.get("turnTime")).intValue();
+            }
 
             // 广播游戏开始基础信息给所有人
             broadcastToRoom(room, Map.of(
@@ -377,7 +419,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "currentPlayerIndex", match.getCurrentPlayerIndex(),
                     "currentPhase", match.getCurrentPhase().name(),
                     "round", match.getCurrentRound(),
-                    "totalTurns", match.getTotalTurns()
+                    "totalTurns", match.getTotalTurns(),
+                    "turnTime", turnTime
             ), null);
 
             // 私发每个玩家自己的手牌和身份
@@ -397,7 +440,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "gameSeat", match.getCurrentPlayerIndex(),
                     "playerName", match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "",
                     "round", match.getCurrentRound(),
-                    "phase", match.getCurrentPhase().name()
+                    "phase", match.getCurrentPhase().name(),
+                    "turnTime", turnTime
             ), null);
 
             // 如果当前玩家是 Bot（例如全部为 Bot 的测试场景），触发自动推进
@@ -410,6 +454,120 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
         }
+    }
+
+    // ──────────────────────────────────────────────
+    //  关闭座位
+    // ──────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void handleCloseSeat(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
+            return;
+        }
+
+        // 只有房主可以关闭座位
+        if (!room.getOwnerPlayerId().equals(playerId)) {
+            sendJson(session, Map.of("type", "ERROR", "message", "只有房主可以关闭座位"));
+            return;
+        }
+
+        boolean success = roomService.closeSeat(room.getRoomId(), playerId);
+        if (!success) {
+            sendJson(session, Map.of("type", "ERROR", "message", "关闭座位失败（至少保留 2 个座位，且不能少于当前玩家人数）"));
+            return;
+        }
+
+        // 广播更新后的房间信息给房间内所有人
+        GameRoom updatedRoom = roomService.getRoom(room.getRoomId());
+        broadcastToRoom(updatedRoom, Map.of(
+                "type", "ROOM_UPDATE",
+                "room", updatedRoom.toRoomInfoMap()
+        ), null);
+
+        // 广播大厅房间列表更新
+        broadcastRoomList();
+    }
+
+    // ──────────────────────────────────────────────
+    //  打开座位
+    // ──────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void handleOpenSeat(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
+            return;
+        }
+
+        // 只有房主可以打开座位
+        if (!room.getOwnerPlayerId().equals(playerId)) {
+            sendJson(session, Map.of("type", "ERROR", "message", "只有房主可以打开座位"));
+            return;
+        }
+
+        boolean success = roomService.openSeat(room.getRoomId(), playerId);
+        if (!success) {
+            sendJson(session, Map.of("type", "ERROR", "message", "打开座位失败（最多 8 个座位）"));
+            return;
+        }
+
+        // 广播更新后的房间信息给房间内所有人
+        GameRoom updatedRoom = roomService.getRoom(room.getRoomId());
+        broadcastToRoom(updatedRoom, Map.of(
+                "type", "ROOM_UPDATE",
+                "room", updatedRoom.toRoomInfoMap()
+        ), null);
+
+        // 广播大厅房间列表更新
+        broadcastRoomList();
+    }
+
+    // ──────────────────────────────────────────────
+    //  房间设置
+    // ──────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void handleUpdateRoomSettings(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
+            return;
+        }
+
+        // 只有房主可以修改设置
+        if (!room.getOwnerPlayerId().equals(playerId)) {
+            sendJson(session, Map.of("type", "ERROR", "message", "只有房主可以修改房间设置"));
+            return;
+        }
+
+        Map<String, Object> settings = (Map<String, Object>) msg.get("settings");
+        if (settings == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "缺少 settings 字段"));
+            return;
+        }
+
+        // 更新设置
+        room.getRoomSettings().putAll(settings);
+        System.out.println("[房间] 设置已更新: " + settings);
+
+        // 广播更新后的房间信息给房间内所有人
+        broadcastToRoom(room, Map.of(
+                "type", "ROOM_UPDATE",
+                "room", room.toRoomInfoMap()
+        ), null);
+
+        // 通知修改者操作成功
+        sendJson(session, Map.of("type", "ROOM_SETTINGS_UPDATED", "settings", room.getRoomSettings()));
     }
 
     // ──────────────────────────────────────────────
@@ -438,6 +596,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
             // 广播游戏开始基础信息（Bot 无 session 不会收到，仅人类玩家收到）
             Map<String, Object> gameStartData = buildGameStartData(match, null);
+
+            // 获取出手时间
+            int turnTime = 15;
+            Map<String, Object> rmSettings = room.getRoomSettings();
+            if (rmSettings != null && rmSettings.get("turnTime") instanceof Number) {
+                turnTime = ((Number) rmSettings.get("turnTime")).intValue();
+            }
+
             broadcastToRoom(room, Map.of(
                     "type", "GAME_START",
                     "roomId", roomId,
@@ -445,7 +611,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "currentPlayerIndex", match.getCurrentPlayerIndex(),
                     "currentPhase", match.getCurrentPhase().name(),
                     "round", match.getCurrentRound(),
-                    "totalTurns", match.getTotalTurns()
+                    "totalTurns", match.getTotalTurns(),
+                    "turnTime", turnTime
             ), null);
 
             // 私发每个玩家的手牌和身份（Bot 无 session 自动跳过）
@@ -465,7 +632,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "gameSeat", match.getCurrentPlayerIndex(),
                     "playerName", match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "",
                     "round", match.getCurrentRound(),
-                    "phase", match.getCurrentPhase().name()
+                    "phase", match.getCurrentPhase().name(),
+                    "turnTime", turnTime
             ), null);
 
             // 如果当前玩家是 Bot，触发自动推进

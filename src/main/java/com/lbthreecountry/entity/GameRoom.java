@@ -74,6 +74,12 @@ public class GameRoom {
     private long createdAt = System.currentTimeMillis();
 
     /**
+     * 房间设置
+     */
+    @Builder.Default
+    private Map<String, Object> roomSettings = new HashMap<>();
+
+    /**
      * 快速创建一个新房间
      *
      * @param roomName     房间名称
@@ -93,6 +99,11 @@ public class GameRoom {
         List<RoomPlayer> playerList = new ArrayList<>();
         playerList.add(ownerPlayer);
 
+        Map<String, Object> defaultSettings = new HashMap<>();
+        defaultSettings.put("doubleIntruder", false);
+        defaultSettings.put("turnTime", 15);
+        defaultSettings.put("placeholder1", "");
+
         return GameRoom.builder()
                 .roomId(UUID.randomUUID().toString())
                 .roomName(roomName)
@@ -101,6 +112,7 @@ public class GameRoom {
                 .players(playerList)
                 .maxPlayers(maxPlayers)
                 .playerCount(1)
+                .roomSettings(defaultSettings)
                 .build();
     }
 
@@ -179,6 +191,7 @@ public class GameRoom {
         info.put("status", status.name());
         info.put("maxPlayers", maxPlayers);
         info.put("playerCount", playerCount);
+        info.put("roomSettings", roomSettings);
 
         List<Map<String, Object>> playerList = players.stream().map(rp -> {
             Map<String, Object> p = new HashMap<>();

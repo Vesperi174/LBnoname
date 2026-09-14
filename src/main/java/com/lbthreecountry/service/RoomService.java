@@ -65,4 +65,22 @@ public interface RoomService {
      * 根据 playerId 查找玩家所在的房间
      */
     GameRoom findRoomByPlayerId(String playerId);
+
+    /**
+     * 关闭房间的一个空座位（减少最大玩家数）
+     *
+     * @param roomId   房间 ID
+     * @param playerId 请求者 playerId（必须是房主）
+     * @return 是否成功
+     */
+    boolean closeSeat(String roomId, String playerId);
+
+    /**
+     * 打开一个已关闭的座位（增加最大玩家数）
+     *
+     * @param roomId   房间 ID
+     * @param playerId 请求者 playerId（必须是房主）
+     * @return 是否成功
+     */
+    boolean openSeat(String roomId, String playerId);
 }
