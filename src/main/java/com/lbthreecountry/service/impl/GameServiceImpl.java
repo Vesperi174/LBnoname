@@ -241,7 +241,7 @@ public class GameServiceImpl implements GameService {
         // 1) 随机分配身份（包含主公，所有人的身份完全随机）
         assignRolesRandomly(gamePlayers, identityConfig);
 
-        // 2) 按主公座位重排：主公 → seat 0，其余玩家按加入顺序逆时针排列
+        // 2) 按主公座位重排：主公 → seat 0，其余玩家随机分配剩余座位
         List<GamePlayer> rearranged = new ArrayList<>();
         GamePlayer lordPlayer = null;
         for (GamePlayer gp : gamePlayers) {
@@ -251,6 +251,8 @@ public class GameServiceImpl implements GameService {
                 rearranged.add(gp);
             }
         }
+        // 打乱非主公玩家的顺序，避免房主（加入最早）总是 1/2 号位
+        Collections.shuffle(rearranged);
         gamePlayers.clear();
         if (lordPlayer != null) gamePlayers.add(lordPlayer);
         gamePlayers.addAll(rearranged);
