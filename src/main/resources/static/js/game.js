@@ -982,83 +982,7 @@ backToLoginBtn.addEventListener('click', function () {
 //  单机模式 · 身份配置逻辑
 // ============================================================
 
-/**
- * 根据人数和身份配置模式，返回角色数组
- * @param {number} totalPlayers 总人数
- * @param {string} config 配置模式: 'standard' | 'simple' | 'lord_rebel'
- * @returns {{ role: string, count: number }[]}
- */
-function calcIdentityDistribution(totalPlayers, config) {
-    // 基础：无论什么模式，至少需要 1 主公
-    if (totalPlayers < 2) return [{ role: 'LORD', count: 1 }];
-
-    switch (config) {
-        case 'standard': {
-            // 标准三国杀身份局：主公1 + 忠臣 + 反贼 + 内奸
-            if (totalPlayers === 2) return [
-                { role: 'LORD', count: 1 },
-                { role: 'INTRUDER', count: 1 },
-            ];
-            if (totalPlayers === 3) return [
-                { role: 'LORD', count: 1 },
-                { role: 'MINION', count: 1 },
-                { role: 'REBEL', count: 1 },
-            ];
-            if (totalPlayers === 4) return [
-                { role: 'LORD', count: 1 },
-                { role: 'MINION', count: 1 },
-                { role: 'REBEL', count: 1 },
-                { role: 'INTRUDER', count: 1 },
-            ];
-            // 5人: 1主1忠2反1内
-            if (totalPlayers === 5) return [
-                { role: 'LORD', count: 1 },
-                { role: 'MINION', count: 1 },
-                { role: 'REBEL', count: 2 },
-                { role: 'INTRUDER', count: 1 },
-            ];
-            // 6人: 1主1忠3反1内
-            if (totalPlayers === 6) return [
-                { role: 'LORD', count: 1 },
-                { role: 'MINION', count: 1 },
-                { role: 'REBEL', count: 3 },
-                { role: 'INTRUDER', count: 1 },
-            ];
-            // 7人: 1主2忠3反1内
-            if (totalPlayers === 7) return [
-                { role: 'LORD', count: 1 },
-                { role: 'MINION', count: 2 },
-                { role: 'REBEL', count: 3 },
-                { role: 'INTRUDER', count: 1 },
-            ];
-            // 8人: 1主2忠4反1内
-            return [
-                { role: 'LORD', count: 1 },
-                { role: 'MINION', count: 2 },
-                { role: 'REBEL', count: 4 },
-                { role: 'INTRUDER', count: 1 },
-            ];
-        }
-
-        case 'double_intruder': {
-            // 双内模式（仅8人局）：用内奸替换一个反贼
-            // 1主2忠3反2内
-            if (totalPlayers === 8) return [
-                { role: 'LORD', count: 1 },
-                { role: 'MINION', count: 2 },
-                { role: 'REBEL', count: 3 },
-                { role: 'INTRUDER', count: 2 },
-            ];
-            // 非8人局 fallback 到标准模式
-            return calcIdentityDistribution(totalPlayers, 'standard');
-        }
-
-        default:
-            return [{ role: 'LORD', count: 1 }];
-    }
-}
-
-/** 角色中文名映射（同 ROLE_NAMES） */
+/** 角色中文名映射（仅用于前端展示） */
 const ROLE_SHORT_NAMES = {
     LORD:     '主公',
     MINION:   '忠臣',
@@ -1066,33 +990,20 @@ const ROLE_SHORT_NAMES = {
     INTRUDER: '内奸',
 };
 
-/** 生成配置摘要文本 */
-function generateSummary(totalPlayers, config) {
-    var dist = calcIdentityDistribution(totalPlayers, config);
-    var configNames = {
-        standard:        '标准身份',
-        double_intruder: '双内模式',
-    };
-    var totalRoles = dist.reduce(function (sum, r) { return sum + r.count; }, 0);
-    var lineText = '当前配置：' + totalPlayers + '人局 · ' + (configNames[config] || config);
+/** 身份配置名称映射 */
+const CONFIG_NAMES = {
+    standard:        '标准身份',
+    double_intruder: '双内模式',
+};
 
-    var parts = dist.map(function (r) {
-        return (ROLE_SHORT_NAMES[r.role] || r.role) + '×' + r.count;
-    });
-    var detailText = parts.join('  ');
-
-    return { line: lineText, detail: detailText };
-}
-
-/** 更新摘要显示 */
+/** 更新摘要显示（纯展示层，身份分配由后端计算） */
 function updateSummary() {
     var countEl = playerCountGroup.querySelector('.active');
     var configEl = identityConfigGroup.querySelector('.active');
     var totalPlayers = countEl ? parseInt(countEl.dataset.count, 10) : 6;
     var config = configEl ? configEl.dataset.config : 'standard';
-    var s = generateSummary(totalPlayers, config);
-    summaryLine.textContent = s.line;
-    summaryDetail.textContent = s.detail;
+    summaryLine.textContent = '当前配置：' + totalPlayers + '人局 · ' + (CONFIG_NAMES[config] || config);
+    summaryDetail.textContent = '身份将由服务器分配';
 }
 
 // 单机模式按钮 → 弹出房间设置
