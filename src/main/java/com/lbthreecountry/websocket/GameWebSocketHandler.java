@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lbthreecountry.entity.GameRoom;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
+import com.lbthreecountry.game.card.CardManager;
+import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.model.card.def.CardDef;
 import com.lbthreecountry.model.enums.impl.RoomStatus;
 import com.lbthreecountry.model.player.PlayerInfo;
 import com.lbthreecountry.model.player.PlayerSession;
@@ -52,6 +55,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final WebSocketSessionManager sessionManager;
     private final RoomService roomService;
     private final GameService gameService;
+    private final CardManager cardManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 机器人自动推进调度器 */
@@ -178,6 +182,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "CLOSE_SEAT"    -> handleCloseSeat(session, playerSession, msg);
             case "OPEN_SEAT"     -> handleOpenSeat(session, playerSession, msg);
             case "UPDATE_ROOM_SETTINGS" -> handleUpdateRoomSettings(session, playerSession, msg);
+            case "PLAY_CARD"            -> handlePlayCard(session, playerSession, msg);
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -432,6 +437,23 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                         "gameSeat", gp.getGameSeat(),
                         "handCardCount", gp.getHandCards().size()
                 )));
+
+                // 私发手牌详情（卡面数据供前端渲染）
+                List<Map<String, Object>> cardList = new java.util.ArrayList<>();
+                for (CardInstance card : gp.getHandCards()) {
+                    CardDef def = cardManager.getDef(card.getDefId());
+                    Map<String, Object> cardMap = new java.util.HashMap<>();
+                    cardMap.put("instanceId", card.getInstanceId());
+                    cardMap.put("defId", card.getDefId());
+                    cardMap.put("name", def != null ? def.getName() : card.getDefId());
+                    cardMap.put("suit", card.getSuit().name());
+                    cardMap.put("point", card.getPoint());
+                    cardList.add(cardMap);
+                }
+                sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
+                        "type", "MY_HAND",
+                        "cards", cardList
+                )));
             }
 
             // 广播第一回合开始
@@ -450,6 +472,102 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             // 通知大厅中的玩家房间状态已更新
             broadcastRoomList();
             broadcastOnlinePlayers();
+
+        } catch (IllegalStateException e) {
+            sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  出牌
+    // ──────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void handlePlayCard(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
+            return;
+        }
+
+        String roomId = room.getRoomId();
+        Object cardIdObj = msg.get("cardInstanceId");
+        if (cardIdObj == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "缺少 cardInstanceId"));
+            return;
+        }
+        Long cardInstanceId = ((Number) cardIdObj).longValue();
+
+        @SuppressWarnings("unchecked")
+        List<String> targetIds = (List<String>) msg.get("targetIds");
+        if (targetIds == null) targetIds = List.of();
+
+        try {
+            GameMatch match = gameService.playCard(roomId, playerId, cardInstanceId, targetIds);
+
+            // 从事件总线获取出牌广播数据
+            String cardName = "";
+            String cardDefId = "";
+            String playerName = "";
+            String suit = null;
+            Integer point = null;
+            // 从 match 中查找打出的牌的信息，通过 EventBus 获取比较复杂
+            // 改用直接从 match 和参数构建
+
+            GamePlayer player = match.findPlayer(playerId);
+            String name = player != null ? player.getPlayerName() : playerId;
+
+            // 构建 PLAY_ACTION 广播给所有人
+            Map<String, Object> actionData = new java.util.HashMap<>();
+            actionData.put("type", "PLAY_ACTION");
+            actionData.put("playerId", playerId);
+            actionData.put("playerName", name);
+            // 从消息中带过来的数据（由前端提供卡牌信息用于广播，避免二次查询）
+            if (msg.containsKey("cardName")) actionData.put("cardName", msg.get("cardName"));
+            if (msg.containsKey("cardDefId")) actionData.put("cardDefId", msg.get("cardDefId"));
+            if (msg.containsKey("suit")) actionData.put("suit", msg.get("suit"));
+            if (msg.containsKey("point")) actionData.put("point", msg.get("point"));
+            actionData.put("targetIds", targetIds);
+
+            broadcastToRoom(room, actionData, null);
+
+            // 构建 PLAYER_UPDATE 广播给所有人（更新 HP、手牌数等）
+            List<Map<String, Object>> playerUpdates = match.getPlayers().stream()
+                    .map(gp -> {
+                        Map<String, Object> p = new java.util.HashMap<>();
+                        p.put("playerId", gp.getPlayerId());
+                        p.put("currentHp", gp.getCurrentHp());
+                        p.put("handCardCount", gp.getHandCards().size());
+                        p.put("status", gp.getStatus().name());
+                        return p;
+                    })
+                    .toList();
+
+            broadcastToRoom(room, Map.of(
+                    "type", "PLAYER_UPDATE",
+                    "players", playerUpdates
+            ), null);
+
+            // 私发出牌玩家的新手牌
+            GamePlayer gp = match.findPlayer(playerId);
+            if (gp != null) {
+                List<Map<String, Object>> cardList = new java.util.ArrayList<>();
+                for (CardInstance card : gp.getHandCards()) {
+                    CardDef def = cardManager.getDef(card.getDefId());
+                    Map<String, Object> cardMap = new java.util.HashMap<>();
+                    cardMap.put("instanceId", card.getInstanceId());
+                    cardMap.put("defId", card.getDefId());
+                    cardMap.put("name", def != null ? def.getName() : card.getDefId());
+                    cardMap.put("suit", card.getSuit().name());
+                    cardMap.put("point", card.getPoint());
+                    cardList.add(cardMap);
+                }
+                sessionManager.sendMessage(playerId, toJson(Map.of(
+                        "type", "MY_HAND",
+                        "cards", cardList
+                )));
+            }
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));

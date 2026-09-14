@@ -5,9 +5,12 @@ import com.lbthreecountry.entity.RoomPlayer;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
+import com.lbthreecountry.game.card.EffectEngine;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
+import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.model.card.def.CardDef;
 import com.lbthreecountry.model.enums.impl.GamePhase;
 import com.lbthreecountry.model.enums.impl.GameStatus;
 import com.lbthreecountry.model.enums.impl.PlayerStatus;
@@ -39,6 +42,7 @@ public class GameServiceImpl implements GameService {
     private final RoomService roomService;
     private final EventBus eventBus;
     private final CardManager cardManager;
+    private final EffectEngine effectEngine;
 
     /** roomId → GameMatch */
     private final Map<String, GameMatch> matchMap = new ConcurrentHashMap<>();
@@ -207,6 +211,96 @@ public class GameServiceImpl implements GameService {
     public void removeMatch(String roomId) {
         matchMap.remove(roomId);
         log.info("[游戏] 对局已清理 [roomId={}]", roomId);
+    }
+
+    // ================================================================
+    //  使用卡牌
+    // ================================================================
+
+    @Override
+    public GameMatch playCard(String roomId, String playerId, Long cardInstanceId, List<String> targetIds) {
+        GameMatch match = getMatch(roomId);
+        if (match == null) throw new IllegalStateException("对局不存在: " + roomId);
+
+        match.lock();
+        try {
+            // 1. 校验：游戏进行中
+            if (match.getStatus() != GameStatus.PLAYING) {
+                throw new IllegalStateException("游戏未在进行中");
+            }
+
+            // 2. 校验：轮到该玩家
+            GamePlayer player = match.currentPlayer();
+            if (player == null || !player.getPlayerId().equals(playerId)) {
+                throw new IllegalStateException("当前不是你的回合");
+            }
+
+            // 3. 校验：出牌阶段
+            if (match.getCurrentPhase() != GamePhase.PLAY) {
+                throw new IllegalStateException("当前不是出牌阶段");
+            }
+
+            // 4. 查找卡牌实例
+            CardInstance card = null;
+            int cardIndex = -1;
+            for (int i = 0; i < player.getHandCards().size(); i++) {
+                if (player.getHandCards().get(i).getInstanceId().equals(cardInstanceId)) {
+                    card = player.getHandCards().get(i);
+                    cardIndex = i;
+                    break;
+                }
+            }
+            if (card == null) {
+                throw new IllegalStateException("手牌中未找到该卡牌");
+            }
+
+            // 5. 获取卡牌定义
+            CardDef cardDef = cardManager.getDef(card.getDefId());
+            if (cardDef == null) {
+                throw new IllegalStateException("卡牌定义未找到: " + card.getDefId());
+            }
+
+            log.info("[出牌] {} 使用 {} → 目标: {} [roomId={}]",
+                    player.getPlayerName(), cardDef.getName(), targetIds, roomId);
+
+            // 6. 从手牌移除
+            player.getHandCards().remove(cardIndex);
+
+            // 7. 执行卡牌效果（在弃牌前执行，效果可能需要引用卡牌）
+            List<String> safeTargets = targetIds != null ? targetIds : List.of();
+            effectEngine.executeOnUse(cardDef, card, match, playerId, safeTargets);
+
+            // 8. 放入弃牌堆
+            card.setOwnerId(null);
+            card.setStatus(com.lbthreecountry.model.enums.impl.CardStatus.DISCARD_PILE);
+            match.getDiscardPile().add(card);
+
+            // 9. 如果卡牌是【杀】，标记本回合已出杀
+            if ("sha".equals(card.getDefId())) {
+                player.setHasPlayedSha(true);
+            }
+
+            // 10. 发布事件
+            GameEvent playEvent = GameEvent.builder()
+                    .type(GameEventType.CARD_PLAYED)
+                    .sourceId(playerId)
+                    .build();
+            playEvent.putData("roomId", roomId);
+            playEvent.putData("playerId", playerId);
+            playEvent.putData("playerName", player.getPlayerName());
+            playEvent.putData("cardDefId", card.getDefId());
+            playEvent.putData("cardName", cardDef.getName());
+            playEvent.putData("suit", card.getSuit() != null ? card.getSuit().name() : null);
+            playEvent.putData("point", card.getPoint());
+            playEvent.putData("targetIds", safeTargets);
+            eventBus.publish(playEvent, match);
+
+            log.info("[出牌] {} 使用 {} 完成 [roomId={}]", player.getPlayerName(), cardDef.getName(), roomId);
+
+            return match;
+        } finally {
+            match.unlock();
+        }
     }
 
     // ================================================================

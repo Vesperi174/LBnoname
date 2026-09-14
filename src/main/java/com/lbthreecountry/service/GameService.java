@@ -3,6 +3,8 @@ package com.lbthreecountry.service;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.model.enums.impl.RoleType;
 
+import java.util.List;
+
 /**
  * 游戏服务 — 管理一局游戏的生命周期
  *
@@ -87,6 +89,28 @@ public interface GameService {
      * @return 结束后的对局
      */
     GameMatch endGame(String roomId, RoleType winnerRole);
+
+    /**
+     * 使用卡牌 — 玩家打出一张手牌，执行效果
+     *
+     * <p>执行流程：</p>
+     * <ol>
+     *   <li>校验：对局存在、正在进行、轮到出牌者、出牌阶段</li>
+     *   <li>校验：卡牌在手牌中</li>
+     *   <li>移除手牌，放入弃牌堆</li>
+     *   <li>通过 {@code EffectEngine} 执行卡牌效果</li>
+     *   <li>如果卡牌是【杀】，标记 {@code hasPlayedSha = true}</li>
+     *   <li>发布 {@code PLAY_CARD} 事件</li>
+     * </ol>
+     *
+     * @param roomId         房间 ID
+     * @param playerId       出牌玩家 ID
+     * @param cardInstanceId 卡牌实例 ID
+     * @param targetIds      选中的目标玩家 ID 列表
+     * @return 更新后的对局
+     * @throws IllegalStateException 各种校验失败
+     */
+    GameMatch playCard(String roomId, String playerId, Long cardInstanceId, List<String> targetIds);
 
     /**
      * 获取对局

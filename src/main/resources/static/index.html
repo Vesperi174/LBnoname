@@ -96,13 +96,22 @@
             </div>
 
             <div class="hand-area-container" id="handAreaContainer">
-                <div class="turn-timer" id="turnTimer">
-                    <div class="turn-timer-track">
-                        <div class="turn-timer-bar" id="turnTimerBar"></div>
+                <!-- 出牌阶段动作栏（提示文字 + 进度条 + 按钮） -->
+                <div class="play-action-bar" id="playActionBar">
+                    <div class="play-phase-hint" id="playPhaseHint">出牌阶段，请使用你的手牌</div>
+                    <div class="turn-timer" id="turnTimer">
+                        <span class="turn-timer-text" id="turnTimerText">15s</span>
+                        <div class="turn-timer-track">
+                            <div class="turn-timer-bar" id="turnTimerBar"></div>
+                        </div>
                     </div>
-                    <span class="turn-timer-text" id="turnTimerText">15s</span>
+                    <div class="play-btn-row" id="playBtnRow">
+                        <button class="play-btn play-confirm-btn" id="playConfirmBtn" disabled>确定</button>
+                        <div class="play-btn-row-spacer"></div>
+                        <button class="play-btn play-cancel-btn" id="playCancelBtn" disabled>取消</button>
+                        <button class="play-btn play-end-btn" id="playEndBtn">结束阶段</button>
+                    </div>
                 </div>
-                <button class="btn-end-play" id="endPlayBtn">结束出牌阶段</button>
                 <div class="hand-area" id="handArea">
                     <div class="hand-area-inner" id="handAreaInner">
                         <!-- 手牌由 JS 动态渲染 -->

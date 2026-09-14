@@ -645,6 +645,86 @@ body {
     pointer-events: none;
 }
 
+/* ==================== 手牌卡片样式 ==================== */
+.hand-card {
+    flex-shrink: 0;
+    width: 64px;
+    height: 88px;
+    border-radius: 6px;
+    border: 1.5px solid rgba(255, 255, 255, 0.25);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+    user-select: none;
+    background: linear-gradient(135deg, #2a2a3a 0%, #1a1a2a 100%);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.hand-card:hover {
+    transform: translateY(-10px);
+    border-color: rgba(255, 215, 0, 0.6);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6);
+    z-index: 10;
+}
+/* 红桃/方块 — 红色系 */
+.hand-card.suit-hearts,
+.hand-card.suit-diamonds {
+    background: linear-gradient(135deg, #3a1a2a 0%, #2a1020 100%);
+}
+.hand-card.suit-hearts:hover,
+.hand-card.suit-diamonds:hover {
+    border-color: rgba(255, 80, 80, 0.7);
+}
+/* 黑桃/梅花 — 暗色系 */
+.hand-card.suit-spades,
+.hand-card.suit-clubs {
+    background: linear-gradient(135deg, #2a2a3a 0%, #1a1a2a 100%);
+}
+.hand-card.suit-spades:hover,
+.hand-card.suit-clubs:hover {
+    border-color: rgba(180, 180, 220, 0.6);
+}
+/* 花色+点数顶栏 */
+.hc-top {
+    width: 100%;
+    padding: 3px 5px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 1;
+}
+.hc-suit {
+    font-size: 14px;
+}
+.hc-suit.suit-hearts { color: #ff4060; }
+.hc-suit.suit-diamonds { color: #ff6090; }
+.hc-suit.suit-spades { color: #c0c0e0; }
+.hc-suit.suit-clubs { color: #a0c0a0; }
+.hc-point {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.8);
+}
+/* 卡牌名称（居中） */
+.hc-name {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    color: #f0d8a0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+    padding: 0 2px;
+    text-align: center;
+    line-height: 1.2;
+}
+
 /* ==================== 玩家信息卡（右下角） ==================== */
 /* 右下角容器（技能 + 信息卡） */
 .br-wrapper {
@@ -693,26 +773,50 @@ body {
     user-select: none;
     white-space: nowrap;
 }
-/* 倒计时进度条 — 超细长型，文字在上方，平滑减少 */
-.turn-timer {
+/* ==================== 出牌阶段动作栏 ==================== */
+
+/* 整个动作栏容器 — 浮在手牌区上方 */
+.play-action-bar {
     position: absolute;
-    top: -62px;
+    top: -124px;
     left: 50%;
     transform: translateX(-50%);
-    width: 300px;
+    width: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    pointer-events: auto;
+    z-index: 16;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.2s, visibility 0.2s;
+}
+.play-action-bar.visible {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* 提示文字 */
+.play-phase-hint {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffd700;
+    font-family: "KaiTi", "STKaiti", "楷体", serif;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9), 0 0 12px rgba(255, 215, 0, 0.2);
+    letter-spacing: 3px;
+    user-select: none;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+/* 倒计时进度条 */
+.turn-timer {
+    width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    pointer-events: auto;
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity 0.2s, visibility 0.2s;
-    z-index: 16;
-}
-.turn-timer.visible {
-    visibility: visible;
-    opacity: 1;
 }
 .turn-timer-text {
     font-size: 11px;
@@ -739,37 +843,90 @@ body {
     background: linear-gradient(90deg, #e74c3c, #f39c12);
     border-radius: 3px;
 }
-/* 结束出牌阶段按钮 — 浮在手牌区上方，不占布局空间 */
-.btn-end-play {
-    position: absolute;
-    top: -36px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: linear-gradient(145deg, #c0392b, #96281b);
-    border: 1px solid rgba(255, 200, 100, 0.3);
-    border-radius: 6px;
-    color: #fff;
-    font-size: 14px;
+
+/* 按钮行 — 左侧确定，右侧取消+结束 */
+.play-btn-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+}
+.play-btn-row-spacer {
+    flex: 1;
+}
+
+/* 通用出牌阶段按钮 */
+.play-btn {
+    padding: 5px 16px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    font-size: 13px;
     font-weight: 700;
     font-family: "KaiTi", "STKaiti", "楷体", serif;
-    padding: 6px 20px;
     cursor: pointer;
     pointer-events: auto;
-    transition: opacity 0.2s, visibility 0.2s;
-    box-shadow: 0 2px 8px rgba(192, 57, 43, 0.4);
-    z-index: 15;
-    visibility: hidden;
-    opacity: 0;
+    transition: all 0.15s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
     white-space: nowrap;
+    user-select: none;
 }
-.btn-end-play.visible {
-    visibility: visible;
-    opacity: 1;
+
+/* 确定按钮 — 绿色调（左侧） */
+.play-confirm-btn {
+    background: linear-gradient(145deg, #27ae60, #1e8449);
+    border-color: rgba(100, 220, 100, 0.2);
+    color: #d5f5e3;
 }
-.btn-end-play:hover {
+.play-confirm-btn:hover {
+    background: linear-gradient(145deg, #2ecc71, #27ae60);
+    border-color: rgba(100, 220, 100, 0.5);
+    box-shadow: 0 3px 10px rgba(46, 204, 113, 0.4);
+    transform: scale(1.05);
+}
+.play-confirm-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 取消按钮 — 红色调 */
+.play-cancel-btn {
+    background: linear-gradient(145deg, #c0392b, #96281b);
+    border-color: rgba(255, 150, 100, 0.2);
+    color: #fadbd8;
+}
+.play-cancel-btn:hover {
     background: linear-gradient(145deg, #e74c3c, #c0392b);
-    box-shadow: 0 3px 12px rgba(231, 76, 60, 0.6);
-    transform: translateX(-50%) scale(1.05);
+    border-color: rgba(255, 150, 100, 0.5);
+    box-shadow: 0 3px 10px rgba(231, 76, 60, 0.4);
+    transform: scale(1.05);
+}
+.play-cancel-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+.play-cancel-btn:disabled:hover {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* 结束阶段按钮 — 金色调 */
+.play-end-btn {
+    background: linear-gradient(145deg, #b7950b, #9a7d0a);
+    border-color: rgba(255, 215, 0, 0.2);
+    color: #fef9e7;
+}
+.play-end-btn:hover {
+    background: linear-gradient(145deg, #d4ac0d, #b7950b);
+    border-color: rgba(255, 215, 0, 0.5);
+    box-shadow: 0 3px 10px rgba(212, 172, 13, 0.4);
+    transform: scale(1.05);
 }
 
 .player-card {
@@ -1997,4 +2154,31 @@ h3 {
     .my-card-section { max-width: 100%; }
     .hand-card { width: 46px; height: 56px; }
     .hand-card .hc-name { font-size: 9px; }
+}
+
+/* ==================== 目标选择模式 ==================== */
+
+/* 手牌选中状态（待选目标） */
+.hand-card.card-selected {
+    transform: translateY(-18px);
+    border-color: #ffd700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5), 0 6px 16px rgba(0, 0, 0, 0.6);
+}
+
+/* 对手武将可选目标高亮 */
+.opp-card.targetable {
+    cursor: pointer;
+    border-color: rgba(255, 215, 0, 0.2);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.opp-card.targetable:hover {
+    border-color: rgba(255, 215, 0, 0.6);
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.25);
+}
+
+/* 对手武将选中高亮 */
+.opp-card.target-selected {
+    border-color: #ffd700 !important;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4), inset 0 0 20px rgba(255, 215, 0, 0.08) !important;
+    background: rgba(255, 215, 0, 0.08);
 }

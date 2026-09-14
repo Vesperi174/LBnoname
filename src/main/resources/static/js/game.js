@@ -29,6 +29,16 @@ const STATE = {
             treasure: null,
         },
         fieldCards: [],
+    },
+
+    // 目标选择模式
+    targetMode: {
+        active: false,
+        cardIndex: -1,
+        cardData: null,
+        selectedTargets: [],   // 已选目标 playerId 数组
+        minTargets: 1,
+        maxTargets: 1,
     }
 };
 
@@ -128,7 +138,10 @@ const joinRoomCancelBtn  = $('joinRoomCancelBtn');
 
 // 对局 UI
 const backToHomeBtn     = $('backToHomeBtn');
-const endPlayBtn        = $('endPlayBtn');
+const endPlayBtn        = $('playEndBtn');
+const playActionBar     = $('playActionBar');
+const playConfirmBtn    = $('playConfirmBtn');
+const playCancelBtn     = $('playCancelBtn');
 const turnTimer         = $('turnTimer');
 const turnTimerBar      = $('turnTimerBar');
 const turnTimerText     = $('turnTimerText');
@@ -285,6 +298,221 @@ function renderSkills(me) {
         children[i].textContent = skills[i];
         children[i].className = 'skill-btn';
     }
+}
+
+// 花色符号映射
+const SUIT_SYMBOLS = {
+    SPADES:   '♠',
+    HEARTS:   '♥',
+    CLUBS:    '♣',
+    DIAMONDS: '♦',
+};
+
+/** 点数转显示文本 */
+function pointToDisplay(point) {
+    if (!point) return '?';
+    if (point === 1) return 'A';
+    if (point === 11) return 'J';
+    if (point === 12) return 'Q';
+    if (point === 13) return 'K';
+    return String(point);
+}
+
+/** 渲染手牌 */
+function renderHandCards() {
+    var container = document.getElementById('handAreaInner');
+    if (!container) return;
+
+    var cards = STATE.game.myHandCards || [];
+    container.innerHTML = '';
+
+    for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var suit = card.suit || '';
+        var suitSymbol = SUIT_SYMBOLS[suit] || '?';
+        var pointStr = pointToDisplay(card.point);
+        var suitClass = 'suit-' + suit.toLowerCase();
+
+        var el = document.createElement('div');
+        el.className = 'hand-card ' + suitClass;
+        el.dataset.index = i;
+        el.dataset.instanceId = card.instanceId;
+        el.dataset.defId = card.defId;
+
+        // 顶栏：花色 + 点数
+        var top = document.createElement('div');
+        top.className = 'hc-top';
+        var suitEl = document.createElement('span');
+        suitEl.className = 'hc-suit ' + suitClass;
+        suitEl.textContent = suitSymbol;
+        var pointEl = document.createElement('span');
+        pointEl.className = 'hc-point';
+        pointEl.textContent = pointStr;
+        top.appendChild(suitEl);
+        top.appendChild(pointEl);
+        el.appendChild(top);
+
+        // 卡牌名称
+        var nameEl = document.createElement('div');
+        nameEl.className = 'hc-name';
+        nameEl.textContent = card.name || card.defId || '?';
+        el.appendChild(nameEl);
+
+        // 点击出牌
+        el.addEventListener('click', function (e) {
+            var idx = parseInt(this.dataset.index);
+            var instanceId = this.dataset.instanceId;
+            var defId = this.dataset.defId;
+            console.log('[手牌] 点击了第 ' + (idx + 1) + ' 张牌:', defId, 'instanceId:', instanceId);
+
+            // 检查是否自己回合 & 出牌阶段
+            var mySeat = getMySeat();
+            var curIdx = STATE.game.currentPlayerIndex;
+            if (mySeat === -1 || mySeat !== curIdx) {
+                console.log('[手牌] 不是自己的回合，忽略');
+                return;
+            }
+            if (STATE.game.phase !== 'PLAY') {
+                console.log('[手牌] 当前不是出牌阶段，忽略');
+                return;
+            }
+
+            // 如果已经在目标选择模式，先退出（重新选牌）
+            if (STATE.targetMode.active) {
+                exitTargetMode();
+            }
+
+            var cardData = STATE.game.myHandCards[idx];
+            if (cardData) {
+                enterTargetMode(idx, cardData);
+            }
+        });
+
+        container.appendChild(el);
+    }
+}
+
+// ================================================================
+//  目标选择模式
+// ================================================================
+
+/**
+ * 进入目标选择模式
+ * @param {number} cardIndex 手牌索引
+ * @param {object} cardData  卡牌数据
+ */
+function enterTargetMode(cardIndex, cardData) {
+    STATE.targetMode.active = true;
+    STATE.targetMode.cardIndex = cardIndex;
+    STATE.targetMode.cardData = cardData;
+    STATE.targetMode.selectedTargets = [];
+
+    // 高亮选中的手牌
+    var handCards = document.querySelectorAll('.hand-card');
+    handCards.forEach(function (el, i) {
+        if (i === cardIndex) {
+            el.classList.add('card-selected');
+        } else {
+            el.classList.remove('card-selected');
+        }
+    });
+
+    // 标记对手卡牌为可点击目标
+    var oppCards = document.querySelectorAll('.opp-card');
+    oppCards.forEach(function (el) {
+        el.classList.add('targetable');
+        // 移除旧监听器（如果有），添加新监听
+        el.removeEventListener('click', onOppCardClick);
+        el.addEventListener('click', onOppCardClick);
+    });
+
+    // 启用确定/取消按钮
+    playConfirmBtn.disabled = false;
+    playCancelBtn.disabled = false;
+}
+
+/** 对手卡牌点击处理 */
+function onOppCardClick(e) {
+    // 阻止冒泡，避免触发父级事件
+    e.stopPropagation();
+
+    var card = e.currentTarget;
+    var seat = parseInt(card.dataset.seat);
+    var player = getPlayerBySeat(seat);
+    if (!player) return;
+
+    var playerId = player.playerId;
+
+    // 不能选择自己作为目标
+    if (playerId === STATE.playerId) return;
+
+    var tm = STATE.targetMode;
+    var idx = tm.selectedTargets.indexOf(playerId);
+
+    if (idx >= 0) {
+        // 取消选择
+        tm.selectedTargets.splice(idx, 1);
+        card.classList.remove('target-selected');
+    } else if (tm.selectedTargets.length < tm.maxTargets) {
+        // 添加选择
+        tm.selectedTargets.push(playerId);
+        card.classList.add('target-selected');
+    }
+}
+
+/** 确认出牌，发送 PLAY_CARD 消息 */
+function confirmPlayCard() {
+    var tm = STATE.targetMode;
+    if (!tm.active) return;
+    if (tm.selectedTargets.length < tm.minTargets) return;
+
+    var cardData = STATE.game.myHandCards[tm.cardIndex];
+    if (!cardData) {
+        exitTargetMode();
+        return;
+    }
+
+    // 发送 PLAY_CARD 消息
+    sendMsg({
+        type: 'PLAY_CARD',
+        cardInstanceId: cardData.instanceId,
+        cardName: cardData.name || '',
+        cardDefId: cardData.defId || '',
+        suit: cardData.suit || '',
+        point: cardData.point || 0,
+        targetIds: tm.selectedTargets,
+    });
+
+    // 退出目标选择模式
+    exitTargetMode();
+
+    // 重置出牌阶段倒计时
+    var ttl = STATE.game.turnTime || 15;
+    stopTurnTimer();
+    startTurnTimer(ttl);
+}
+
+/** 退出目标选择模式（清除所有高亮和监听） */
+function exitTargetMode() {
+    STATE.targetMode.active = false;
+    STATE.targetMode.cardIndex = -1;
+    STATE.targetMode.cardData = null;
+    STATE.targetMode.selectedTargets = [];
+
+    // 清除手牌高亮
+    var handCards = document.querySelectorAll('.hand-card.card-selected');
+    handCards.forEach(function (el) { el.classList.remove('card-selected'); });
+
+    // 清除对手高亮 & 移除监听器
+    var oppCards = document.querySelectorAll('.opp-card');
+    oppCards.forEach(function (el) {
+        el.classList.remove('targetable', 'target-selected');
+        el.removeEventListener('click', onOppCardClick);
+    });
+
+    // 禁用确定/取消按钮
+    playConfirmBtn.disabled = true;
+    playCancelBtn.disabled = true;
 }
 
 /** 渲染对手分布 */
@@ -507,7 +735,6 @@ var myTurnTimer = createCountdown({
     onStart: function (seconds) {
         turnTimerBar.style.width = '100%';
         turnTimerText.textContent = seconds + 's';
-        turnTimer.classList.add('visible');
         turnTimerBar.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
     },
     onTick: function (pct, remaining) {
@@ -518,11 +745,11 @@ var myTurnTimer = createCountdown({
         }
     },
     onComplete: function () {
-        endPlayBtn.classList.remove('visible');
+        playActionBar.classList.remove('visible');
+        if (STATE.targetMode.active) exitTargetMode();
         sendMsg({ type: 'NEXT_PHASE' });
     },
     onStop: function () {
-        turnTimer.classList.remove('visible');
         turnTimerBar.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
     }
 });
@@ -1078,7 +1305,7 @@ function handleMessage(msg) {
             updateTopBar();
             renderPlayerCard();
             // 隐藏上一次的结束出牌按钮和倒计时
-            endPlayBtn.classList.remove('visible');
+            playActionBar.classList.remove('visible');
             stopTurnTimer();
 
             // 保存出手时间
@@ -1130,18 +1357,18 @@ function handleMessage(msg) {
             // 是当前玩家自己的阶段变化
             if (msg.gameSeat === getMySeat()) {
                 if (msg.toPhase === 'PLAY') {
-                    // 出牌阶段 → 显示按钮 + 启动倒计时
-                    endPlayBtn.classList.add('visible');
+                    // 出牌阶段 → 显示动作栏 + 启动倒计时
+                    playActionBar.classList.add('visible');
                     var ttl = STATE.game.turnTime || 15;
                     startTurnTimer(ttl);
                 } else if (msg.toPhase === 'DISCARD') {
-                    // 弃牌阶段 → 隐藏按钮和倒计时，自动推进
-                    endPlayBtn.classList.remove('visible');
+                    // 弃牌阶段 → 隐藏动作栏和倒计时，自动推进
+                    playActionBar.classList.remove('visible');
                     stopTurnTimer();
                     schedulePhaseAdvance();
                 } else if (msg.toPhase === 'END') {
-                    // 结束阶段 → 隐藏按钮和倒计时，等待后端自动换回合
-                    endPlayBtn.classList.remove('visible');
+                    // 结束阶段 → 隐藏动作栏和倒计时，等待后端自动换回合
+                    playActionBar.classList.remove('visible');
                     stopTurnTimer();
                 } else {
                     // 准备/判定/摸牌 → 自动推进
@@ -1182,11 +1409,36 @@ function handleMessage(msg) {
 
         case 'MY_HAND':
             STATE.game.myHandCards = msg.cards || [];
+            renderHandCards();
+            console.log('[手牌] 收到手牌: ' + STATE.game.myHandCards.length + ' 张');
             break;
 
         case 'MY_EQUIPMENT':
             STATE.game.myEquipment = msg.equipment || STATE.game.myEquipment;
             renderEquipment();
+            break;
+
+        case 'PLAY_ACTION':
+            // 有人出牌了 => 战报
+            var actorName = msg.playerName || '未知';
+            var cardName = msg.cardName || msg.cardDefId || '未知卡牌';
+            var targetNames = '';
+
+            if (msg.targetIds && msg.targetIds.length > 0) {
+                var nameList = [];
+                msg.targetIds.forEach(function (tid) {
+                    var p = STATE.game.players.find(function (pp) { return pp.playerId === tid; });
+                    nameList.push(p ? p.playerName : tid);
+                });
+                targetNames = ' → ' + nameList.join('、');
+            }
+
+            addLog(actorName + ' 使用了【' + cardName + '】' + targetNames, 'action');
+
+            // 如果出牌的不是自己，退出目标选择模式（兜底）
+            if (msg.playerId !== STATE.playerId && STATE.targetMode.active) {
+                exitTargetMode();
+            }
             break;
 
         case 'PLAYER_UPDATE':
@@ -1201,6 +1453,7 @@ function handleMessage(msg) {
             });
             updateTopBar();
             renderPlayerCard();
+            renderOpponents(STATE.game.players);
             break;
 
         case 'GAME_OVER':
@@ -1314,11 +1567,27 @@ function schedulePhaseAdvance() {
 
 /** 结束出牌阶段按钮点击 */
 endPlayBtn.addEventListener('click', function () {
-    endPlayBtn.classList.remove('visible');
+    playActionBar.classList.remove('visible');
     stopTurnTimer();
     if (_advanceTimer) clearTimeout(_advanceTimer);
     _advanceTimer = null;
+    // 如果有目标选择模式，退出
+    if (STATE.targetMode.active) exitTargetMode();
     sendMsg({ type: 'NEXT_PHASE' });
+});
+
+/** 取消按钮 — 退出目标选择模式 */
+playCancelBtn.addEventListener('click', function () {
+    if (STATE.targetMode.active) {
+        exitTargetMode();
+    }
+});
+
+/** 确定按钮 — 确认出牌 */
+playConfirmBtn.addEventListener('click', function () {
+    if (STATE.targetMode.active) {
+        confirmPlayCard();
+    }
 });
 
 // 游戏结束弹窗确认
