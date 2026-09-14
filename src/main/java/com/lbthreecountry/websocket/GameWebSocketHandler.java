@@ -267,6 +267,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             // 游戏进行中 → 转为机器人
             handlePlayerToBot(room, match, playerId, playerName);
             sendJson(session, Map.of("type", "ROOM_LEFT", "roomId", roomId));
+            broadcastRoomList();
             return;
         }
 
@@ -373,6 +374,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "round", match.getCurrentRound(),
                     "phase", match.getCurrentPhase().name()
             ), null);
+
+            // 通知大厅中的玩家房间状态已更新
+            broadcastRoomList();
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
@@ -547,6 +551,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         roomService.removeRoom(roomId);
         botAdvancing.remove(roomId);
 
+        // 通知所有在线玩家房间列表已更新
+        broadcastRoomList();
+
         log.info("[房间] 对局和房间已销毁 [roomId={}]", roomId);
     }
 
@@ -662,7 +669,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
      * 广播房间列表给所有在线玩家
      */
     private void broadcastRoomList() {
-        List<Map<String, Object>> roomList = roomService.getJoinableRooms().stream()
+        List<Map<String, Object>> roomList = roomService.getAllRooms().stream()
                 .map(GameRoom::toRoomInfoMap)
                 .toList();
 
@@ -673,7 +680,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
      * 向指定玩家推送房间列表
      */
     private void pushRoomListToPlayer(String sessionId) {
-        List<Map<String, Object>> roomList = roomService.getJoinableRooms().stream()
+        List<Map<String, Object>> roomList = roomService.getAllRooms().stream()
                 .map(GameRoom::toRoomInfoMap)
                 .toList();
 

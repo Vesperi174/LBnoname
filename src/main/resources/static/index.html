@@ -542,14 +542,16 @@ function renderRoomList(rooms) {
     }
     roomList.innerHTML = rooms.map(r => {
         const canJoin = r.playerCount < r.maxPlayers && r.status === 'WAITING';
+        const statusText = r.status === 'WAITING' ? '等待中' : '⚔️ 进行中';
+        const btnText = canJoin ? '加入' : (r.status !== 'WAITING' ? '进行中' : '已满');
         return `
             <div class="room-item">
                 <div class="info">
                     <div class="name">${escHtml(r.roomName)}</div>
-                    <div class="meta">${r.playerCount}/${r.maxPlayers} 人 · ${r.status === 'WAITING' ? '等待中' : '进行中'}</div>
+                    <div class="meta">${r.playerCount}/${r.maxPlayers} 人 · ${statusText}</div>
                 </div>
                 <button class="btn btn-success btn-sm join-room-btn" data-room-id="${r.roomId}" ${canJoin ? '' : 'disabled'}>
-                    ${canJoin ? '加入' : (r.status !== 'WAITING' ? '进行中' : '已满')}
+                    ${btnText}
                 </button>
             </div>
         `;
