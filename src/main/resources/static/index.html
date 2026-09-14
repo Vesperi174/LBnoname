@@ -41,6 +41,64 @@
         </div>
     </div>
 
+    <!-- ========== 单机模式 · 房间设置弹窗 ========== -->
+    <div id="singleRoomOverlay" class="modal-overlay hidden">
+        <div class="modal-card fade-in">
+            <h2 class="modal-title">单机房间设置</h2>
+            <p class="modal-subtitle">配置本地对局参数，其余位置由电脑（AI）接管</p>
+
+            <!-- 人数选择 -->
+            <div class="setting-section">
+                <label class="setting-label">选择人数</label>
+                <div class="player-count-group" id="playerCountGroup">
+                    <button class="count-btn" data-count="2">2人</button>
+                    <button class="count-btn" data-count="3">3人</button>
+                    <button class="count-btn" data-count="4">4人</button>
+                    <button class="count-btn" data-count="5">5人</button>
+                    <button class="count-btn active" data-count="6">6人</button>
+                    <button class="count-btn" data-count="7">7人</button>
+                    <button class="count-btn" data-count="8">8人</button>
+                </div>
+            </div>
+
+            <!-- 身份配置 -->
+            <div class="setting-section">
+                <label class="setting-label">身份配置</label>
+                <div class="identity-config-group" id="identityConfigGroup">
+                    <label class="identity-option active" data-config="standard">
+                        <span class="identity-radio"></span>
+                        <span class="identity-text">
+                            <span class="identity-name">标准模式</span>
+                            <span class="identity-desc">主公 + 忠臣 + 反贼 + 内奸</span>
+                        </span>
+                    </label>
+                    <label class="identity-option hidden" data-config="double_intruder" id="doubleIntruderOption">
+                        <span class="identity-radio"></span>
+                        <span class="identity-text">
+                            <span class="identity-name">双内模式</span>
+                            <span class="identity-desc">主公 + 忠臣 + 反贼 + 内奸×2（8人局专属）</span>
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 配置摘要（留白区域） -->
+            <div class="setting-summary" id="settingSummary">
+                <div class="summary-icon">⚙</div>
+                <div class="summary-text">
+                    <div class="summary-line" id="summaryLine">当前配置：6人局 · 标准身份</div>
+                    <div class="summary-detail" id="summaryDetail">主公×1 忠臣×1 反贼×3 内奸×1</div>
+                </div>
+            </div>
+
+            <!-- 按钮 -->
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="singleRoomCancelBtn">取消</button>
+                <button class="btn btn-primary" id="singleRoomConfirmBtn">确认开始</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ========== 大厅界面 ========== -->
     <div id="lobbyScreen" class="hidden">
         <div class="card fade-in">
@@ -48,7 +106,10 @@
                 <div class="lobby-left">
                     <div class="lobby-header">
                         <h2 class="lobby-title">游戏大厅</h2>
-                        <span id="playerBadge" class="player-badge"></span>
+                        <div class="lobby-header-right">
+                            <span id="playerBadge" class="player-badge"></span>
+                            <button class="btn-back-lobby-sm" id="lobbyBackBtn">返回</button>
+                        </div>
                     </div>
                     <div class="input-group">
                         <input type="text" id="roomNameInput" placeholder="房间名称（可选）" maxlength="20">
@@ -110,7 +171,7 @@
             <span class="gtb-divider"></span>
             <span class="gtb-item highlight" id="gtbPhase">等待开始</span>
             <span class="gtb-spacer"></span>
-            <button class="btn-back-lobby" id="backToLobbyBtn">返回大厅</button>
+            <button class="btn-back-lobby" id="backToLobbyBtn">返回</button>
         </div>
 
         <!-- 底部模块：装备 | 手牌 | 技能+武将 -->

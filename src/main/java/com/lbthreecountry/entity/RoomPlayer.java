@@ -48,4 +48,11 @@ public class RoomPlayer {
      */
     @Builder.Default
     private boolean isAlive = true;
+
+    /**
+     * 是否为机器人（AI 玩家）
+     * <p>如果为 true，表示该玩家是机器人，对局中不会加载前端交互界面。</p>
+     */
+    @Builder.Default
+    private boolean bot = false;
 }

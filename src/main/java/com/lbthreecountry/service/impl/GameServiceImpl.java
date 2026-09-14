@@ -68,13 +68,14 @@ public class GameServiceImpl implements GameService {
         if (room.getPlayers().stream().anyMatch(p -> !p.isReady()))
             throw new IllegalStateException("还有玩家未准备");
 
-        // 创建 GamePlayer 列表
+        // 创建 GamePlayer 列表（从 RoomPlayer 转换）
         List<GamePlayer> gamePlayers = new ArrayList<>();
         for (RoomPlayer rp : room.getPlayers()) {
             gamePlayers.add(GamePlayer.builder()
                     .playerId(rp.getPlayerId())
                     .playerName(rp.getPlayerName())
                     .roomSeat(rp.getSeatNumber())
+                    .bot(rp.isBot())
                     .status(PlayerStatus.ALIVE)
                     .handCards(new ArrayList<>())
                     .equipCards(new ArrayList<>())

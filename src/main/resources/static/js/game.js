@@ -109,6 +109,16 @@ const roomStatus        = $('roomStatus');
 const onlinePlayerList  = $('onlinePlayerList');
 const onlineCount       = $('onlineCount');
 
+// 单机模式 · 房间设置弹窗 DOM
+const singleRoomOverlay     = $('singleRoomOverlay');
+const singleRoomCancelBtn   = $('singleRoomCancelBtn');
+const singleRoomConfirmBtn  = $('singleRoomConfirmBtn');
+const playerCountGroup      = $('playerCountGroup');
+const identityConfigGroup   = $('identityConfigGroup');
+const doubleIntruderOption  = $('doubleIntruderOption');
+const summaryLine           = $('summaryLine');
+const summaryDetail         = $('summaryDetail');
+
 // 游戏结束弹窗 DOM
 const gameOverTitle     = $('gameOverTitle');
 const gameOverDesc      = $('gameOverDesc');
@@ -219,8 +229,14 @@ function renderPlayerCard() {
     // --- 自适应字号（保证不溢出） ---
     requestAnimationFrame(fitPlayerCard);
 
-    // --- 技能按钮 ---
-    renderSkills(me);
+    // --- 技能按钮（Bot 玩家不加载） ---
+    if (me && me.bot) {
+        // Bot 玩家：隐藏技能栏
+        var skillBarEl = document.getElementById('skillBar') || document.querySelector('.skill-bar');
+        if (skillBarEl) skillBarEl.style.display = 'none';
+    } else {
+        renderSkills(me);
+    }
 }
 
 /** 更新技能按钮 */
@@ -340,6 +356,8 @@ window.addEventListener('resize', adaptScreenSize);
 
 function showScreen(screen) {
     [loginScreen, modeSelectScreen, lobbyScreen, roomScreen, gameScreen].forEach(s => s.classList.add('hidden'));
+    // 切换主屏时自动关闭单机设置弹窗
+    singleRoomOverlay.classList.add('hidden');
     screen.classList.remove('hidden');
     containerEl.classList.toggle('game-active', screen === gameScreen);
     containerEl.classList.toggle('lobby-active', screen === lobbyScreen || screen === modeSelectScreen);
@@ -403,6 +421,11 @@ function connectWebSocket(name) {
         showError('与服务器断开连接');
         STATE.ws = null;
         multiModeBtn.disabled = false;
+        // 如果是主动断开（如返回模式选择），不跳转到登录页
+        if (STATE._intentionalDisconnect) {
+            STATE._intentionalDisconnect = false;
+            return;
+        }
         setTimeout(function () {
             showScreen(loginScreen);
             status(loginStatus, '连接已断开，刷新页面重试', 'error');
@@ -483,9 +506,28 @@ function handleMessage(msg) {
             STATE.game.fieldCards = [];
 
             showScreen(gameScreen);
+
+            // 判断当前玩家是否为 Bot — Bot 玩家不需要加载交互界面
+            var me = players.find(function (p) { return p.playerId === STATE.playerId; });
+            var isBot = me && me.bot === true;
+
             updateTopBar();
             renderPlayerCard();
-            renderEquipment();
+            if (!isBot) {
+                renderEquipment();
+                document.getElementById('handCards') && (document.getElementById('handCards').style.display = '');
+                document.getElementById('skillBar') && (document.getElementById('skillBar').style.display = '');
+            } else {
+                // Bot 玩家：隐藏手牌区、技能栏、装备栏等交互UI
+                if (document.getElementById('handCards')) {
+                    document.getElementById('handCards').style.display = 'none';
+                }
+                var skillBarEl = document.getElementById('skillBar') || document.querySelector('.skill-bar');
+                if (skillBarEl) skillBarEl.style.display = 'none';
+                var eqArea = document.querySelector('.eq-area');
+                if (eqArea) eqArea.style.display = 'none';
+                console.log('当前为 Bot 玩家，跳过交互界面加载');
+            }
             console.log('游戏开始，共 ' + players.length + ' 名玩家');
             break;
 
@@ -761,10 +803,263 @@ backToLoginBtn.addEventListener('click', function () {
     nameInput.focus();
 });
 
-// 单机模式（暂定，留空）
+// ============================================================
+//  单机模式 · 身份配置逻辑
+// ============================================================
+
+/**
+ * 根据人数和身份配置模式，返回角色数组
+ * @param {number} totalPlayers 总人数
+ * @param {string} config 配置模式: 'standard' | 'simple' | 'lord_rebel'
+ * @returns {{ role: string, count: number }[]}
+ */
+function calcIdentityDistribution(totalPlayers, config) {
+    // 基础：无论什么模式，至少需要 1 主公
+    if (totalPlayers < 2) return [{ role: 'LORD', count: 1 }];
+
+    switch (config) {
+        case 'standard': {
+            // 标准三国杀身份局：主公1 + 忠臣 + 反贼 + 内奸
+            if (totalPlayers === 2) return [
+                { role: 'LORD', count: 1 },
+                { role: 'INTRUDER', count: 1 },
+            ];
+            if (totalPlayers === 3) return [
+                { role: 'LORD', count: 1 },
+                { role: 'MINION', count: 1 },
+                { role: 'REBEL', count: 1 },
+            ];
+            if (totalPlayers === 4) return [
+                { role: 'LORD', count: 1 },
+                { role: 'MINION', count: 1 },
+                { role: 'REBEL', count: 1 },
+                { role: 'INTRUDER', count: 1 },
+            ];
+            // 5人: 1主1忠2反1内
+            if (totalPlayers === 5) return [
+                { role: 'LORD', count: 1 },
+                { role: 'MINION', count: 1 },
+                { role: 'REBEL', count: 2 },
+                { role: 'INTRUDER', count: 1 },
+            ];
+            // 6人: 1主1忠3反1内
+            if (totalPlayers === 6) return [
+                { role: 'LORD', count: 1 },
+                { role: 'MINION', count: 1 },
+                { role: 'REBEL', count: 3 },
+                { role: 'INTRUDER', count: 1 },
+            ];
+            // 7人: 1主2忠3反1内
+            if (totalPlayers === 7) return [
+                { role: 'LORD', count: 1 },
+                { role: 'MINION', count: 2 },
+                { role: 'REBEL', count: 3 },
+                { role: 'INTRUDER', count: 1 },
+            ];
+            // 8人: 1主2忠4反1内
+            return [
+                { role: 'LORD', count: 1 },
+                { role: 'MINION', count: 2 },
+                { role: 'REBEL', count: 4 },
+                { role: 'INTRUDER', count: 1 },
+            ];
+        }
+
+        case 'double_intruder': {
+            // 双内模式（仅8人局）：用内奸替换一个反贼
+            // 1主2忠3反2内
+            if (totalPlayers === 8) return [
+                { role: 'LORD', count: 1 },
+                { role: 'MINION', count: 2 },
+                { role: 'REBEL', count: 3 },
+                { role: 'INTRUDER', count: 2 },
+            ];
+            // 非8人局 fallback 到标准模式
+            return calcIdentityDistribution(totalPlayers, 'standard');
+        }
+
+        default:
+            return [{ role: 'LORD', count: 1 }];
+    }
+}
+
+/** 角色中文名映射（同 ROLE_NAMES） */
+const ROLE_SHORT_NAMES = {
+    LORD:     '主公',
+    MINION:   '忠臣',
+    REBEL:    '反贼',
+    INTRUDER: '内奸',
+};
+
+/** 生成配置摘要文本 */
+function generateSummary(totalPlayers, config) {
+    var dist = calcIdentityDistribution(totalPlayers, config);
+    var configNames = {
+        standard:        '标准身份',
+        double_intruder: '双内模式',
+    };
+    var totalRoles = dist.reduce(function (sum, r) { return sum + r.count; }, 0);
+    var lineText = '当前配置：' + totalPlayers + '人局 · ' + (configNames[config] || config);
+
+    var parts = dist.map(function (r) {
+        return (ROLE_SHORT_NAMES[r.role] || r.role) + '×' + r.count;
+    });
+    var detailText = parts.join('  ');
+
+    return { line: lineText, detail: detailText };
+}
+
+/** 更新摘要显示 */
+function updateSummary() {
+    var countEl = playerCountGroup.querySelector('.active');
+    var configEl = identityConfigGroup.querySelector('.active');
+    var totalPlayers = countEl ? parseInt(countEl.dataset.count, 10) : 6;
+    var config = configEl ? configEl.dataset.config : 'standard';
+    var s = generateSummary(totalPlayers, config);
+    summaryLine.textContent = s.line;
+    summaryDetail.textContent = s.detail;
+}
+
+// 单机模式按钮 → 弹出房间设置
 singleModeBtn.addEventListener('click', function () {
-    showInfo('单机模式正在开发中，敬请期待~');
+    singleRoomOverlay.classList.remove('hidden');
 });
+
+// 单机模式 · 取消
+singleRoomCancelBtn.addEventListener('click', function () {
+    singleRoomOverlay.classList.add('hidden');
+});
+
+// 点击遮罩层也关闭
+singleRoomOverlay.addEventListener('click', function (e) {
+    if (e.target === singleRoomOverlay) {
+        singleRoomOverlay.classList.add('hidden');
+    }
+});
+
+// 人数选择切换
+playerCountGroup.addEventListener('click', function (e) {
+    var btn = e.target.closest('.count-btn');
+    if (!btn) return;
+    playerCountGroup.querySelectorAll('.count-btn').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+
+    var totalPlayers = parseInt(btn.dataset.count, 10);
+
+    // 双内模式仅对 8 人局可见
+    if (totalPlayers === 8) {
+        doubleIntruderOption.classList.remove('hidden');
+    } else {
+        doubleIntruderOption.classList.add('hidden');
+        // 如果当前选中了双内模式，切回标准模式
+        if (doubleIntruderOption.classList.contains('active')) {
+            doubleIntruderOption.classList.remove('active');
+            identityConfigGroup.querySelector('[data-config="standard"]').classList.add('active');
+        }
+    }
+
+    updateSummary();
+});
+
+// 身份配置切换
+identityConfigGroup.addEventListener('click', function (e) {
+    var option = e.target.closest('.identity-option');
+    if (!option) return;
+    identityConfigGroup.querySelectorAll('.identity-option').forEach(function (o) { o.classList.remove('active'); });
+    option.classList.add('active');
+    updateSummary();
+});
+
+// 单机模式 · 确认开始
+singleRoomConfirmBtn.addEventListener('click', function () {
+    var countEl = playerCountGroup.querySelector('.active');
+    var configEl = identityConfigGroup.querySelector('.active');
+    if (!countEl || !configEl) return;
+
+    var totalPlayers = parseInt(countEl.dataset.count, 10);
+    var config = configEl.dataset.config;
+    var dist = calcIdentityDistribution(totalPlayers, config);
+
+    singleRoomOverlay.classList.add('hidden');
+    startSinglePlayerGame(totalPlayers, dist);
+});
+
+/**
+ * 启动单机游戏（本地 AI 对局）
+ * 目前：将配置存入 STATE，未来可在此处初始化本地 AI 引擎
+ */
+function startSinglePlayerGame(totalPlayers, identityDist) {
+    // 确保本地玩家有 playerId（单机模式不依赖 WebSocket）
+    if (!STATE.playerId) {
+        STATE.playerId = 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    }
+
+    // 构建玩家列表：第一个是人类玩家，其余为 AI
+    var players = [];
+    var identityPool = [];
+    identityDist.forEach(function (item) {
+        for (var i = 0; i < item.count; i++) {
+            identityPool.push(item.role);
+        }
+    });
+
+    // 简单洗牌（Fisher-Yates），确保身份随机分配
+    for (var i = identityPool.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = identityPool[i];
+        identityPool[i] = identityPool[j];
+        identityPool[j] = tmp;
+    }
+
+    for (var idx = 0; idx < totalPlayers; idx++) {
+        var isHuman = (idx === 0);
+        var role = identityPool[idx] || 'REBEL';
+        players.push({
+            playerId: isHuman ? STATE.playerId : 'bot_' + idx + '_' + Date.now(),
+            playerName: isHuman ? STATE.playerName : ('AI·' + (ROLE_SHORT_NAMES[role] || role) + (idx + 1)),
+            role: role,
+            bot: !isHuman,
+            isReady: true,
+            gameSeat: idx,
+            currentHp: 4,
+            maxHp: 4,
+            kingdom: 1,
+        });
+    }
+
+    // 设置 STATE
+    STATE.game.started = true;
+    STATE.game.players = players;
+    STATE.game.round = 1;
+    STATE.game.totalTurns = 1;
+    STATE.game.phase = 'PREPARE';
+    STATE.game.currentPlayerIndex = 0;
+    STATE.game.myHandCards = [];
+    STATE.game.myEquipment = {
+        weapon: null, armor: null, mountPlus: null, mountMinus: null, treasure: null,
+    };
+    STATE.game.fieldCards = [];
+    STATE.currentRoom = {
+        roomId: 'single_' + Date.now(),
+        roomName: '单机模式',
+        players: players,
+        maxPlayers: totalPlayers,
+        ownerPlayerId: STATE.playerId,
+    };
+
+    // 人类玩家的身份信息
+    var human = players[0];
+    STATE.game.myPrivateInfo = { playerId: human.playerId, role: human.role, handCardCount: 0 };
+
+    // 切换到游戏界面
+    showScreen(gameScreen);
+    updateTopBar();
+    renderPlayerCard();
+    renderEquipment();
+
+    console.log('单机模式启动：' + totalPlayers + '人局，身份配置：', identityDist);
+    console.log('玩家列表：', players);
+}
 
 // 联机模式 → 连接 WebSocket 进入大厅
 multiModeBtn.addEventListener('click', function () {
@@ -802,14 +1097,40 @@ startGameBtn.addEventListener('click', function () {
     sendMsg({ type: 'START_GAME' });
 });
 
+// 联机大厅 · 返回模式选择页
+const lobbyBackBtn = $('lobbyBackBtn');
+lobbyBackBtn.addEventListener('click', function () {
+    // 标记为主动断开，防止 onclose 跳转到登录页
+    STATE._intentionalDisconnect = true;
+    if (STATE.ws) {
+        STATE.ws.close();
+        STATE.ws = null;
+    }
+    STATE.currentRoom = null;
+    showScreen(modeSelectScreen);
+});
+
 // 离开房间
 leaveRoomBtn.addEventListener('click', function () {
     sendMsg({ type: 'LEAVE_ROOM' });
 });
 
-// 返回大厅
+// 返回（对局界面）— 根据模式不同回到不同页面
 backToLobbyBtn.addEventListener('click', function () {
     if (!STATE.game.started) return;
+
+    // 单机模式 → 回到模式选择页
+    var isSinglePlayer = STATE.currentRoom && STATE.currentRoom.roomId && STATE.currentRoom.roomId.indexOf('single_') === 0;
+    if (isSinglePlayer) {
+        STATE.game.started = false;
+        STATE.game.players = [];
+        STATE.game.myPrivateInfo = {};
+        STATE.currentRoom = null;
+        showScreen(modeSelectScreen);
+        return;
+    }
+
+    // 联机模式 → 回到大厅（通过 WebSocket 离开房间，服务端会发 ROOM_LEFT）
     sendMsg({ type: 'LEAVE_ROOM' });
 });
 

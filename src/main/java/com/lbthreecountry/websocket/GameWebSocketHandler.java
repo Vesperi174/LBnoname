@@ -671,6 +671,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     p.put("currentHp", gp.getCurrentHp());
                     p.put("handCardCount", gp.getHandCards().size());
                     p.put("kingdom", gp.getKingdom() != null ? gp.getKingdom().getCode() : null);
+                    p.put("bot", gp.isBot());
                     return p;
                 })
                 .toList();
