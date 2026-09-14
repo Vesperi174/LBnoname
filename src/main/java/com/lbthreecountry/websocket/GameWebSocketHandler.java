@@ -84,6 +84,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         // 推送当前房间列表
         pushRoomListToPlayer(session.getId());
+        // 广播在线玩家列表
+        broadcastOnlinePlayers();
     }
 
     @Override
@@ -124,6 +126,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         sessionManager.removeSession(session.getId());
         broadcastRoomList();
+        broadcastOnlinePlayers();
     }
 
     @Override
@@ -168,6 +171,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "PLAYER_READY"  -> handlePlayerReady(session, playerSession, msg);
             case "START_GAME"    -> handleStartGame(session, playerSession, msg);
             case "NEXT_PHASE"    -> handleNextPhase(session, playerSession);
+            case "LIST_ONLINE_PLAYERS" -> broadcastOnlinePlayers();
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -692,6 +696,27 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         sessionManager.sendMessageBySessionId(sessionId,
                 toJson(Map.of("type", "ROOM_LIST", "rooms", roomList)));
+    }
+
+    /**
+     * 广播在线玩家列表给所有在线玩家
+     */
+    private void broadcastOnlinePlayers() {
+        List<Map<String, Object>> playerList = sessionManager.getAllSessions().stream()
+                .map(ps -> {
+                    PlayerInfo pi = ps.getPlayer();
+                    return Map.<String, Object>of(
+                            "playerId", pi.getPlayerId(),
+                            "playerName", pi.getName()
+                    );
+                })
+                .toList();
+
+        sessionManager.broadcast(toJson(Map.of(
+                "type", "ONLINE_PLAYERS",
+                "players", playerList,
+                "count", playerList.size()
+        )));
     }
 
     /**

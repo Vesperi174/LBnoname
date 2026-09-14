@@ -9,6 +9,7 @@
         body { font-family: "Microsoft YaHei", sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 20px 0; }
         .container { width: 100%; max-width: 640px; padding: 20px; transition: max-width .3s; }
         .container.game-active { max-width: 960px; }
+        .container.lobby-active { max-width: 860px; }
         .card { background: #16213e; border-radius: 12px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
         .card + .card { margin-top: 16px; }
         h2 { font-size: 18px; margin-bottom: 16px; color: #e94560; }
@@ -45,6 +46,27 @@
         .room-item .info { flex: 1; }
         .room-item .name { font-weight: bold; }
         .room-item .meta { font-size: 12px; color: #888; margin-top: 2px; }
+
+        /* ==================== 大厅双列布局 ==================== */
+        .lobby-layout { display: flex; gap: 20px; }
+        .lobby-left { flex: 3; min-width: 0; display: flex; flex-direction: column; }
+        .lobby-right { flex: 2; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid #0f3460; padding-left: 16px; }
+
+        /* QQ 联系人风格在线玩家列表 */
+        .online-player-list { max-height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
+        .online-player-list::-webkit-scrollbar { width: 4px; }
+        .online-player-list::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
+        .online-player-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: default; transition: background .2s; }
+        .online-player-item:hover { background: #0f3460; }
+        .online-player-item .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #e94560, #c23152); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold; color: #fff; flex-shrink: 0; }
+        .online-player-item .info { flex: 1; min-width: 0; }
+        .online-player-item .info .name-line { display: flex; align-items: center; gap: 6px; }
+        .online-player-item .info .name-line .name-text { font-size: 14px; font-weight: 500; }
+        .online-player-item .info .name-line .me-badge { font-size: 10px; background: #e94560; padding: 1px 6px; border-radius: 8px; }
+        .online-player-item .info .status-line { font-size: 11px; color: #888; margin-top: 1px; }
+        .online-player-item .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; flex-shrink: 0; box-shadow: 0 0 6px rgba(46,204,113,0.5); }
+        .online-count-header { font-size: 14px; color: #aaa; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+        .online-count-header .count-badge { background: #0f3460; padding: 1px 10px; border-radius: 10px; font-size: 13px; color: #2ecc71; }
 
         /* 玩家列表（房间） */
         .player-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
@@ -150,22 +172,35 @@
     <!-- ========== 大厅界面 ========== -->
     <div id="lobbyScreen" class="hidden">
         <div class="card fade-in">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h2>🏠 游戏大厅</h2>
-                <span id="playerBadge" style="background:#0f3460;padding:4px 12px;border-radius:12px;font-size:13px;"></span>
-            </div>
-            <div class="input-group">
-                <input type="text" id="roomNameInput" placeholder="房间名称（可选）" maxlength="20">
-                <button class="btn btn-success" id="createRoomBtn">创建房间</button>
-            </div>
-            <h3>可加入的房间</h3>
-            <div id="roomList" class="room-list">
-                <div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无房间，创建第一个吧</div>
-            </div>
-            <hr style="border-color:#0f3460;margin:16px 0;">
-            <div class="input-group">
-                <input type="text" id="roomIdInput" placeholder="输入房间ID加入" maxlength="40">
-                <button class="btn btn-success" id="joinByIdBtn">加入</button>
+            <div class="lobby-layout">
+                <div class="lobby-left">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <h2 style="margin-bottom:0;">🏠 游戏大厅</h2>
+                        <span id="playerBadge" style="background:#0f3460;padding:4px 12px;border-radius:12px;font-size:13px;"></span>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="roomNameInput" placeholder="房间名称（可选）" maxlength="20">
+                        <button class="btn btn-success" id="createRoomBtn">创建房间</button>
+                    </div>
+                    <h3>可加入的房间</h3>
+                    <div id="roomList" class="room-list">
+                        <div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无房间，创建第一个吧</div>
+                    </div>
+                    <hr style="border-color:#0f3460;margin:16px 0;">
+                    <div class="input-group">
+                        <input type="text" id="roomIdInput" placeholder="输入房间ID加入" maxlength="40">
+                        <button class="btn btn-success" id="joinByIdBtn">加入</button>
+                    </div>
+                </div>
+                <div class="lobby-right">
+                    <div class="online-count-header">
+                        🟢 在线玩家
+                        <span class="count-badge" id="onlineCount">0</span>
+                    </div>
+                    <div id="onlinePlayerList" class="online-player-list">
+                        <div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无在线玩家</div>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="status-bar" id="lobbyStatus">已连接服务器</div>
@@ -312,6 +347,8 @@ const startGameBtn      = $('startGameBtn');
 const leaveRoomBtn      = $('leaveRoomBtn');
 const roomHint          = $('roomHint');
 const roomStatus        = $('roomStatus');
+const onlinePlayerList  = $('onlinePlayerList');
+const onlineCount       = $('onlineCount');
 
 // 游戏 DOM
 const gameRound         = $('gameRound');
@@ -337,6 +374,7 @@ function showScreen(screen) {
     screen.classList.remove('hidden');
     // 进入游戏界面时放宽容器宽度
     containerEl.classList.toggle('game-active', screen === gameScreen);
+    containerEl.classList.toggle('lobby-active', screen === lobbyScreen);
 }
 
 function status(el, msg, type = 'info') {
@@ -410,6 +448,10 @@ function handleMessage(msg) {
 
         case 'ROOM_LIST':
             renderRoomList(msg.rooms || []);
+            break;
+
+        case 'ONLINE_PLAYERS':
+            renderOnlinePlayers(msg.players || [], msg.count || 0);
             break;
 
         case 'ROOM_CREATED':
@@ -583,6 +625,34 @@ function renderRoomList(rooms) {
     document.querySelectorAll('.join-room-btn').forEach(btn => {
         btn.addEventListener('click', () => sendMsg({ type: 'JOIN_ROOM', roomId: btn.dataset.roomId }));
     });
+}
+
+// ============================================================
+//  在线玩家列表渲染（QQ 联系人风格）
+// ============================================================
+function renderOnlinePlayers(players, count) {
+    onlineCount.textContent = count;
+    if (!players || players.length === 0) {
+        onlinePlayerList.innerHTML = '<div style="color:#666;font-size:13px;text-align:center;padding:20px;">暂无在线玩家</div>';
+        return;
+    }
+    onlinePlayerList.innerHTML = players.map(p => {
+        const isMe = p.playerId === STATE.playerId;
+        const initial = (p.playerName || '?').charAt(0);
+        return `
+            <div class="online-player-item">
+                <div class="avatar">${initial}</div>
+                <div class="info">
+                    <div class="name-line">
+                        <span class="name-text">${escHtml(p.playerName)}</span>
+                        ${isMe ? '<span class="me-badge">我</span>' : ''}
+                    </div>
+                    <div class="status-line">🟢 在线</div>
+                </div>
+                <div class="status-dot"></div>
+            </div>
+        `;
+    }).join('');
 }
 
 // ============================================================
