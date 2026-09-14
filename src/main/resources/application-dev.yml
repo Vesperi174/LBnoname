@@ -1,8 +1,14 @@
-# 开发环境配置 — 轻量模式
+# 开发环境配置 — 轻量模式 + HTTPS
 # 无需数据库，无需安全认证，开箱即用
+# 自签名证书用于内网穿透（樱花 frp / ngrok 等）
 
 server:
-  port: 8080
+  port: 8443
+  ssl:
+    key-store: classpath:lbthree.jks
+    key-store-password: 123456
+    key-password: 123456
+    key-alias: lbthree
 
 player:
   default-name: 无名客
