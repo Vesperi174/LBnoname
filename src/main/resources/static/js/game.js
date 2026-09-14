@@ -403,7 +403,159 @@ function renderOpponents(players) {
 
         card.appendChild(infoDiv);
         card.appendChild(genCol);
-        return card;
+
+        // 阶段/倒计时条（在武将卡下方）
+        var phaseBar = document.createElement('div');
+        phaseBar.className = 'opp-phase-bar';
+        phaseBar.dataset.seat = player.gameSeat;
+        var phaseLabel = document.createElement('span');
+        phaseLabel.className = 'opp-phase-label';
+        phaseLabel.textContent = '';
+        phaseBar.appendChild(phaseLabel);
+        var timerFill = document.createElement('div');
+        timerFill.className = 'opp-phase-timer-fill';
+        timerFill.style.width = '0%';
+        phaseBar.appendChild(timerFill);
+
+        // 用 wrapper 包裹 card + phaseBar
+        var wrapper = document.createElement('div');
+        wrapper.className = 'opp-card-wrapper';
+        wrapper.appendChild(card);
+        wrapper.appendChild(phaseBar);
+        return wrapper;
+    }
+}
+
+// ================================================================
+//  对手阶段条辅助（阶段名 / 进度条 DOM 操作）
+// ================================================================
+function oppPhaseLabelEl(seat) {
+    var bars = document.querySelectorAll('.opp-phase-bar');
+    for (var i = 0; i < bars.length; i++) {
+        if (parseInt(bars[i].dataset.seat) === seat) return bars[i];
+    }
+    return null;
+}
+function updateOpponentPhaseBar(seat, phase) {
+    var bar = oppPhaseLabelEl(seat);
+    if (!bar) return;
+    var label = bar.querySelector('.opp-phase-label');
+    if (label) label.textContent = PHASE_NAMES[phase] || phase || '';
+}
+function clearAllOpponentPhaseBars() {
+    var bars = document.querySelectorAll('.opp-phase-bar');
+    for (var i = 0; i < bars.length; i++) {
+        var label = bars[i].querySelector('.opp-phase-label');
+        if (label) label.textContent = '';
+        var fill = bars[i].querySelector('.opp-phase-timer-fill');
+        if (fill) fill.style.width = '0%';
+    }
+}
+function setOpponentTimerFill(seat, pct) {
+    var bar = oppPhaseLabelEl(seat);
+    if (!bar) return;
+    var fill = bar.querySelector('.opp-phase-timer-fill');
+    if (fill) fill.style.width = pct + '%';
+}
+
+// ================================================================
+//  可复用倒计时器工厂
+// ================================================================
+function createCountdown(options) {
+    var rafId = null;
+    var startTime = 0;
+    var totalMs = 0;
+
+    function start(seconds) {
+        stop();
+        totalMs = seconds * 1000;
+        startTime = Date.now();
+        if (options.onStart) options.onStart(seconds);
+        tick();
+    }
+
+    function stop() {
+        if (rafId) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+        }
+        if (options.onStop) options.onStop();
+    }
+
+    function tick() {
+        var elapsed = Date.now() - startTime;
+        var remaining = Math.max(0, totalMs - elapsed);
+        var pct = totalMs > 0 ? (remaining / totalMs) * 100 : 0;
+
+        if (options.onTick) options.onTick(pct, remaining);
+
+        if (remaining <= 0) {
+            if (options.onComplete) options.onComplete();
+            return;
+        }
+
+        rafId = requestAnimationFrame(tick);
+    }
+
+    return { start: start, stop: stop };
+}
+
+// ================================================================
+//  自己手牌区上方的大进度条
+// ================================================================
+var myTurnTimer = createCountdown({
+    onStart: function (seconds) {
+        turnTimerBar.style.width = '100%';
+        turnTimerText.textContent = seconds + 's';
+        turnTimer.classList.add('visible');
+        turnTimerBar.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
+    },
+    onTick: function (pct, remaining) {
+        turnTimerBar.style.width = pct + '%';
+        turnTimerText.textContent = Math.ceil(remaining / 1000) + 's';
+        if (remaining <= 3000) {
+            turnTimerBar.style.background = 'linear-gradient(90deg, #c0392b, #e74c3c)';
+        }
+    },
+    onComplete: function () {
+        endPlayBtn.classList.remove('visible');
+        sendMsg({ type: 'NEXT_PHASE' });
+    },
+    onStop: function () {
+        turnTimer.classList.remove('visible');
+        turnTimerBar.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
+    }
+});
+
+function startTurnTimer(seconds) { myTurnTimer.start(seconds); }
+function stopTurnTimer()         { myTurnTimer.stop(); }
+
+// ================================================================
+//  对手武将卡下方的进度条
+// ================================================================
+var _oppTimers = {};
+
+function startOpponentTimer(seat, seconds) {
+    stopOpponentTimer(seat);
+    var timer = createCountdown({
+        onTick: function (pct) { setOpponentTimerFill(seat, pct); },
+        onStop: function ()    { setOpponentTimerFill(seat, 0); }
+    });
+    timer.start(seconds);
+    _oppTimers[seat] = timer;
+}
+
+function stopOpponentTimer(seat) {
+    if (_oppTimers[seat]) {
+        _oppTimers[seat].stop();
+        delete _oppTimers[seat];
+    }
+}
+
+function stopAllOpponentTimers() {
+    for (var seat in _oppTimers) {
+        _oppTimers[seat].stop();
+        delete _oppTimers[seat];
     }
 }
 
@@ -938,6 +1090,13 @@ function handleMessage(msg) {
             var turnPlayerName = msg.playerName || '未知';
             addLog('【' + turnPlayerName + '】开始了第 ' + (STATE.game.totalTurns || '?') + ' 回合', 'system');
 
+            // 更新所有对手的阶段条（只显示阶段名，不在回合开始就启动倒计时）
+            clearAllOpponentPhaseBars();
+            stopAllOpponentTimers();
+            if (msg.gameSeat !== getMySeat()) {
+                updateOpponentPhaseBar(msg.gameSeat, msg.phase || 'PREPARE');
+            }
+
             // 如果是当前玩家的回合，自动推进非出牌阶段
             if (msg.gameSeat === getMySeat()) {
                 schedulePhaseAdvance();
@@ -954,6 +1113,19 @@ function handleMessage(msg) {
             var phasePlayerName = phasePlayer ? phasePlayer.playerName : '未知';
             var phaseCn = PHASE_NAMES[msg.toPhase] || msg.toPhase;
             addLog('【' + phasePlayerName + '】→ ' + phaseCn, 'system');
+
+            // 更新对手阶段条（非自己）— 倒计时仅对手出牌阶段且非机器人时才显示
+            if (msg.gameSeat !== getMySeat()) {
+                updateOpponentPhaseBar(msg.gameSeat, msg.toPhase);
+                if (msg.toPhase === 'PLAY') {
+                    var oppPlayer = getPlayerBySeat(msg.gameSeat);
+                    if (oppPlayer && !oppPlayer.bot && STATE.game.turnTime) {
+                        startOpponentTimer(msg.gameSeat, STATE.game.turnTime);
+                    }
+                } else if (msg.toPhase === 'DISCARD' || msg.toPhase === 'END') {
+                    stopOpponentTimer(msg.gameSeat);
+                }
+            }
 
             // 是当前玩家自己的阶段变化
             if (msg.gameSeat === getMySeat()) {
@@ -1138,62 +1310,6 @@ function schedulePhaseAdvance() {
             sendMsg({ type: 'NEXT_PHASE' });
         }
     }, 1000);
-}
-
-// ================================================================
-//  回合倒计时
-// ================================================================
-var _turnTimerInterval = null;
-var _turnTimeRemaining = 0;
-var _turnTimeTotal = 15;
-
-/** 开始倒计时 — 使用 requestAnimationFrame 实现平滑减少 */
-function startTurnTimer(seconds) {
-    stopTurnTimer();
-    _turnTimeTotal = seconds;
-    _turnTimeRemaining = seconds;
-    turnTimerBar.style.width = '100%';
-    turnTimerText.textContent = seconds + 's';
-    turnTimer.classList.add('visible');
-
-    var startTime = Date.now();
-    var totalMs = seconds * 1000;
-
-    function tick() {
-        var elapsed = Date.now() - startTime;
-        var remaining = Math.max(0, totalMs - elapsed);
-        var pct = (remaining / totalMs) * 100;
-
-        turnTimerBar.style.width = pct + '%';
-        turnTimerText.textContent = Math.ceil(remaining / 1000) + 's';
-
-        // 快到时变红
-        if (remaining <= 3000) {
-            turnTimerBar.style.background = 'linear-gradient(90deg, #c0392b, #e74c3c)';
-        }
-
-        if (remaining <= 0) {
-            // 时间到 → 自动结束出牌阶段
-            stopTurnTimer();
-            endPlayBtn.classList.remove('visible');
-            sendMsg({ type: 'NEXT_PHASE' });
-            return;
-        }
-
-        _turnTimerInterval = requestAnimationFrame(tick);
-    }
-
-    _turnTimerInterval = requestAnimationFrame(tick);
-}
-
-/** 停止倒计时 */
-function stopTurnTimer() {
-    if (_turnTimerInterval) {
-        cancelAnimationFrame(_turnTimerInterval);
-        _turnTimerInterval = null;
-    }
-    turnTimer.classList.remove('visible');
-    turnTimerBar.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
 }
 
 /** 结束出牌阶段按钮点击 */
