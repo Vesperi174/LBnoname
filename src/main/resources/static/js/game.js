@@ -137,6 +137,35 @@ const pcRoleOverlay     = $('pcRoleOverlay');
 const pcSeatNum         = $('pcSeatNum');
 const skillBar          = $('skillBar');
 const eqRows            = $('eqRows');
+const logContent        = $('logContent');
+
+// ============================================================
+//  日志工具
+// ============================================================
+var LOG_CLASSES = {
+    info:      'log-info',
+    action:    'log-action',
+    damage:    'log-damage',
+    heal:      'log-heal',
+    system:    'log-system',
+    highlight: 'log-highlight',
+};
+/**
+ * 向日志区追加一条记录
+ * @param {string} text  日志文本
+ * @param {string} type  类型: info / action / damage / heal / system / highlight
+ */
+function addLog(text, type) {
+    if (!logContent) return;
+    type = type || 'info';
+    var cls = LOG_CLASSES[type] || 'log-info';
+    var div = document.createElement('div');
+    div.className = 'log-entry ' + cls;
+    div.textContent = text;
+    logContent.appendChild(div);
+    // 自动滚动到底部
+    logContent.scrollTop = logContent.scrollHeight;
+}
 
 const CN_NUMS = ['零','一','二','三','四','五','六','七','八','九','十'];
 
@@ -204,7 +233,7 @@ function renderPlayerCard() {
     }
 
     // --- 角色名（顶部） ---
-    pcCharName.textContent = me ? '卡斯奥佩娅' : '';
+    pcCharName.textContent = me ? (me.charName || '卡斯奥佩娅') : '';
 
     // --- 体力竖点/竖排文字（底部） ---
     if (!me) {
@@ -261,6 +290,108 @@ function renderSkills(me) {
 
     for (var i = 0; i < count; i++) {
         children[i].textContent = skills[i];
+    }
+}
+
+/** 渲染对手（其他玩家）分布在上、左、右三区 */
+function calcOpponentDistribution(totalPlayers) {
+    // 返回值: { top, left, right } 对应各区域对手数量
+    switch (totalPlayers) {
+        case 2: return { top: 1, left: 0, right: 0 };
+        case 3: return { top: 0, left: 1, right: 1 };
+        case 4: return { top: 1, left: 1, right: 1 };
+        case 5: return { top: 2, left: 1, right: 1 };
+        case 6: return { top: 3, left: 1, right: 1 };
+        case 7: return { top: 3, left: 2, right: 1 };
+        case 8: return { top: 3, left: 2, right: 2 };
+        default: return { top: 1, left: 0, right: 0 };
+    }
+}
+function renderOpponents(players) {
+    var oppTop    = $('oppTop');
+    var oppLeft   = $('oppLeft');
+    var oppRight  = $('oppRight');
+    if (!oppTop) return;
+    oppTop.innerHTML = '';
+    oppLeft.innerHTML = '';
+    oppRight.innerHTML = '';
+
+    // 非人类玩家（去掉自身）
+    var others = players.filter(function (p) { return p.playerId !== STATE.playerId; });
+    var dist = calcOpponentDistribution(players.length);
+    var idx = 0;
+
+    // 填充顺序：上 → 左 → 右
+    function createCard(player) {
+        var card = document.createElement('div');
+        card.className = 'opp-card';
+        card.dataset.seat = player.gameSeat;
+
+        var infoDiv = document.createElement('div');
+        infoDiv.className = 'oppc-info';
+        var nameDiv = document.createElement('div');
+        nameDiv.className = 'oppc-char-name';
+        // 左侧竖排显示武将名称
+        nameDiv.textContent = player.charName || player.playerName;
+        infoDiv.appendChild(nameDiv);
+
+        var hpArea = document.createElement('div');
+        hpArea.className = 'oppc-hp-area';
+        var maxHp = player.maxHp || 4;
+        var curHp = player.currentHp != null ? player.currentHp : maxHp;
+        for (var h = 0; h < maxHp; h++) {
+            var dot = document.createElement('div');
+            dot.className = 'oppc-hp-dot' + (h < curHp ? ' alive' : ' lost');
+            hpArea.appendChild(dot);
+        }
+        infoDiv.appendChild(hpArea);
+        card.appendChild(infoDiv);
+
+        var genCol = document.createElement('div');
+        genCol.className = 'oppc-general-col';
+        var genDiv = document.createElement('div');
+        genDiv.className = 'oppc-general';
+
+        var img = document.createElement('img');
+        img.className = 'oppc-general-img';
+        img.src = '/images/lol_EZ.png';
+        img.alt = '武将';
+        genDiv.appendChild(img);
+
+        var nameOverlay = document.createElement('span');
+        nameOverlay.className = 'oppc-name-overlay';
+        // 真人→显示玩家名；机器人→显示武将名
+        nameOverlay.textContent = player.bot
+            ? (player.charName || player.playerName)
+            : player.playerName;
+        genDiv.appendChild(nameOverlay);
+
+        var roleOverlay = document.createElement('span');
+        roleOverlay.className = 'oppc-role-overlay';
+        roleOverlay.textContent = ROLE_SHORT_NAMES[player.role] || '?';
+        genDiv.appendChild(roleOverlay);
+
+        var seatNum = document.createElement('span');
+        seatNum.className = 'oppc-seat-num';
+        seatNum.textContent = CN_NUMS[player.gameSeat + 1] || (player.gameSeat + 1);
+        genDiv.appendChild(seatNum);
+
+        genCol.appendChild(genDiv);
+        card.appendChild(genCol);
+        return card;
+    }
+
+    // top row
+    for (var t = 0; t < dist.top && idx < others.length; t++, idx++) {
+        oppTop.appendChild(createCard(others[idx]));
+    }
+    // left column
+    for (var l = 0; l < dist.left && idx < others.length; l++, idx++) {
+        oppLeft.appendChild(createCard(others[idx]));
+    }
+    // right column
+    for (var r = 0; r < dist.right && idx < others.length; r++, idx++) {
+        oppRight.appendChild(createCard(others[idx]));
     }
 }
 
@@ -1011,12 +1142,20 @@ function startSinglePlayerGame(totalPlayers, identityDist) {
         identityPool[j] = tmp;
     }
 
+    // 占位武将名列表
+    var PLACEHOLDER_CHARS = [
+        '卡斯奥佩娅', '神·赵云', '神·关羽', '神·吕布',
+        '神·曹操', '神·周瑜', '神·诸葛亮', '神·司马懿',
+    ];
+
     for (var idx = 0; idx < totalPlayers; idx++) {
         var isHuman = (idx === 0);
         var role = identityPool[idx] || 'REBEL';
+        var charName = PLACEHOLDER_CHARS[idx % PLACEHOLDER_CHARS.length];
         players.push({
             playerId: isHuman ? STATE.playerId : 'bot_' + idx + '_' + Date.now(),
             playerName: isHuman ? STATE.playerName : ('AI·' + (ROLE_SHORT_NAMES[role] || role) + (idx + 1)),
+            charName: charName,
             role: role,
             bot: !isHuman,
             isReady: true,
@@ -1051,11 +1190,21 @@ function startSinglePlayerGame(totalPlayers, identityDist) {
     var human = players[0];
     STATE.game.myPrivateInfo = { playerId: human.playerId, role: human.role, handCardCount: 0 };
 
+    // 清空日志并写入初始信息
+    if (logContent) {
+        logContent.innerHTML = '';
+    }
+    addLog('══════ 游戏开始 ══════', 'highlight');
+    addLog(totalPlayers + '人局 · ' + (ROLE_SHORT_NAMES[human.role] || human.role) + '模式', 'system');
+    addLog('你的身份：' + (ROLE_SHORT_NAMES[human.role] || human.role), 'info');
+    addLog('等待你的第一个回合...', 'system');
+
     // 切换到游戏界面
     showScreen(gameScreen);
     updateTopBar();
     renderPlayerCard();
     renderEquipment();
+    renderOpponents(players);
 
     console.log('单机模式启动：' + totalPlayers + '人局，身份配置：', identityDist);
     console.log('玩家列表：', players);
