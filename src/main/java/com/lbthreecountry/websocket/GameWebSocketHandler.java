@@ -205,6 +205,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         // 广播房间列表更新给所有人
         broadcastRoomList();
+        broadcastOnlinePlayers();
     }
 
     @SuppressWarnings("unchecked")
@@ -251,6 +252,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         // 广播大厅房间列表更新
         broadcastRoomList();
+        broadcastOnlinePlayers();
     }
 
     private void handleLeaveRoom(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
@@ -272,6 +274,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             handlePlayerToBot(room, match, playerId, playerName);
             sendJson(session, Map.of("type", "ROOM_LEFT", "roomId", roomId));
             broadcastRoomList();
+            broadcastOnlinePlayers();
             return;
         }
 
@@ -296,6 +299,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         // 广播大厅房间列表更新
         broadcastRoomList();
+        broadcastOnlinePlayers();
     }
 
     @SuppressWarnings("unchecked")
@@ -384,6 +388,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
             // 通知大厅中的玩家房间状态已更新
             broadcastRoomList();
+            broadcastOnlinePlayers();
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
@@ -560,6 +565,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         // 通知所有在线玩家房间列表已更新
         broadcastRoomList();
+        broadcastOnlinePlayers();
 
         log.info("[房间] 对局和房间已销毁 [roomId={}]", roomId);
     }
@@ -705,9 +711,24 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         List<Map<String, Object>> playerList = sessionManager.getAllSessions().stream()
                 .map(ps -> {
                     PlayerInfo pi = ps.getPlayer();
+                    String playerId = pi.getPlayerId();
+                    // 判断玩家当前状态
+                    String status;
+                    GameRoom room = roomService.findRoomByPlayerId(playerId);
+                    if (room != null) {
+                        GameMatch match = gameService.getMatch(room.getRoomId());
+                        if (match != null && "PLAYING".equals(match.getStatus().name())) {
+                            status = "IN_GAME";
+                        } else {
+                            status = "IN_ROOM";
+                        }
+                    } else {
+                        status = "ONLINE";
+                    }
                     return Map.<String, Object>of(
-                            "playerId", pi.getPlayerId(),
-                            "playerName", pi.getName()
+                            "playerId", playerId,
+                            "playerName", pi.getName(),
+                            "status", status
                     );
                 })
                 .toList();
