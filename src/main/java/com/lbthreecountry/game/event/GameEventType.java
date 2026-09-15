@@ -1,5 +1,7 @@
 package com.lbthreecountry.game.event;
 
+import com.lbthreecountry.model.enums.impl.GamePhase;
+
 /**
  * 游戏内置事件常量定义
  *
@@ -12,6 +14,20 @@ package com.lbthreecountry.game.event;
  *   GAME.START    游戏开始
  *   PHASE.CHANGE  阶段切换
  *   CARD.PLAYED   出牌
+ * </pre>
+ *
+ * <h3>阶段事件钩子系统</h3>
+ * <p>每个阶段有 4 个钩子：BEFORE（开始前）、ACTIVE（进行中）、END（结束时）、AFTER（结束后）。</p>
+ * <p>使用 {@link #phaseBefore(GamePhase)}、{@link #phaseActive(GamePhase)}、
+ * {@link #phaseEnd(GamePhase)}、{@link #phaseAfter(GamePhase)} 快捷生成事件类型字符串。</p>
+ *
+ * <h3>钩子触发顺序（以 PREPARE → JUDGE 为例）</h3>
+ * <pre>
+ * TURN.BEFORE（玩家回合开始前）
+ *   PREPARE.BEFORE → PREPARE.ACTIVE → ... → PREPARE.END → PREPARE.AFTER
+ *   JUDGE.BEFORE   → JUDGE.ACTIVE   → ... → JUDGE.END   → JUDGE.AFTER
+ *   ...（DRAW / PLAY / DISCARD / END）
+ * TURN.AFTER（玩家回合结束后）
  * </pre>
  */
 public final class GameEventType {
@@ -31,23 +47,57 @@ public final class GameEventType {
     public static final String GAME_OVER = "GAME.OVER";
 
     // ================================================================
-    //  回合事件
+    //  回合钩子
     // ================================================================
 
-    /** 新回合开始 */
+    /** 玩家回合开始前 — 在第一个阶段（PREPARE）钩子之前触发 */
+    public static final String TURN_BEFORE = "TURN.BEFORE";
+
+    /** 玩家回合结束后 — 在最后一个阶段（END）钩子之后、切下一玩家之前触发 */
+    public static final String TURN_AFTER = "TURN.AFTER";
+
+    /** 新回合开始（兼容旧版） */
+    @Deprecated
     public static final String TURN_START = "TURN.START";
 
-    /** 回合结束 */
+    /** 回合结束（兼容旧版） */
+    @Deprecated
     public static final String TURN_END = "TURN.END";
 
     /** 新轮次开始 */
     public static final String ROUND_CHANGE = "ROUND.CHANGE";
 
     // ================================================================
-    //  阶段事件
+    //  阶段钩子生成方法
     // ================================================================
 
-    /** 阶段切换 */
+    private static final String PHASE_BEFORE_PREFIX = "PHASE.BEFORE.";
+    private static final String PHASE_ACTIVE_PREFIX = "PHASE.ACTIVE.";
+    private static final String PHASE_END_PREFIX    = "PHASE.END.";
+    private static final String PHASE_AFTER_PREFIX  = "PHASE.AFTER.";
+
+    /** 某阶段开始前（如 "PHASE.BEFORE.PREPARE"） */
+    public static String phaseBefore(GamePhase phase) {
+        return PHASE_BEFORE_PREFIX + phase.name();
+    }
+
+    /** 某阶段进行中（如 "PHASE.ACTIVE.PREPARE"） */
+    public static String phaseActive(GamePhase phase) {
+        return PHASE_ACTIVE_PREFIX + phase.name();
+    }
+
+    /** 某阶段结束时（如 "PHASE.END.PREPARE"） */
+    public static String phaseEnd(GamePhase phase) {
+        return PHASE_END_PREFIX + phase.name();
+    }
+
+    /** 某阶段结束后（如 "PHASE.AFTER.PREPARE"） */
+    public static String phaseAfter(GamePhase phase) {
+        return PHASE_AFTER_PREFIX + phase.name();
+    }
+
+    /** 阶段切换（兼容旧版） */
+    @Deprecated
     public static final String PHASE_CHANGE = "PHASE.CHANGE";
 
     // ================================================================
