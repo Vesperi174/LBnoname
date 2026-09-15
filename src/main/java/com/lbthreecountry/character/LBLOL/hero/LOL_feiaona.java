@@ -15,7 +15,7 @@ public class LOL_feiaona extends BaseHero {
                 KingdomType.DMA,     // kingdom
                 3,                   // maxHp
                 3,                   // startHp
-                Gender.MALE,                // gender
+                Gender.FEMALE,                // gender
                 "",  // description
                 List.of(
                 )
