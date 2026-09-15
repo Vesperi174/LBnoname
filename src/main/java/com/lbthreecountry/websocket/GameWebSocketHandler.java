@@ -953,16 +953,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         log.info("[房间] 对局和房间已销毁 [roomId={}]", roomId);
     }
 
-    /** 阶段英文 → 中文映射 */
-    private static final java.util.Map<String, String> PHASE_CN = java.util.Map.of(
-            "PREPARE", "准备阶段",
-            "JUDGE", "判定阶段",
-            "DRAW", "摸牌阶段",
-            "PLAY", "出牌阶段",
-            "DISCARD", "弃牌阶段",
-            "END", "结束阶段"
-    );
-
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GameWebSocketHandler.class);
 
     private void handleNextPhase(WebSocketSession session, PlayerSession playerSession) {
@@ -1033,24 +1023,17 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 广播阶段变更事件（PHASE_CHANGE + BATTLE_REPORT）
+     * 广播阶段变更（PHASE_CHANGE — 供前端渲染界面）
+     * <p>战报（BATTLE_REPORT）由 {@link GameEventBroadcaster} 统一推送。</p>
      */
     private void broadcastPhaseEvent(GameRoom room, String fromPhase, String toPhase,
                                       int gameSeat, String playerName) {
-        // PHASE_CHANGE — 供前端渲染界面
         broadcastToRoom(room, Map.of(
                 "type", "PHASE_CHANGE",
                 "roomId", room.getRoomId(),
                 "fromPhase", fromPhase,
                 "toPhase", toPhase,
                 "gameSeat", gameSeat
-        ), null);
-
-        // BATTLE_REPORT — 供战报显示进入阶段信息
-        String phaseCn = PHASE_CN.getOrDefault(toPhase, toPhase);
-        broadcastToRoom(room, Map.of(
-                "type", "BATTLE_REPORT",
-                "message", "【" + playerName + "】→ " + phaseCn
         ), null);
     }
 
