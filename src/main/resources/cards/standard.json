@@ -12,6 +12,9 @@
         { "suit": "SPADES",   "point": 8 },
         { "suit": "SPADES",   "point": 9 },
         { "suit": "SPADES",   "point": 10 },
+        { "suit": "SPADES",   "point": 8 },
+        { "suit": "SPADES",   "point": 9 },
+        { "suit": "SPADES",   "point": 10 },
         { "suit": "CLUBS",    "point": 2 },
         { "suit": "CLUBS",    "point": 3 },
         { "suit": "CLUBS",    "point": 4 },
@@ -22,14 +25,19 @@
         { "suit": "CLUBS",    "point": 9 },
         { "suit": "CLUBS",    "point": 10 },
         { "suit": "CLUBS",    "point": 11 },
+        { "suit": "CLUBS",    "point": 8 },
+        { "suit": "CLUBS",    "point": 9 },
+        { "suit": "CLUBS",    "point": 10 },
+        { "suit": "CLUBS",    "point": 11 },
         { "suit": "DIAMONDS", "point": 6 },
         { "suit": "DIAMONDS", "point": 7 },
         { "suit": "DIAMONDS", "point": 8 },
         { "suit": "DIAMONDS", "point": 9 },
         { "suit": "DIAMONDS", "point": 10 },
+        { "suit": "DIAMONDS", "point": 13 },
         { "suit": "HEARTS",   "point": 10 },
-        { "suit": "HEARTS",   "point": 11 },
-        { "suit": "HEARTS",   "point": 12 }
+        { "suit": "HEARTS",   "point": 10 },
+        { "suit": "HEARTS",   "point": 11 }
       ]
     },
     {
@@ -47,12 +55,11 @@
         { "suit": "DIAMONDS", "point": 9 },
         { "suit": "DIAMONDS", "point": 10 },
         { "suit": "DIAMONDS", "point": 11 },
+        { "suit": "DIAMONDS", "point": 2 },
+        { "suit": "DIAMONDS", "point": 11 },
         { "suit": "HEARTS",   "point": 2 },
-        { "suit": "HEARTS",   "point": 3 },
-        { "suit": "HEARTS",   "point": 4 },
-        { "suit": "HEARTS",   "point": 5 },
-        { "suit": "HEARTS",   "point": 8 },
-        { "suit": "HEARTS",   "point": 9 }
+        { "suit": "HEARTS",   "point": 2 },
+        { "suit": "HEARTS",   "point": 11 }
       ]
     },
     {
@@ -61,7 +68,7 @@
       "description": "出牌阶段对自己使用，回复1点体力；角色濒死时可用",
       "copies": [
         { "suit": "DIAMONDS", "point": 12 },
-        { "suit": "DIAMONDS", "point": 13 },
+        { "suit": "HEARTS",   "point": 3 },
         { "suit": "HEARTS",   "point": 4 },
         { "suit": "HEARTS",   "point": 6 },
         { "suit": "HEARTS",   "point": 7 },
@@ -103,7 +110,7 @@
       "name": "桃园结义",
       "description": "所有角色回复至满体力",
       "copies": [
-        { "suit": "HEARTS", "point": 3 }
+        { "suit": "HEARTS", "point": 1 }
       ]
     },
     {
@@ -138,8 +145,7 @@
         { "suit": "SPADES",   "point": 4 },
         { "suit": "SPADES",   "point": 12 },
         { "suit": "CLUBS",    "point": 3 },
-        { "suit": "CLUBS",    "point": 4 },
-        { "suit": "CLUBS",    "point": 12 }
+        { "suit": "CLUBS",    "point": 4 }
       ]
     },
     {
@@ -147,13 +153,9 @@
       "name": "无懈可击",
       "description": "抵消一张锦囊牌对一名角色的效果",
       "copies": [
-        { "suit": "SPADES",   "point": 12 },
+        { "suit": "SPADES",   "point": 11 },
         { "suit": "CLUBS",    "point": 12 },
-        { "suit": "CLUBS",    "point": 13 },
-        { "suit": "DIAMONDS", "point": 12 },
-        { "suit": "DIAMONDS", "point": 13 },
-        { "suit": "HEARTS",   "point": 1 },
-        { "suit": "HEARTS",   "point": 13 }
+        { "suit": "CLUBS",    "point": 11 }
       ]
     },
     {
@@ -161,8 +163,8 @@
       "name": "借刀杀人",
       "description": "对一名有武器的角色使用，令其选择：攻击另一角色，或交出武器",
       "copies": [
-        { "suit": "SPADES",   "point": 2 },
-        { "suit": "CLUBS",    "point": 2 }
+        { "suit": "CLUBS",   "point": 13 },
+        { "suit": "CLUBS",    "point": 12 }
       ]
     },
     {
@@ -170,8 +172,8 @@
       "name": "五谷丰登",
       "description": "亮出牌堆顶存活人数张牌，每人选择获得其中一张",
       "copies": [
-        { "suit": "HEARTS", "point": 2 },
-        { "suit": "HEARTS", "point": 10 }
+        { "suit": "HEARTS", "point": 3 },
+        { "suit": "HEARTS", "point": 4 }
       ]
     },
     {
@@ -189,17 +191,7 @@
       "name": "闪电",
       "description": "置于判定区，判定结果为黑桃2~9则受到3点雷伤",
       "copies": [
-        { "suit": "SPADES", "point": 1 },
-        { "suit": "HEARTS", "point": 12 }
-      ]
-    },
-    {
-      "id": "bingliang",
-      "name": "兵粮寸断",
-      "description": "对距离1以内角色使用，判定不为草花则跳过摸牌阶段",
-      "copies": [
-        { "suit": "SPADES",   "point": 10 },
-        { "suit": "CLUBS",    "point": 10 }
+        { "suit": "SPADES", "point": 1 }
       ]
     },
     {
@@ -207,8 +199,7 @@
       "name": "青龙偃月刀",
       "description": "攻击范围3，杀被闪避后可立即追刀",
       "copies": [
-        { "suit": "SPADES", "point": 5 },
-        { "suit": "CLUBS",  "point": 5 }
+        { "suit": "SPADES", "point": 3 }
       ]
     },
     {
@@ -228,14 +219,6 @@
       ]
     },
     {
-      "id": "renwang",
-      "name": "仁王盾",
-      "description": "防止黑色杀造成的伤害",
-      "copies": [
-        { "suit": "CLUBS", "point": 5 }
-      ]
-    },
-    {
       "id": "bagua",
       "name": "八卦阵",
       "description": "需要出闪时可进行判定，红色视为出闪",
@@ -251,6 +234,30 @@
       "copies": [
         { "suit": "DIAMONDS", "point": 1 },
         { "suit": "CLUBS",    "point": 1 }
+      ]
+    },
+    {
+      "id": "guanshifu",
+      "name": "贯石斧",
+      "description": "攻击范围3，可弃2发动强杀",
+      "copies": [
+        { "suit": "DIAMONDS", "point": 3 }
+      ]
+    },
+    {
+      "id": "qingangjian",
+      "name": "青釭剑",
+      "description": "攻击范围2，无视其防具",
+      "copies": [
+        { "suit": "SPADES", "point": 6 }
+      ]
+    },
+    {
+      "id": "cixiong",
+      "name": "雌雄双股剑",
+      "description": "攻击范围2，异性增强",
+      "copies": [
+        { "suit": "SPADES", "point": 2 }
       ]
     },
     {
