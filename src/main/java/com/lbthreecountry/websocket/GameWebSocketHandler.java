@@ -3,6 +3,7 @@ package com.lbthreecountry.websocket;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lbthreecountry.entity.GameRoom;
+import com.lbthreecountry.entity.RoomPlayer;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
@@ -372,9 +373,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
+        // 检查所有真人玩家是否都已准备
+        boolean allRealPlayersReady = room.getPlayers().stream()
+                .filter(p -> !p.isBot())
+                .allMatch(RoomPlayer::isReady);
+        if (!allRealPlayersReady) {
+            sendJson(session, Map.of("type", "ERROR", "message", "所有玩家必须准备后才能开始游戏"));
+            return;
+        }
+
         try {
-            // ── 用 Bot 填满空位 ──
-            int botsNeeded = room.getMaxPlayers() - room.getPlayerCount();
+            // ── 用 Bot 填满空位（只填充未被关闭的座位） ──
+            int availableSeats = room.getMaxPlayers() - room.getClosedSeats().size();
+            int botsNeeded = availableSeats - room.getPlayerCount();
             if (botsNeeded > 0) {
                 String roomId = room.getRoomId();
                 for (int i = 0; i < botsNeeded; i++) {
@@ -597,11 +608,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        boolean success = roomService.closeSeat(room.getRoomId(), playerId);
-        if (!success) {
-            sendJson(session, Map.of("type", "ERROR", "message", "关闭座位失败（至少保留 2 个座位，且不能少于当前玩家人数）"));
+        // 提取 seatNumber
+        Object seatObj = msg.get("seatNumber");
+        if (seatObj == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "缺少 seatNumber 字段"));
             return;
         }
+        int seatNumber = ((Number) seatObj).intValue();
+
+        boolean success = roomService.closeSeat(room.getRoomId(), playerId, seatNumber);
+        if (!success) {
+            sendJson(session, Map.of("type", "ERROR", "message",
+                    "关闭座位失败：座位 " + seatNumber + " 已被占用、已关闭或至少需保留 2 个开放座位"));
+            return;
+        }
+
+        System.out.println("[房间] 关闭座位 " + seatNumber + "，当前关闭的座位: " + room.getClosedSeats());
 
         // 广播更新后的房间信息给房间内所有人
         GameRoom updatedRoom = roomService.getRoom(room.getRoomId());
@@ -634,11 +656,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        boolean success = roomService.openSeat(room.getRoomId(), playerId);
-        if (!success) {
-            sendJson(session, Map.of("type", "ERROR", "message", "打开座位失败（最多 8 个座位）"));
+        // 提取 seatNumber
+        Object seatObj = msg.get("seatNumber");
+        if (seatObj == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "缺少 seatNumber 字段"));
             return;
         }
+        int seatNumber = ((Number) seatObj).intValue();
+
+        boolean success = roomService.openSeat(room.getRoomId(), playerId, seatNumber);
+        if (!success) {
+            sendJson(session, Map.of("type", "ERROR", "message",
+                    "打开座位失败：座位 " + seatNumber + " 未关闭或无效"));
+            return;
+        }
+
+        System.out.println("[房间] 打开座位 " + seatNumber + "，当前关闭的座位: " + room.getClosedSeats());
 
         // 广播更新后的房间信息给房间内所有人
         GameRoom updatedRoom = roomService.getRoom(room.getRoomId());
@@ -1154,6 +1187,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     p.put("currentHp", gp.getCurrentHp());
                     p.put("handCardCount", gp.getHandCards().size());
                     p.put("kingdom", gp.getKingdom() != null ? gp.getKingdom().getCode() : null);
+                    p.put("kingdomColor", gp.getKingdom() != null ? gp.getKingdom().getColor() : null);
                     p.put("bot", gp.isBot());
                     return p;
                 })

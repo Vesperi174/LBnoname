@@ -103,7 +103,7 @@ public class RoomServiceImpl implements RoomService {
     public List<GameRoom> getJoinableRooms() {
         return roomMap.values().stream()
                 .filter(r -> r.getStatus() == RoomStatus.WAITING)
-                .filter(r -> r.getPlayerCount() < r.getMaxPlayers())
+                .filter(r -> r.getPlayerCount() + r.getClosedSeats().size() < r.getMaxPlayers())
                 .toList();
     }
 
@@ -128,7 +128,7 @@ public class RoomServiceImpl implements RoomService {
     }
 
     @Override
-    public boolean closeSeat(String roomId, String playerId) {
+    public boolean closeSeat(String roomId, String playerId, int seatNumber) {
         GameRoom room = roomMap.get(roomId);
         if (room == null) {
             return false;
@@ -137,22 +137,11 @@ public class RoomServiceImpl implements RoomService {
         if (!room.getOwnerPlayerId().equals(playerId)) {
             return false;
         }
-        // 至少保留 2 个座位（最少需要 2 人才能游戏）
-        if (room.getMaxPlayers() <= 2) {
-            return false;
-        }
-        // 不能关闭到少于当前玩家人数
-        if (room.getMaxPlayers() - 1 < room.getPlayerCount()) {
-            return false;
-        }
-
-        room.setMaxPlayers(room.getMaxPlayers() - 1);
-        System.out.println("[房间] 关闭一个座位，当前最大人数: " + room.getMaxPlayers());
-        return true;
+        return room.closeSeatNumber(seatNumber);
     }
 
     @Override
-    public boolean openSeat(String roomId, String playerId) {
+    public boolean openSeat(String roomId, String playerId, int seatNumber) {
         GameRoom room = roomMap.get(roomId);
         if (room == null) {
             return false;
@@ -161,13 +150,6 @@ public class RoomServiceImpl implements RoomService {
         if (!room.getOwnerPlayerId().equals(playerId)) {
             return false;
         }
-        // 不能超过初始最大人数 8
-        if (room.getMaxPlayers() >= 8) {
-            return false;
-        }
-
-        room.setMaxPlayers(room.getMaxPlayers() + 1);
-        System.out.println("[房间] 打开一个座位，当前最大人数: " + room.getMaxPlayers());
-        return true;
+        return room.openSeatNumber(seatNumber);
     }
 }

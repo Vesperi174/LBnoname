@@ -7,12 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 游戏房间实体 — 纯内存 POJO，无 JPA
@@ -74,6 +70,13 @@ public class GameRoom {
     private long createdAt = System.currentTimeMillis();
 
     /**
+     * 已关闭的座位号集合（seatNumber → closed）
+     * <p>用于精确控制哪些座位被禁用，而不是简单地增减 maxPlayers。</p>
+     */
+    @Builder.Default
+    private Set<Integer> closedSeats = new HashSet<>();
+
+    /**
      * 房间设置
      */
     @Builder.Default
@@ -123,7 +126,9 @@ public class GameRoom {
      * @return 是否加入成功
      */
     public boolean addPlayer(PlayerInfo playerInfo) {
-        if (playerCount >= maxPlayers) {
+        // 检查是否已满（已占座位数 + 已关闭座位数 >= maxPlayers）
+        long occupiedCount = players.size();
+        if (occupiedCount + closedSeats.size() >= maxPlayers) {
             return false;
         }
         // 检查是否已在房间中
@@ -131,10 +136,19 @@ public class GameRoom {
             return false;
         }
 
+        // 找到最小的未被占用且未关闭的座位号
+        Set<Integer> occupiedSeats = players.stream()
+                .map(RoomPlayer::getSeatNumber)
+                .collect(Collectors.toSet());
+        int seatNumber = 0;
+        while (occupiedSeats.contains(seatNumber) || closedSeats.contains(seatNumber)) {
+            seatNumber++;
+        }
+
         RoomPlayer roomPlayer = RoomPlayer.builder()
                 .playerId(playerInfo.getPlayerId())
                 .playerName(playerInfo.getName())
-                .seatNumber(playerCount)
+                .seatNumber(seatNumber)
                 .isReady(false)
                 .isAlive(true)
                 .build();
@@ -154,9 +168,15 @@ public class GameRoom {
         boolean removed = players.removeIf(p -> p.getPlayerId().equals(playerId));
         if (removed) {
             playerCount--;
-            // 重新排座位
-            for (int i = 0; i < players.size(); i++) {
-                players.get(i).setSeatNumber(i);
+            // 重新排座位：跳过已关闭的座位，紧凑排列在开放座位上
+            Set<Integer> assignedSeats = new HashSet<>();
+            for (RoomPlayer rp : players) {
+                int seat = 0;
+                while (assignedSeats.contains(seat) || closedSeats.contains(seat)) {
+                    seat++;
+                }
+                rp.setSeatNumber(seat);
+                assignedSeats.add(seat);
             }
             // 如果房主离开，随机转让房主给一个剩余玩家
             if (ownerPlayerId.equals(playerId) && playerCount > 0) {
@@ -191,6 +211,7 @@ public class GameRoom {
         info.put("status", status.name());
         info.put("maxPlayers", maxPlayers);
         info.put("playerCount", playerCount);
+        info.put("closedSeats", List.copyOf(closedSeats));
         info.put("roomSettings", roomSettings);
 
         List<Map<String, Object>> playerList = players.stream().map(rp -> {
@@ -214,5 +235,59 @@ public class GameRoom {
         return players.stream()
                 .map(RoomPlayer::getPlayerId)
                 .toList();
+    }
+
+    // ──────────────────────────────────────────────
+    // 座位管理
+    // ──────────────────────────────────────────────
+
+    /**
+     * 关闭指定座位号
+     *
+     * @param seatNumber 要关闭的座位号
+     * @return true=关闭成功; false=座位已被占用或已关闭或 seatNumber 无效
+     */
+    public boolean closeSeatNumber(int seatNumber) {
+        if (seatNumber < 0 || seatNumber >= maxPlayers) {
+            return false;
+        }
+        // 已被玩家占用则不能关闭
+        boolean occupied = players.stream()
+                .anyMatch(p -> p.getSeatNumber() == seatNumber);
+        if (occupied) {
+            return false;
+        }
+        // 已经关闭
+        if (closedSeats.contains(seatNumber)) {
+            return false;
+        }
+        // 必须至少保留 2 个开放座位
+        int remainingOpen = maxPlayers - closedSeats.size() - 1;
+        if (remainingOpen < 2) {
+            return false;
+        }
+        // 不能少于当前玩家人数
+        if (remainingOpen < playerCount) {
+            return false;
+        }
+        closedSeats.add(seatNumber);
+        return true;
+    }
+
+    /**
+     * 打开指定座位号（取消关闭）
+     *
+     * @param seatNumber 要打开的座位号
+     * @return true=打开成功; false=该座位未关闭或 seatNumber 无效
+     */
+    public boolean openSeatNumber(int seatNumber) {
+        if (seatNumber < 0 || seatNumber >= maxPlayers) {
+            return false;
+        }
+        if (!closedSeats.contains(seatNumber)) {
+            return false;
+        }
+        closedSeats.remove(seatNumber);
+        return true;
     }
 }
