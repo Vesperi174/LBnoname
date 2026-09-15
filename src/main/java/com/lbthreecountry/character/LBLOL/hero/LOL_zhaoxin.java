@@ -14,6 +14,7 @@ public class LOL_zhaoxin extends BaseHero {
                 "德邦总管", // heroTitle
                 KingdomType.DMA,     // kingdom
                 4,                   // maxHp
+                4,                   // startHp
                 Gender.MALE,                // gender
                 "",  // description
                 List.of(

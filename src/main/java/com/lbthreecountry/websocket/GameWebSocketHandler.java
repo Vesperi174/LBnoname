@@ -467,15 +467,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 )));
             }
 
-            // 广播第一回合开始
-            broadcastToRoom(room, Map.of(
-                    "type", "TURN_START",
-                    "gameSeat", match.getCurrentPlayerIndex(),
-                    "playerName", match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "",
-                    "round", match.getCurrentRound(),
-                    "phase", match.getCurrentPhase().name(),
-                    "turnTime", turnTime
-            ), null);
+            // 广播第一回合开始（含轮次和牌堆信息）
+            broadcastToRoom(room, buildTurnStartMessage(match, turnTime), null);
 
             // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY（战报可见每个阶段）
             autoAdvanceToPlay(room.getRoomId(), room);
@@ -780,15 +773,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 )));
             }
 
-            // 广播第一回合开始
-            broadcastToRoom(room, Map.of(
-                    "type", "TURN_START",
-                    "gameSeat", match.getCurrentPlayerIndex(),
-                    "playerName", match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "",
-                    "round", match.getCurrentRound(),
-                    "phase", match.getCurrentPhase().name(),
-                    "turnTime", turnTime
-            ), null);
+            // 广播第一回合开始（含轮次和牌堆信息）
+            broadcastToRoom(room, buildTurnStartMessage(match, turnTime), null);
 
             // 如果当前玩家是 Bot，触发自动推进
             triggerBotIfNeeded(roomId);
@@ -886,17 +872,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                             match = gameService.nextTurn(roomId);
                             GameRoom room2 = roomService.getRoom(roomId);
                             if (room2 != null) {
-                                String curName = match.currentPlayer() != null
-                                        ? match.currentPlayer().getPlayerName() : "";
-                                broadcastToRoom(room2, Map.of(
-                                        "type", "TURN_START",
-                                        "roomId", roomId,
-                                        "gameSeat", match.getCurrentPlayerIndex(),
-                                        "playerName", curName,
-                                        "round", match.getCurrentRound(),
-                                        "totalTurns", match.getTotalTurns(),
-                                        "phase", match.getCurrentPhase().name()
-                                ), null);
+                                broadcastToRoom(room2, buildTurnStartMessage(match, 0), null);
                                 // 新回合自动推进 PREPARE → JUDGE → DRAW → PLAY
                                 autoAdvanceToPlay(roomId, room2);
                             }
@@ -931,17 +907,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                                 match = gameService.nextTurn(roomId);
                                 GameRoom room2 = roomService.getRoom(roomId);
                                 if (room2 != null) {
-                                    String curName = match.currentPlayer() != null
-                                            ? match.currentPlayer().getPlayerName() : "";
-                                    broadcastToRoom(room2, Map.of(
-                                            "type", "TURN_START",
-                                            "roomId", roomId,
-                                            "gameSeat", match.getCurrentPlayerIndex(),
-                                            "playerName", curName,
-                                            "round", match.getCurrentRound(),
-                                            "totalTurns", match.getTotalTurns(),
-                                            "phase", match.getCurrentPhase().name()
-                                    ), null);
+                                    broadcastToRoom(room2, buildTurnStartMessage(match, 0), null);
                                     // 新回合自动推进 PREPARE → JUDGE → DRAW → PLAY
                                     autoAdvanceToPlay(roomId, room2);
                                 }
@@ -1032,17 +998,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             // ====== 到了 END → 切换回合 ======
             if ("END".equals(toPhase)) {
                 match = gameService.nextTurn(room.getRoomId());
-                String currentPlayerName = match.currentPlayer() != null
-                        ? match.currentPlayer().getPlayerName() : "";
-                broadcastToRoom(room, Map.of(
-                        "type", "TURN_START",
-                        "roomId", room.getRoomId(),
-                        "gameSeat", match.getCurrentPlayerIndex(),
-                        "playerName", currentPlayerName,
-                        "round", match.getCurrentRound(),
-                        "totalTurns", match.getTotalTurns(),
-                        "phase", match.getCurrentPhase().name()
-                ), null);
+                broadcastToRoom(room, buildTurnStartMessage(match, 0), null);
 
                 // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY
                 autoAdvanceToPlay(room.getRoomId(), room);
@@ -1079,18 +1035,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         try {
             GameMatch match = gameService.nextTurn(room.getRoomId());
-            String currentPlayerName = match.currentPlayer() != null
-                    ? match.currentPlayer().getPlayerName() : "";
 
-            broadcastToRoom(room, Map.of(
-                    "type", "TURN_START",
-                    "roomId", room.getRoomId(),
-                    "gameSeat", match.getCurrentPlayerIndex(),
-                    "playerName", currentPlayerName,
-                    "round", match.getCurrentRound(),
-                    "totalTurns", match.getTotalTurns(),
-                    "phase", match.getCurrentPhase().name()
-            ), null);
+            broadcastToRoom(room, buildTurnStartMessage(match, 0), null);
 
             // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY
             autoAdvanceToPlay(room.getRoomId(), room);
@@ -1194,6 +1140,31 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 .toList();
 
         return Map.of("players", playerList);
+    }
+
+    // ──────────────────────────────────────────────
+    // 辅助：构建 TURN_START 消息（含牌堆信息）
+    // ──────────────────────────────────────────────
+
+    /**
+     * 构建回合开始消息，包含轮次、阶段、牌堆剩余数等
+     */
+    private Map<String, Object> buildTurnStartMessage(GameMatch match, int turnTime) {
+        java.util.HashMap<String, Object> msg = new java.util.HashMap<>();
+        msg.put("type", "TURN_START");
+        msg.put("roomId", match.getRoomId());
+        msg.put("gameSeat", match.getCurrentPlayerIndex());
+        msg.put("playerName", match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "");
+        msg.put("round", match.getCurrentRound());
+        msg.put("totalTurns", match.getTotalTurns());
+        msg.put("phase", match.getCurrentPhase().name());
+        if (turnTime > 0) {
+            msg.put("turnTime", turnTime);
+        }
+        // 牌堆信息
+        msg.put("drawPileCount", match.getDrawPile() != null ? match.getDrawPile().size() : 0);
+        msg.put("discardPileCount", match.getDiscardPile() != null ? match.getDiscardPile().size() : 0);
+        return msg;
     }
 
     // ──────────────────────────────────────────────

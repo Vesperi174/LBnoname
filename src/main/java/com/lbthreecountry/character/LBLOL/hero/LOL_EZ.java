@@ -13,7 +13,8 @@ public class LOL_EZ extends BaseHero {
                 "伊泽瑞尔",
                 "探险家", // heroTitle
                 KingdomType.EUD,     // kingdom
-                4,                   // maxHp
+                4,
+                4,                   // startHp
                 Gender.MALE,                // gender
                 "",  // description
                 List.of(

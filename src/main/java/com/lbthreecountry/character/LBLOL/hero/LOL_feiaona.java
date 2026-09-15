@@ -6,16 +6,16 @@ import com.lbthreecountry.model.hero.BaseHero;
 
 import java.util.List;
 
-public class LOL_VN extends BaseHero {
-    public LOL_VN() {
+public class LOL_feiaona extends BaseHero {
+    public LOL_feiaona() {
         super(
-                "lol_VN",           // heroId
-                "薇恩",
-                "暗夜猎手", // heroTitle
+                "lol_feiaona",           // heroId
+                "菲奥娜",
+                "无双剑姬", // heroTitle
                 KingdomType.DMA,     // kingdom
-                4,                   // maxHp
-                4,                   // startHp
-                Gender.FEMALE,                // gender
+                3,                   // maxHp
+                3,                   // startHp
+                Gender.MALE,                // gender
                 "",  // description
                 List.of(
                 )

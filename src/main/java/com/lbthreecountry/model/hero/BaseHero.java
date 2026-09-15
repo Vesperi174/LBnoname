@@ -55,6 +55,9 @@ public abstract class BaseHero {
     /** 体力上限 */
     private int maxHp;
 
+    /** 初始体力 */
+    private int startHp;
+
     /** 性别 */
     private Gender gender;
 
