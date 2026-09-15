@@ -745,9 +745,7 @@ var myTurnTimer = createCountdown({
         }
     },
     onComplete: function () {
-        playActionBar.classList.remove('visible');
-        if (STATE.targetMode.active) exitTargetMode();
-        sendMsg({ type: 'NEXT_PHASE' });
+        // 仅视觉归零，不发送任何消息 — 服务器独立控制流程
     },
     onStop: function () {
         turnTimerBar.style.background = 'linear-gradient(90deg, #e74c3c, #f39c12)';
@@ -1324,10 +1322,7 @@ function handleMessage(msg) {
                 updateOpponentPhaseBar(msg.gameSeat, msg.phase || 'PREPARE');
             }
 
-            // 如果是当前玩家的回合，自动推进非出牌阶段
-            if (msg.gameSeat === getMySeat()) {
-                schedulePhaseAdvance();
-            }
+            // 如果是当前玩家的回合 — 服务器自动推进，前端只需渲染
             break;
 
         case 'PHASE_CHANGE':
@@ -1335,11 +1330,7 @@ function handleMessage(msg) {
             updateTopBar();
             renderPlayerCard();
 
-            // 战报：谁进入了什么阶段
-            var phasePlayer = getPlayerBySeat(msg.gameSeat);
-            var phasePlayerName = phasePlayer ? phasePlayer.playerName : '未知';
-            var phaseCn = PHASE_NAMES[msg.toPhase] || msg.toPhase;
-            addLog('【' + phasePlayerName + '】→ ' + phaseCn, 'system');
+            // 战报由服务器通过 BATTLE_REPORT 广播，前端不再负责输出
 
             // 更新对手阶段条（非自己）— 倒计时仅对手出牌阶段且非机器人时才显示
             if (msg.gameSeat !== getMySeat()) {
@@ -1362,17 +1353,16 @@ function handleMessage(msg) {
                     var ttl = STATE.game.turnTime || 15;
                     startTurnTimer(ttl);
                 } else if (msg.toPhase === 'DISCARD') {
-                    // 弃牌阶段 → 隐藏动作栏和倒计时，自动推进
+                    // 弃牌阶段 → 隐藏动作栏和倒计时（服务器会继续推进）
                     playActionBar.classList.remove('visible');
                     stopTurnTimer();
-                    schedulePhaseAdvance();
                 } else if (msg.toPhase === 'END') {
-                    // 结束阶段 → 隐藏动作栏和倒计时，等待后端自动换回合
+                    // 结束阶段 → 隐藏动作栏和倒计时，等服务器换回合
                     playActionBar.classList.remove('visible');
                     stopTurnTimer();
                 } else {
-                    // 准备/判定/摸牌 → 自动推进
-                    schedulePhaseAdvance();
+                    // 准备/判定/摸牌 → 服务器已通过 autoAdvanceToPlay 自动推进，前端无需做任何事
+                    console.log('[阶段] 服务器自动推进: ' + msg.toPhase);
                 }
             }
             break;
@@ -1552,25 +1542,10 @@ function getPlayerBySeat(seat) {
     return null;
 }
 
-/** 1 秒后自动推进到下一阶段 */
-var _advanceTimer = null;
-function schedulePhaseAdvance() {
-    if (_advanceTimer) clearTimeout(_advanceTimer);
-    _advanceTimer = setTimeout(function () {
-        _advanceTimer = null;
-        // 只在自己还是当前玩家时才推进（防止延迟期间换回合）
-        if (STATE.game.currentPlayerIndex === getMySeat()) {
-            sendMsg({ type: 'NEXT_PHASE' });
-        }
-    }, 1000);
-}
-
 /** 结束出牌阶段按钮点击 */
 endPlayBtn.addEventListener('click', function () {
     playActionBar.classList.remove('visible');
     stopTurnTimer();
-    if (_advanceTimer) clearTimeout(_advanceTimer);
-    _advanceTimer = null;
     // 如果有目标选择模式，退出
     if (STATE.targetMode.active) exitTargetMode();
     sendMsg({ type: 'NEXT_PHASE' });
