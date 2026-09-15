@@ -82,6 +82,18 @@ public interface GameService {
     GameMatch nextPhase(String roomId);
 
     /**
+     * 摸牌 — 当前玩家从牌堆顶摸指定张数，放入手牌
+     *
+     * <p>在 match.lock() 保护下调用 {@code CardManager.draw()}。
+     * 如果牌堆不足会自动洗弃牌堆。</p>
+     *
+     * @param roomId 房间 ID
+     * @param count  摸牌张数
+     * @return 更新后的对局
+     */
+    GameMatch drawCards(String roomId, int count);
+
+    /**
      * 结束游戏
      *
      * @param roomId     房间 ID

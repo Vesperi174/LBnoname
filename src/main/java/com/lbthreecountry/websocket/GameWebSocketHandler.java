@@ -466,6 +466,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "turnTime", turnTime
             ), null);
 
+            // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY（战报可见每个阶段）
+            autoAdvanceToPlay(room.getRoomId(), room);
+
             // 如果当前玩家是 Bot（例如全部为 Bot 的测试场景），触发自动推进
             triggerBotIfNeeded(room.getRoomId());
 
@@ -861,6 +864,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                                         "totalTurns", match.getTotalTurns(),
                                         "phase", match.getCurrentPhase().name()
                                 ), null);
+                                // 新回合自动推进 PREPARE → JUDGE → DRAW → PLAY
+                                autoAdvanceToPlay(roomId, room2);
                             }
                         } else {
                             // 非 END 阶段 → 推进阶段
@@ -870,13 +875,22 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                             String toPhase = match.getCurrentPhase().name();
                             GameRoom room = roomService.getRoom(roomId);
                             if (room != null) {
-                                broadcastToRoom(room, Map.of(
-                                        "type", "PHASE_CHANGE",
-                                        "roomId", roomId,
-                                        "fromPhase", fromPhase,
-                                        "toPhase", toPhase,
-                                        "gameSeat", match.getCurrentPlayerIndex()
-                                ), null);
+                                String curName = match.currentPlayer() != null
+                                        ? match.currentPlayer().getPlayerName() : "";
+                                broadcastPhaseEvent(room, fromPhase, toPhase,
+                                        match.getCurrentPlayerIndex(), curName);
+                            }
+
+                            // DISCARD → 自动推进到 END
+                            if ("DISCARD".equals(toPhase) && room != null) {
+                                fromPhase = toPhase;
+                                match = gameService.nextPhase(roomId);
+                                toPhase = match.getCurrentPhase().name();
+
+                                String curName2 = match.currentPlayer() != null
+                                        ? match.currentPlayer().getPlayerName() : "";
+                                broadcastPhaseEvent(room, fromPhase, toPhase,
+                                        match.getCurrentPlayerIndex(), curName2);
                             }
 
                             // 到达 END 阶段 → 自动切换回合
@@ -895,6 +909,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                                             "totalTurns", match.getTotalTurns(),
                                             "phase", match.getCurrentPhase().name()
                                     ), null);
+                                    // 新回合自动推进 PREPARE → JUDGE → DRAW → PLAY
+                                    autoAdvanceToPlay(roomId, room2);
                                 }
                             }
                         }
@@ -937,6 +953,16 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         log.info("[房间] 对局和房间已销毁 [roomId={}]", roomId);
     }
 
+    /** 阶段英文 → 中文映射 */
+    private static final java.util.Map<String, String> PHASE_CN = java.util.Map.of(
+            "PREPARE", "准备阶段",
+            "JUDGE", "判定阶段",
+            "DRAW", "摸牌阶段",
+            "PLAY", "出牌阶段",
+            "DISCARD", "弃牌阶段",
+            "END", "结束阶段"
+    );
+
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GameWebSocketHandler.class);
 
     private void handleNextPhase(WebSocketSession session, PlayerSession playerSession) {
@@ -961,21 +987,26 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
-            // 先保存旧的阶段名
             String fromPhase = match.getCurrentPhase().name();
 
+            // ====== 第 1 次推进：fromPhase → toPhase ======
             match = gameService.nextPhase(room.getRoomId());
-
             String toPhase = match.getCurrentPhase().name();
-            broadcastToRoom(room, Map.of(
-                    "type", "PHASE_CHANGE",
-                    "roomId", room.getRoomId(),
-                    "fromPhase", fromPhase,
-                    "toPhase", toPhase,
-                    "gameSeat", match.getCurrentPlayerIndex()
-            ), null);
 
-            // 到达 END 阶段 → 自动切换回合
+            String curName = match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "";
+            broadcastPhaseEvent(room, fromPhase, toPhase, match.getCurrentPlayerIndex(), curName);
+
+            // ====== 如果到了 DISCARD，自动推进到 END ======
+            if ("DISCARD".equals(toPhase)) {
+                fromPhase = toPhase;
+                match = gameService.nextPhase(room.getRoomId());
+                toPhase = match.getCurrentPhase().name();
+
+                curName = match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "";
+                broadcastPhaseEvent(room, fromPhase, toPhase, match.getCurrentPlayerIndex(), curName);
+            }
+
+            // ====== 到了 END → 切换回合 ======
             if ("END".equals(toPhase)) {
                 match = gameService.nextTurn(room.getRoomId());
                 String currentPlayerName = match.currentPlayer() != null
@@ -990,12 +1021,37 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                         "phase", match.getCurrentPhase().name()
                 ), null);
 
+                // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY
+                autoAdvanceToPlay(room.getRoomId(), room);
+
                 // 如果新回合玩家是 Bot，触发自动推进
                 triggerBotIfNeeded(room.getRoomId());
             }
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
         }
+    }
+
+    /**
+     * 广播阶段变更事件（PHASE_CHANGE + BATTLE_REPORT）
+     */
+    private void broadcastPhaseEvent(GameRoom room, String fromPhase, String toPhase,
+                                      int gameSeat, String playerName) {
+        // PHASE_CHANGE — 供前端渲染界面
+        broadcastToRoom(room, Map.of(
+                "type", "PHASE_CHANGE",
+                "roomId", room.getRoomId(),
+                "fromPhase", fromPhase,
+                "toPhase", toPhase,
+                "gameSeat", gameSeat
+        ), null);
+
+        // BATTLE_REPORT — 供战报显示进入阶段信息
+        String phaseCn = PHASE_CN.getOrDefault(toPhase, toPhase);
+        broadcastToRoom(room, Map.of(
+                "type", "BATTLE_REPORT",
+                "message", "【" + playerName + "】→ " + phaseCn
+        ), null);
     }
 
     private void handleNextTurn(WebSocketSession session, PlayerSession playerSession) {
@@ -1019,8 +1075,85 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "totalTurns", match.getTotalTurns(),
                     "phase", match.getCurrentPhase().name()
             ), null);
+
+            // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY
+            autoAdvanceToPlay(room.getRoomId(), room);
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 快速推进 PREPARE → JUDGE → DRAW → PLAY，
+     * 每次步骤都广播 PHASE_CHANGE 到前端，使战报能看到每个阶段的经过。
+     * 仅在新回合开始时、且当前为 PREPARE 阶段时调用。
+     */
+    private void autoAdvanceToPlay(String roomId, GameRoom room) {
+        try {
+            for (int i = 0; i < 3; i++) {
+                GameMatch match = gameService.getMatch(roomId);
+                if (match == null) break;
+
+                String fromPhase = match.getCurrentPhase().name();
+                if (!"PREPARE".equals(fromPhase) && !"JUDGE".equals(fromPhase) && !"DRAW".equals(fromPhase)) {
+                    break;
+                }
+
+                // ── 判定阶段：如果判定区有牌，停下来等待结算 ──
+                if ("JUDGE".equals(fromPhase)) {
+                    GamePlayer player = match.currentPlayer();
+                    if (player != null && !player.getJudgeArea().isEmpty()) {
+                        log.info("[判定] 玩家 {} 判定区有 {} 张牌，等待结算 [roomId={}]",
+                                player.getPlayerName(), player.getJudgeArea().size(), roomId);
+                        break; // 有判定牌，停住等待
+                    }
+                    // 判定区无牌，继续推进
+                }
+
+                // ── 摸牌阶段：自动从牌堆顶摸 2 张牌 ──
+                if ("DRAW".equals(fromPhase)) {
+                    GamePlayer player = match.currentPlayer();
+                    if (player != null) {
+                        // 带锁摸牌
+                        gameService.drawCards(roomId, 2);
+
+                        // 广播战报
+                        broadcastToRoom(room, Map.of(
+                                "type", "BATTLE_REPORT",
+                                "message", player.getPlayerName() + "摸了2张牌"
+                        ), null);
+
+                        // 私发更新后的手牌
+                        match = gameService.getMatch(roomId);
+                        player = match.currentPlayer();
+                        if (player != null) {
+                            List<Map<String, Object>> cardList = new java.util.ArrayList<>();
+                            for (CardInstance card : player.getHandCards()) {
+                                CardDef def = cardManager.getDef(card.getDefId());
+                                Map<String, Object> cardMap = new java.util.HashMap<>();
+                                cardMap.put("instanceId", card.getInstanceId());
+                                cardMap.put("defId", card.getDefId());
+                                cardMap.put("name", def != null ? def.getName() : card.getDefId());
+                                cardMap.put("suit", card.getSuit().name());
+                                cardMap.put("point", card.getPoint());
+                                cardList.add(cardMap);
+                            }
+                            sessionManager.sendMessage(player.getPlayerId(), toJson(Map.of(
+                                    "type", "MY_HAND",
+                                    "cards", cardList
+                            )));
+                        }
+                    }
+                }
+
+                match = gameService.nextPhase(roomId);
+                String toPhase = match.getCurrentPhase().name();
+
+                String curName = match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "";
+                broadcastPhaseEvent(room, fromPhase, toPhase, match.getCurrentPlayerIndex(), curName);
+            }
+        } catch (IllegalStateException e) {
+            log.warn("[自动推进] 阶段推进中断: {}", e.getMessage());
         }
     }
 

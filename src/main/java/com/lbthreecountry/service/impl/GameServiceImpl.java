@@ -83,7 +83,8 @@ public class GameServiceImpl implements GameService {
             event.putData("playerName", player.getPlayerName());
         }
         eventBus.publish(event, match);
-        log.info("[钩子] {} ({}) [roomId={}]", eventType, phase.getDescription(), match.getRoomId());
+        String playerName = player != null ? player.getPlayerName() : "系统";
+        log.info("[钩子] {} — {}: {}", eventType, playerName, phase.getDescription());
     }
 
     // ================================================================
@@ -106,8 +107,22 @@ public class GameServiceImpl implements GameService {
                 publishPhaseHook(match, GameEventType.phaseAfter(oldPhase), oldPhase);
             }
 
-            // 2) 当前玩家回合结束后
+            // 2) 当前玩家回合结束
             if (oldPlayer != null) {
+                // 2a) TURN_END：回合结束时
+                GameEvent turnEnd = GameEvent.builder()
+                        .type(GameEventType.TURN_END)
+                        .sourceId(oldPlayer.getPlayerId())
+                        .build();
+                turnEnd.putData("roomId", roomId);
+                turnEnd.putData("playerId", oldPlayer.getPlayerId());
+                turnEnd.putData("playerName", oldPlayer.getPlayerName());
+                turnEnd.putData("gameSeat", match.getCurrentPlayerIndex());
+                eventBus.publish(turnEnd, match);
+                log.info("[钩子] {} — {} 回合结束时",
+                        GameEventType.TURN_END, oldPlayer.getPlayerName());
+
+                // 2b) TURN_AFTER：回合结束后
                 GameEvent turnAfter = GameEvent.builder()
                         .type(GameEventType.TURN_AFTER)
                         .sourceId(oldPlayer.getPlayerId())
@@ -117,8 +132,8 @@ public class GameServiceImpl implements GameService {
                 turnAfter.putData("playerName", oldPlayer.getPlayerName());
                 turnAfter.putData("gameSeat", match.getCurrentPlayerIndex());
                 eventBus.publish(turnAfter, match);
-                log.info("[钩子] {} ({} 回合结束) [roomId={}]",
-                        GameEventType.TURN_AFTER, oldPlayer.getPlayerName(), roomId);
+                log.info("[钩子] {} — {} 回合结束后",
+                        GameEventType.TURN_AFTER, oldPlayer.getPlayerName());
             }
 
             // 3) 切换到下一玩家
@@ -142,10 +157,8 @@ public class GameServiceImpl implements GameService {
 
             if (newPlayer != null) newPlayer.setHasPlayedSha(false);
 
-            log.info("[回合] 轮到玩家 [roomId={}, gameSeat={}, playerName={}, round={}]",
-                    roomId, nextIndex,
-                    newPlayer != null ? newPlayer.getPlayerName() : "?",
-                    match.getCurrentRound());
+            String pn = newPlayer != null ? newPlayer.getPlayerName() : "?";
+            log.info("[回合] 轮到 {} (座位 {}) — 第 {} 回合", pn, nextIndex, match.getCurrentRound());
 
             // 4) 新玩家回合开始前
             if (newPlayer != null) {
@@ -160,8 +173,23 @@ public class GameServiceImpl implements GameService {
                 turnBefore.putData("round", match.getCurrentRound());
                 turnBefore.putData("totalTurns", match.getTotalTurns());
                 eventBus.publish(turnBefore, match);
-                log.info("[钩子] {} ({} 回合开始前) [roomId={}]",
-                        GameEventType.TURN_BEFORE, newPlayer.getPlayerName(), roomId);
+                log.info("[钩子] {} — {} 回合开始前",
+                        GameEventType.TURN_BEFORE, newPlayer.getPlayerName());
+
+                // 4b) TURN_ACTIVE：回合进行中
+                GameEvent turnActive = GameEvent.builder()
+                        .type(GameEventType.TURN_ACTIVE)
+                        .sourceId(newPlayer.getPlayerId())
+                        .build();
+                turnActive.putData("roomId", roomId);
+                turnActive.putData("playerId", newPlayer.getPlayerId());
+                turnActive.putData("playerName", newPlayer.getPlayerName());
+                turnActive.putData("gameSeat", nextIndex);
+                turnActive.putData("round", match.getCurrentRound());
+                turnActive.putData("totalTurns", match.getTotalTurns());
+                eventBus.publish(turnActive, match);
+                log.info("[钩子] {} — {} 回合进行中",
+                        GameEventType.TURN_ACTIVE, newPlayer.getPlayerName());
             }
 
             // 5) 新玩家的 PREPARE 阶段开始前 / 进行中
@@ -204,13 +232,28 @@ public class GameServiceImpl implements GameService {
                 case END     -> GamePhase.END;
             };
 
-            // 已在结束阶段，此时需触发 END 钩子 + TURN.AFTER，让调用方切回合
+            // 已在结束阶段，此时需触发 END 钩子 + TURN.END/TURN.AFTER，让调用方切回合
             if (current == GamePhase.END) {
                 publishPhaseHook(match, GameEventType.phaseEnd(current), current);
                 publishPhaseHook(match, GameEventType.phaseAfter(current), current);
 
-                // TURN.AFTER：当前玩家回合结束后
+                // TURN.END：当前玩家回合结束时
                 GamePlayer curPlayer = match.currentPlayer();
+                if (curPlayer != null) {
+                    GameEvent turnEnd = GameEvent.builder()
+                            .type(GameEventType.TURN_END)
+                            .sourceId(curPlayer.getPlayerId())
+                            .build();
+                    turnEnd.putData("roomId", roomId);
+                    turnEnd.putData("playerId", curPlayer.getPlayerId());
+                    turnEnd.putData("playerName", curPlayer.getPlayerName());
+                    turnEnd.putData("gameSeat", match.getCurrentPlayerIndex());
+                    eventBus.publish(turnEnd, match);
+                    log.info("[钩子] {} — {} 回合结束时",
+                            GameEventType.TURN_END, curPlayer.getPlayerName());
+                }
+
+                // TURN.AFTER：当前玩家回合结束后
                 if (curPlayer != null) {
                     GameEvent turnAfter = GameEvent.builder()
                             .type(GameEventType.TURN_AFTER)
@@ -221,8 +264,8 @@ public class GameServiceImpl implements GameService {
                     turnAfter.putData("playerName", curPlayer.getPlayerName());
                     turnAfter.putData("gameSeat", match.getCurrentPlayerIndex());
                     eventBus.publish(turnAfter, match);
-                    log.info("[钩子] {} ({} 回合结束) [roomId={}]",
-                            GameEventType.TURN_AFTER, curPlayer.getPlayerName(), roomId);
+                    log.info("[钩子] {} — {} 回合结束后",
+                            GameEventType.TURN_AFTER, curPlayer.getPlayerName());
                 }
 
                 throw new IllegalStateException("当前阶段已是结束阶段，请等待换回合");
@@ -234,7 +277,9 @@ public class GameServiceImpl implements GameService {
 
             // 2) 推进到下一阶段
             match.setCurrentPhase(next);
-            log.info("[阶段] {} → {} [roomId={}]", current.name(), next.name(), roomId);
+            GamePlayer cur = match.currentPlayer();
+            String curName = cur != null ? cur.getPlayerName() : "?";
+            log.info("[阶段] {}: {} → {}", curName, current.name(), next.name());
 
             // 3) 下一阶段开始前 / 进行中
             publishPhaseHook(match, GameEventType.phaseBefore(next), next);
@@ -257,9 +302,69 @@ public class GameServiceImpl implements GameService {
         }
     }
 
+    @Override
+    public GameMatch drawCards(String roomId, int count) {
+        GameMatch match = getMatch(roomId);
+        if (match == null) throw new IllegalStateException("对局不存在: " + roomId);
+
+        match.lock();
+        try {
+            GamePlayer player = match.currentPlayer();
+            if (player == null) throw new IllegalStateException("当前回合没有玩家");
+
+            // 1) 摸牌前 — 已知谁、摸多少张
+            publishDrawHook(match, GameEventType.CARD_DRAW_BEFORE, player, count);
+            publishDrawHook(match, GameEventType.CARD_DRAW_ACTIVE, player, count);
+
+            // 2) 摸牌操作
+            List<CardInstance> drawn = cardManager.draw(match, player, count);
+
+            // 3) 摸牌后
+            GameEvent afterEvent = buildDrawEvent(GameEventType.CARD_DRAW_AFTER, match, player, count, drawn);
+            eventBus.publish(afterEvent, match);
+            // 兼容旧版事件
+            GameEvent legacyEvent = buildDrawEvent(GameEventType.CARD_DRAWN, match, player, count, drawn);
+            eventBus.publish(legacyEvent, match);
+
+            log.info("[摸牌] {} 摸了 {} 张牌", player.getPlayerName(), drawn.size());
+            return match;
+        } finally {
+            match.unlock();
+        }
+    }
+
     // ================================================================
-    //  结束游戏
+    //  私有方法
     // ================================================================
+
+    private GameEvent buildDrawEvent(String type, GameMatch match, GamePlayer player, int count, List<CardInstance> drawn) {
+        GameEvent event = GameEvent.builder()
+                .type(type)
+                .sourceId(player.getPlayerId())
+                .build();
+        event.putData("roomId", match.getRoomId());
+        event.putData("playerId", player.getPlayerId());
+        event.putData("playerName", player.getPlayerName());
+        event.putData("count", count);
+        event.putData("actualCount", drawn.size());
+        // 摸到的卡牌实例 ID 列表
+        List<Long> cardIds = drawn.stream().map(CardInstance::getInstanceId).toList();
+        event.putData("cardIds", cardIds);
+        return event;
+    }
+
+    private void publishDrawHook(GameMatch match, String type, GamePlayer player, int count) {
+        GameEvent event = GameEvent.builder()
+                .type(type)
+                .sourceId(player.getPlayerId())
+                .build();
+        event.putData("roomId", match.getRoomId());
+        event.putData("playerId", player.getPlayerId());
+        event.putData("playerName", player.getPlayerName());
+        event.putData("count", count);
+        eventBus.publish(event, match);
+        log.info("[钩子] {} — {} 摸 {} 张", type, player.getPlayerName(), count);
+    }
 
     @Override
     public GameMatch endGame(String roomId, RoleType winnerRole) {
@@ -274,7 +379,7 @@ public class GameServiceImpl implements GameService {
             if (room != null) room.setStatus(RoomStatus.WAITING);
 
             String winnerDesc = winnerRole != null ? winnerRole.getDescription() : "无人（所有玩家离开）";
-            log.info("[游戏] 对局结束 [roomId={}, 胜者={}]", roomId, winnerDesc);
+            log.info("[游戏] 对局结束 — 胜者: {}", winnerDesc);
 
             GameEvent endEvent = GameEvent.builder()
                     .type(GameEventType.GAME_OVER)
@@ -303,7 +408,7 @@ public class GameServiceImpl implements GameService {
     @Override
     public void removeMatch(String roomId) {
         matchMap.remove(roomId);
-        log.info("[游戏] 对局已清理 [roomId={}]", roomId);
+        log.info("[游戏] 对局已清理");
     }
 
     // ================================================================
@@ -353,8 +458,8 @@ public class GameServiceImpl implements GameService {
                 throw new IllegalStateException("卡牌定义未找到: " + card.getDefId());
             }
 
-            log.info("[出牌] {} 使用 {} → 目标: {} [roomId={}]",
-                    player.getPlayerName(), cardDef.getName(), targetIds, roomId);
+            log.info("[出牌] {} 使用 {} → 目标: {}",
+                    player.getPlayerName(), cardDef.getName(), targetIds);
 
             // 6. 从手牌移除
             player.getHandCards().remove(cardIndex);
@@ -388,7 +493,7 @@ public class GameServiceImpl implements GameService {
             playEvent.putData("targetIds", safeTargets);
             eventBus.publish(playEvent, match);
 
-            log.info("[出牌] {} 使用 {} 完成 [roomId={}]", player.getPlayerName(), cardDef.getName(), roomId);
+            log.info("[出牌] {} 使用 {} 完成", player.getPlayerName(), cardDef.getName());
 
             return match;
         } finally {
@@ -480,7 +585,7 @@ public class GameServiceImpl implements GameService {
             cardManager.draw(match, gp, drawCount);
         }
 
-        log.info("[游戏] 对局创建成功 [roomId={}, 人数={}, config={}]", roomId, gamePlayers.size(), identityConfig);
+        log.info("[游戏] 对局创建成功 ({} 人, {})", gamePlayers.size(), identityConfig);
 
         // 发布 GAME_START 事件
         GameEvent startEvent = GameEvent.builder()
@@ -500,6 +605,43 @@ public class GameServiceImpl implements GameService {
                 ))
                 .toList());
         eventBus.publish(startEvent, match);
+
+        // 发布第一个回合的 TURN_BEFORE（玩家回合开始前）
+        GamePlayer firstPlayer = match.currentPlayer();
+        if (firstPlayer != null) {
+            GameEvent turnBefore = GameEvent.builder()
+                    .type(GameEventType.TURN_BEFORE)
+                    .sourceId(firstPlayer.getPlayerId())
+                    .build();
+            turnBefore.putData("roomId", roomId);
+            turnBefore.putData("playerId", firstPlayer.getPlayerId());
+            turnBefore.putData("playerName", firstPlayer.getPlayerName());
+            turnBefore.putData("gameSeat", firstPlayer.getGameSeat());
+            turnBefore.putData("round", match.getCurrentRound());
+            turnBefore.putData("totalTurns", match.getTotalTurns());
+            eventBus.publish(turnBefore, match);
+            log.info("[钩子] {} — {} 回合开始前",
+                    GameEventType.TURN_BEFORE, firstPlayer.getPlayerName());
+
+            // TURN_ACTIVE：回合进行中
+            GameEvent turnActive = GameEvent.builder()
+                    .type(GameEventType.TURN_ACTIVE)
+                    .sourceId(firstPlayer.getPlayerId())
+                    .build();
+            turnActive.putData("roomId", roomId);
+            turnActive.putData("playerId", firstPlayer.getPlayerId());
+            turnActive.putData("playerName", firstPlayer.getPlayerName());
+            turnActive.putData("gameSeat", firstPlayer.getGameSeat());
+            turnActive.putData("round", match.getCurrentRound());
+            turnActive.putData("totalTurns", match.getTotalTurns());
+            eventBus.publish(turnActive, match);
+            log.info("[钩子] {} — {} 回合进行中",
+                    GameEventType.TURN_ACTIVE, firstPlayer.getPlayerName());
+
+            // 再发布 PREPARE 阶段钩子
+            publishPhaseHook(match, GameEventType.phaseBefore(GamePhase.PREPARE), GamePhase.PREPARE);
+            publishPhaseHook(match, GameEventType.phaseActive(GamePhase.PREPARE), GamePhase.PREPARE);
+        }
 
         return match;
     }

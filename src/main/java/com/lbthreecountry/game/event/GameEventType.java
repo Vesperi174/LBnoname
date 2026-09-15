@@ -53,16 +53,18 @@ public final class GameEventType {
     /** 玩家回合开始前 — 在第一个阶段（PREPARE）钩子之前触发 */
     public static final String TURN_BEFORE = "TURN.BEFORE";
 
-    /** 玩家回合结束后 — 在最后一个阶段（END）钩子之后、切下一玩家之前触发 */
+    /** 玩家回合进行中 — 在 TURN_BEFORE 之后、阶段钩子之前触发 */
+    public static final String TURN_ACTIVE = "TURN.ACTIVE";
+
+    /** 玩家回合结束时 — 在最后一个阶段（END）钩子之后、TURN_AFTER 之前触发 */
+    public static final String TURN_END = "TURN.END";
+
+    /** 玩家回合结束后 — 在 TURN_END 之后、切下一玩家之前触发 */
     public static final String TURN_AFTER = "TURN.AFTER";
 
     /** 新回合开始（兼容旧版） */
     @Deprecated
     public static final String TURN_START = "TURN.START";
-
-    /** 回合结束（兼容旧版） */
-    @Deprecated
-    public static final String TURN_END = "TURN.END";
 
     /** 新轮次开始 */
     public static final String ROUND_CHANGE = "ROUND.CHANGE";
@@ -107,7 +109,21 @@ public final class GameEventType {
     /** 玩家出牌 */
     public static final String CARD_PLAYED = "CARD.PLAYED";
 
-    /** 摸牌 */
+    // ================================================================
+    //  摸牌事件钩子
+    // ================================================================
+
+    /** 摸牌前 */
+    public static final String CARD_DRAW_BEFORE = "CARD.DRAW.BEFORE";
+
+    /** 摸牌时 */
+    public static final String CARD_DRAW_ACTIVE = "CARD.DRAW.ACTIVE";
+
+    /** 摸牌后 */
+    public static final String CARD_DRAW_AFTER = "CARD.DRAW.AFTER";
+
+    /** 摸牌（旧版） */
+    @Deprecated
     public static final String CARD_DRAWN = "CARD.DRAWN";
 
     /** 弃牌 */
