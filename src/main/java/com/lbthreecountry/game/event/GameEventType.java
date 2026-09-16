@@ -46,6 +46,9 @@ public final class GameEventType {
     /** 游戏结束 */
     public static final String GAME_OVER = "GAME.OVER";
 
+    /** 游戏日志（调试用） — 前端收到后会在日志面板显示 */
+    public static final String GAME_LOG = "GAME.LOG";
+
     // ================================================================
     //  回合钩子
     // ================================================================

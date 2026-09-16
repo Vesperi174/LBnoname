@@ -82,6 +82,9 @@ public class GameEventBroadcaster {
         // 注册 GAME.OVER 监听器
         eventBus.register(GameEventType.GAME_OVER, 10, this::onGameOver);
 
+        // 注册 GAME.LOG 监听器
+        eventBus.register(GameEventType.GAME_LOG, 10, this::onGameLog);
+
         // 注册所有回合钩子
         for (String type : TURN_EVENTS) {
             eventBus.register(type, 10, this::onTurnEvent);
@@ -125,6 +128,32 @@ public class GameEventBroadcaster {
         broadcast(roomId, Map.of(
                 "type", "BATTLE_REPORT",
                 "message", "【" + winnerName + "】获胜！"
+        ));
+    }
+
+    /**
+     * 游戏日志 — 前端收到后显示在日志面板
+     * <p>发布方式：</p>
+     * <pre>{@code
+     * GameEvent logEvent = GameEvent.builder()
+     *     .type(GameEventType.GAME_LOG)
+     *     .sourceId("system")
+     *     .build();
+     * logEvent.putData("roomId", roomId);
+     * logEvent.putData("message", "需要显示的日志内容");
+     * eventBus.publish(logEvent, match);
+     * }</pre>
+     */
+    private void onGameLog(GameEvent event, GameMatch match) {
+        String roomId = event.getData("roomId");
+        if (roomId == null) return;
+
+        String message = event.getData("message");
+        if (message == null || message.isEmpty()) return;
+
+        broadcast(roomId, Map.of(
+                "type", "GAME_LOG",
+                "message", message
         ));
     }
 

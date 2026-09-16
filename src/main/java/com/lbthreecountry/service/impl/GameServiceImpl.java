@@ -635,50 +635,6 @@ public class GameServiceImpl implements GameService {
     }
 
     // ================================================================
-    //  单机模式
-    // ================================================================
-
-    @Override
-    public GameMatch startSinglePlayer(String playerId, String playerName, int totalPlayers, String identityConfig) {
-        // 1. 创建房间（人类玩家为房主）
-        PlayerInfo owner = PlayerInfo.builder()
-                .playerId(playerId)
-                .name(playerName)
-                .build();
-        GameRoom room = roomService.createRoom(playerName + "的单机局", owner, totalPlayers);
-        String roomId = room.getRoomId();
-
-        // 2. 填充 Bot
-        for (int i = 1; i < totalPlayers; i++) {
-            String botId = "bot_sp_" + roomId + "_" + i;
-            String botName = "机器人" + i;
-            PlayerInfo botInfo = PlayerInfo.builder()
-                    .playerId(botId)
-                    .name(botName)
-                    .build();
-            roomService.joinRoom(roomId, botInfo);
-            // 标记 Bot 为已准备
-            GameRoom r = roomService.getRoom(roomId);
-            r.getPlayers().stream()
-                    .filter(p -> p.getPlayerId().equals(botId))
-                    .findFirst()
-                    .ifPresent(p -> {
-                        p.setReady(true);
-                        p.setBot(true);
-                    });
-        }
-
-        // 3. 人类玩家已准备（房主默认 ready）
-        room.getPlayers().stream()
-                .filter(p -> p.getPlayerId().equals(playerId))
-                .findFirst()
-                .ifPresent(p -> p.setReady(true));
-
-        // 4. 启动游戏
-        return startGame(roomId, identityConfig);
-    }
-
-    // ================================================================
     //  私有方法
     // ================================================================
 

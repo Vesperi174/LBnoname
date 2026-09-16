@@ -175,8 +175,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "ROOM_LIST"     -> pushRoomListToPlayer(session.getId());
             case "PLAYER_READY"  -> handlePlayerReady(session, playerSession, msg);
             case "START_GAME"    -> handleStartGame(session, playerSession, msg);
-            case "START_SINGLE_PLAYER" -> handleStartSinglePlayer(session, playerSession, msg);
-            case "NEXT_PHASE"    -> handleNextPhase(session, playerSession);
             case "LIST_ONLINE_PLAYERS" -> broadcastOnlinePlayers();
             case "UPDATE_ROOM_SETTINGS" -> handleUpdateRoomSettings(session, playerSession, msg);
             case "PLAY_CARD"            -> handlePlayCard(session, playerSession, msg);
@@ -379,9 +377,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         try {
-            // ── 用 Bot 填满空位（只填充未被关闭的座位） ──
-            int availableSeats = room.getMaxPlayers() - room.getClosedSeats().size();
-            int botsNeeded = availableSeats - room.getPlayerCount();
+            // ── 用 Bot 填满空位 ──
+            int botsNeeded = room.getMaxPlayers() - room.getPlayerCount();
             if (botsNeeded > 0) {
                 String roomId = room.getRoomId();
                 for (int i = 0; i < botsNeeded; i++) {
@@ -618,73 +615,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     // ──────────────────────────────────────────────
-    //  单机模式
-    // ──────────────────────────────────────────────
-
-    @SuppressWarnings("unchecked")
-    private void handleStartSinglePlayer(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
-        String playerId = playerSession.getPlayer().getPlayerId();
-        String playerName = playerSession.getPlayer().getName();
-
-        int totalPlayers = msg.containsKey("totalPlayers")
-                ? ((Number) msg.get("totalPlayers")).intValue()
-                : 8;
-        String identityConfig = (String) msg.getOrDefault("identityConfig", "standard");
-
-        try {
-            // 后端统一创建房间 + 填充 Bot + 分配身份
-            GameMatch match = gameService.startSinglePlayer(playerId, playerName, totalPlayers, identityConfig);
-            String roomId = match.getRoomId();
-            GameRoom room = roomService.getRoom(roomId);
-            if (room == null) {
-                sendJson(session, Map.of("type", "ERROR", "message", "房间创建失败"));
-                return;
-            }
-
-            // 广播游戏开始基础信息（Bot 无 session 不会收到，仅人类玩家收到）
-            Map<String, Object> gameStartData = buildGameStartData(match, null);
-
-            // 获取出手时间
-            int turnTime = 15;
-            Map<String, Object> rmSettings = room.getRoomSettings();
-            if (rmSettings != null && rmSettings.get("turnTime") instanceof Number) {
-                turnTime = ((Number) rmSettings.get("turnTime")).intValue();
-            }
-
-            broadcastToRoom(room, Map.of(
-                    "type", "GAME_START",
-                    "roomId", roomId,
-                    "players", gameStartData.get("players"),
-                    "currentPlayerIndex", match.getCurrentPlayerIndex(),
-                    "currentPhase", match.getCurrentPhase().name(),
-                    "round", match.getCurrentRound(),
-                    "totalTurns", match.getTotalTurns(),
-                    "turnTime", turnTime
-            ), null);
-
-            // 私发每个玩家的手牌和身份（Bot 无 session 自动跳过）
-            for (GamePlayer gp : match.getPlayers()) {
-                sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
-                        "type", "YOUR_PRIVATE_INFO",
-                        "playerId", gp.getPlayerId(),
-                        "role", gp.getRole().name(),
-                        "gameSeat", gp.getGameSeat(),
-                        "handCardCount", gp.getHandCards().size()
-                )));
-            }
-
-            // 广播第一回合开始（含轮次和牌堆信息）
-            broadcastToRoom(room, buildTurnStartMessage(match, turnTime), null);
-
-            // 如果当前玩家是 Bot，触发自动推进
-            triggerBotIfNeeded(roomId);
-
-        } catch (IllegalStateException e) {
-            sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
-        }
-    }
-
-    // ──────────────────────────────────────────────
     //  机器人接管
     // ──────────────────────────────────────────────
 
@@ -853,63 +783,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GameWebSocketHandler.class);
-
-    private void handleNextPhase(WebSocketSession session, PlayerSession playerSession) {
-        String playerId = playerSession.getPlayer().getPlayerId();
-        GameRoom room = roomService.findRoomByPlayerId(playerId);
-        if (room == null) {
-            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
-            return;
-        }
-
-        try {
-            GameMatch match = gameService.getMatch(room.getRoomId());
-            if (match == null) {
-                sendJson(session, Map.of("type", "ERROR", "message", "对局不存在"));
-                return;
-            }
-
-            // 只有当前行动玩家才能推进阶段
-            GamePlayer curPlayer = match.currentPlayer();
-            if (curPlayer == null || !curPlayer.getPlayerId().equals(playerId)) {
-                sendJson(session, Map.of("type", "ERROR", "message", "当前不是你的回合，无法操作"));
-                return;
-            }
-
-            String fromPhase = match.getCurrentPhase().name();
-
-            // ====== 第 1 次推进：fromPhase → toPhase ======
-            match = gameService.nextPhase(room.getRoomId());
-            String toPhase = match.getCurrentPhase().name();
-
-            String curName = match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "";
-            broadcastPhaseEvent(room, fromPhase, toPhase, match.getCurrentPlayerIndex(), curName);
-
-            // ====== 如果到了 DISCARD，自动推进到 END ======
-            if ("DISCARD".equals(toPhase)) {
-                fromPhase = toPhase;
-                match = gameService.nextPhase(room.getRoomId());
-                toPhase = match.getCurrentPhase().name();
-
-                curName = match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "";
-                broadcastPhaseEvent(room, fromPhase, toPhase, match.getCurrentPlayerIndex(), curName);
-            }
-
-            // ====== 到了 END → 切换回合 ======
-            if ("END".equals(toPhase)) {
-                match = gameService.nextTurn(room.getRoomId());
-                broadcastToRoom(room, buildTurnStartMessage(match, 0), null);
-
-                // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY
-                autoAdvanceToPlay(room.getRoomId(), room);
-
-                // 如果新回合玩家是 Bot，触发自动推进
-                triggerBotIfNeeded(room.getRoomId());
-            }
-        } catch (IllegalStateException e) {
-            sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
-        }
-    }
 
     /**
      * 广播阶段变更（PHASE_CHANGE — 供前端渲染界面）

@@ -47,19 +47,6 @@ public interface GameService {
     GameMatch startGame(String roomId, String identityConfig);
 
     /**
-     * 启动单机游戏 — 创建房间 + 填充 Bot + 开始游戏，一步完成
-     *
-     * <p>自动创建房间，将剩余空位用 Bot 填满，然后调用 {@link #startGame(String, String)}。</p>
-     *
-     * @param playerId       人类玩家的 playerId
-     * @param playerName     人类玩家的名称
-     * @param totalPlayers   总人数（含人类玩家）
-     * @param identityConfig 身份配置：{@code "standard"} / {@code "double_intruder"}
-     * @return 创建好的对局
-     */
-    GameMatch startSinglePlayer(String playerId, String playerName, int totalPlayers, String identityConfig);
-
-    /**
      * 下一回合 — 结束当前玩家回合，轮到下一名存活玩家
      *
      * <p>查找下一名存活玩家 → 设为 {@code PREPARE} 阶段 → 发布 {@code TURN.START} 事件。
