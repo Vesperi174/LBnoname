@@ -133,19 +133,48 @@ public interface GameService {
     GameMatch selectHero(String roomId, String playerId, String heroId);
 
     /**
-     * 结束武将选择阶段 — 所有玩家选完武将后，校验并启动回合
+     * 结束武将选择阶段 — 所有玩家选完武将后，校验并设置游戏为 PLAYING 状态
      *
      * <p>执行流程：</p>
      * <ol>
      *   <li>校验所有玩家都已选择武将</li>
-     *   <li>设置 {@code GameStatus.PLAYING} 并启动第一回合</li>
+     *   <li>设置 {@code GameStatus.PLAYING} 并设定首回合玩家</li>
      * </ol>
+     *
+     * <p><strong>注意：</strong>此方法不再触发回合事件钩子，
+     * 回合启动请另行调用 {@link #initiateFirstTurn(String)}。</p>
      *
      * @param roomId 房间 ID
      * @return 更新后的对局
      * @throws IllegalStateException 有玩家尚未选择
      */
     GameMatch finalizeHeroSelection(String roomId);
+
+    /**
+     * 分发初始手牌 — 在武将选择完成后执行
+     *
+     * <p>发布 {@code CARD.INITIAL_DRAW} 事件钩子（含玩家列表和摸牌数，可被监听修改），
+     * 然后直接调用 {@code CardManager.draw()} 执行摸牌行为。
+     * <b>注意：此方法绕过 {@link DrawCardEvent} 完整生命周期，不触发
+     * {@code CARD.DRAW.BEFORE/ACTIVE/AFTER} 钩子。</b></p>
+     *
+     * <p>调用时机：必须在 {@link #finalizeHeroSelection(String)} 之后、
+     * {@code HERO_ASSIGNMENT} 广播给前端之后调用。</p>
+     *
+     * @param roomId 房间 ID
+     * @return 更新后的对局
+     */
+    GameMatch distributeInitialHands(String roomId);
+
+    /**
+     * 启动第一回合 — 发布 TURN_BEFORE、TURN_ACTIVE、PREPARE 阶段钩子
+     *
+     * <p>必须在 {@link #finalizeHeroSelection(String)} 之后调用，
+     * 且应在 {@code HERO_ASSIGNMENT} 广播给前端之后执行。</p>
+     *
+     * @param roomId 房间 ID
+     */
+    void initiateFirstTurn(String roomId);
 
     /**
      * 销毁对局（游戏结束后清理）

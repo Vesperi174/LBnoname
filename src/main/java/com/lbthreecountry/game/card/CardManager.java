@@ -2,6 +2,9 @@ package com.lbthreecountry.game.card;
 
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
+import com.lbthreecountry.game.event.EventBus;
+import com.lbthreecountry.game.event.GameEvent;
+import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardCopy;
 import com.lbthreecountry.model.card.def.CardDef;
@@ -29,12 +32,14 @@ public class CardManager {
     private static final Logger log = LoggerFactory.getLogger(CardManager.class);
 
     private final CardLibrary cardLibrary;
+    private final EventBus eventBus;
 
     /** 实例 ID 生成器（全局唯一，跨对局） */
     private final AtomicLong instanceIdCounter = new AtomicLong(0);
 
-    public CardManager(CardLibrary cardLibrary) {
+    public CardManager(CardLibrary cardLibrary, EventBus eventBus) {
         this.cardLibrary = cardLibrary;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -105,6 +110,16 @@ public class CardManager {
             player.getHandCards().add(card);
             drawn.add(card);
         }
+        // ── 摸牌后检测事件钩子 ──
+        GameEvent checkEvent = GameEvent.builder()
+                .type(GameEventType.CARD_DRAW_CHECK)
+                .sourceId(player.getPlayerId())
+                .build();
+        checkEvent.putData("playerId", player.getPlayerId());
+        checkEvent.putData("playerName", player.getPlayerName());
+        checkEvent.putData("drawnCount", drawn.size());
+        eventBus.publish(checkEvent, match);
+
         return drawn;
     }
 

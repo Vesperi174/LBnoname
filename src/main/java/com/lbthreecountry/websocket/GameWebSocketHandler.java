@@ -7,6 +7,8 @@ import com.lbthreecountry.entity.RoomPlayer;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
+import com.lbthreecountry.game.card.CardPlayabilityChecker;
+import com.lbthreecountry.game.event.DrawCardEvent;
 import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
@@ -59,6 +61,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final GameService gameService;
     private final CardManager cardManager;
     private final HeroManager heroManager;
+    private final CardPlayabilityChecker cardPlayabilityChecker;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 机器人自动推进调度器 */
@@ -219,8 +222,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "LIST_ONLINE_PLAYERS" -> broadcastOnlinePlayers();
             case "UPDATE_ROOM_SETTINGS" -> handleUpdateRoomSettings(session, playerSession, msg);
             case "PLAY_CARD"            -> handlePlayCard(session, playerSession, msg);
+            case "CHECK_CARDS"          -> handleCheckCards(session, playerSession);
             case "SELECT_HERO"          -> handleSelectHero(session, playerSession, msg);
             case "CLIENT_READY"         -> handleClientReady(playerSession);
+            case "NEXT_PHASE"           -> handleNextPhase(session, playerSession);
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -610,14 +615,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         for (GamePlayer gp : match.getPlayers()) {
             if (gp.getHeroId() != null) continue;
 
-            List<BaseHero> usedHeroes = match.getPlayers().stream()
-                    .filter(p -> p.getHeroId() != null)
-                    .map(p -> heroManager.getHero(p.getHeroId()))
-                    .filter(h -> h != null)
-                    .toList();
-            List<String> usedIds = usedHeroes.stream().map(BaseHero::getHeroId).toList();
-
-            List<BaseHero> candidates = heroManager.pickRandomHeroes(3, usedIds);
+            List<BaseHero> candidates = heroManager.pickRandomHeroes(3, List.of());
 
             if (gp.isBot()) {
                 String autoHeroId = candidates.isEmpty() ? null : candidates.get(0).getHeroId();
@@ -654,7 +652,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 检查非主公玩家选将进度，全部完成则启动回合
+     * 检查非主公玩家选将进度，全部完成则广播武将信息并分发初始手牌
      */
     private void checkFollowerHeroProgress(String roomId) {
         Set<String> pending = pendingHeroSelectAcks.get(roomId);
@@ -669,9 +667,20 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         GameRoom room = roomService.getRoom(roomId);
         if (room == null) return;
 
-        int turnTime = roomTurnTimeCache.remove(roomId);
+        roomTurnTimeCache.remove(roomId);
         GameMatch updated = gameService.finalizeHeroSelection(roomId);
-        broadcastHeroAssignmentAndTurn(room, updated, turnTime);
+
+        // 所有武将分配完成，广播全量武将信息给前端渲染
+        broadcastHeroAssignment(room, updated);
+
+        // ── HERO_ASSIGNMENT 之后，分发初始手牌（含事件钩子） ──
+        GameMatch matchWithHands = gameService.distributeInitialHands(roomId);
+
+        // 广播初始手牌动画（通知前端渲染每人摸 4 张）
+        broadcastInitialDraw(room, matchWithHands);
+
+        // 私发每个玩家更新后的手牌（MY_HAND）和武将+手牌信息
+        broadcastInitialGameState(room, matchWithHands);
     }
 
     /**
@@ -848,6 +857,93 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  卡牌检测
+    // ──────────────────────────────────────────────
+
+    /**
+     * 处理前端卡牌可用性查询
+     *
+     * <p>前端在进入出牌阶段或刷新界面时发送 {@code CHECK_CARDS}，
+     * 服务端返回每张手牌的 {@link com.lbthreecountry.model.enums.impl.CardActionStatus 动作状态}。</p>
+     *
+     * <p><b>请求（前端 → 服务端）：</b></p>
+     * <pre>{@code
+     * { "type": "CHECK_CARDS" }
+     * }</pre>
+     *
+     * <p><b>响应（服务端 → 前端）：</b></p>
+     * <pre>{@code
+     * {
+     *   "type": "HAND_STATUS",
+     *   "cards": [
+     *     {
+     *       "instanceId": 12345,
+     *       "status": 1,               // CardActionStatus 的 code
+     *       "statusName": "PLAYABLE",  // 枚举名
+     *       "reason": null             // 不可用的原因
+     *     },
+     *     ...
+     *   ],
+     *   "phase": "PLAY",               // 当前阶段
+     *   "isMyTurn": true               // 是否是当前回合玩家
+     * }
+     * }</pre>
+     */
+    private void handleCheckCards(WebSocketSession session, PlayerSession playerSession) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
+            return;
+        }
+
+        try {
+            GameMatch match = gameService.getMatch(room.getRoomId());
+            if (match == null) {
+                sendJson(session, Map.of("type", "ERROR", "message", "对局不存在"));
+                return;
+            }
+
+            GamePlayer player = match.findPlayer(playerId);
+            if (player == null) {
+                sendJson(session, Map.of("type", "ERROR", "message", "未找到玩家"));
+                return;
+            }
+
+            // 检测所有手牌的可用性
+            Map<Long, CardPlayabilityChecker.CardCheckResult> results =
+                    cardPlayabilityChecker.checkAllHandCards(match, player);
+
+            // 构建返回数据
+            GamePlayer curPlayer = match.currentPlayer();
+            boolean isMyTurn = curPlayer != null && curPlayer.getPlayerId().equals(playerId);
+
+            List<Map<String, Object>> cardStatusList = results.entrySet().stream()
+                    .map(entry -> {
+                        Map<String, Object> cardMap = new java.util.HashMap<>();
+                        cardMap.put("instanceId", entry.getKey());
+                        cardMap.put("status", entry.getValue().getStatus().getCode());
+                        cardMap.put("statusName", entry.getValue().getStatus().name());
+                        cardMap.put("reason", entry.getValue().getReason());
+                        return cardMap;
+                    })
+                    .toList();
+
+            Map<String, Object> response = new java.util.HashMap<>();
+            response.put("type", "HAND_STATUS");
+            response.put("cards", cardStatusList);
+            response.put("phase", match.getCurrentPhase().name());
+            response.put("isMyTurn", isMyTurn);
+
+            sendJson(session, response);
+
+        } catch (Exception e) {
+            log.error("[卡牌检测] 检测失败", e);
+            sendJson(session, Map.of("type", "ERROR", "message", "卡牌检测失败: " + e.getMessage()));
         }
     }
 
@@ -1118,13 +1214,13 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * 主公选择（含 Bot 自动选择）完成后：广播武将分配 + 启动第一回合
+     * 所有玩家武将分配完成后：广播全量武将信息给前端渲染
+     *
+     * <p>每个条目的字段与 {@code LORD_HERO_SELECTED} 保持一致（通用化字段名），
+     * 前端据此渲染所有玩家的武将头像/名称/体力/势力等。</p>
      */
-    private void broadcastHeroAssignmentAndTurn(GameRoom room, GameMatch match, int turnTime) {
-        String roomId = room.getRoomId();
-
-        // 广播所有玩家武将信息
-        List<Map<String, Object>> heroAssignmentList = match.getPlayers().stream()
+    private void broadcastHeroAssignment(GameRoom room, GameMatch match) {
+        List<Map<String, Object>> heroList = match.getPlayers().stream()
                 .map(gp -> {
                     Map<String, Object> entry = new java.util.HashMap<>();
                     entry.put("playerId", gp.getPlayerId());
@@ -1142,17 +1238,86 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         broadcastToRoom(room, Map.of(
                 "type", "HERO_ASSIGNMENT",
-                "heroes", heroAssignmentList
+                "heroes", heroList
         ), null);
 
-        // 广播第一回合开始（含轮次和牌堆信息）
-        broadcastToRoom(room, buildTurnStartMessage(match, turnTime), null);
+        log.info("[武将选择] 所有武将分配完成 → HERO_ASSIGNMENT 已广播");
+    }
 
-        // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY
-        autoAdvanceToPlay(roomId, room);
+    /**
+     * 广播初始手牌动画 — 通知前端渲染每人摸牌
+     *
+     * <p>在分发初始手牌后调用，前端据此播放动画。</p>
+     *
+     * <p><b>前端消息格式：</b></p>
+     * <pre>{@code
+     * {
+     *   "type": "INITIAL_DRAW_ACTION",
+     *   "count": 4                     // 每人摸的张数
+     * }
+     * }</pre>
+     */
+    private void broadcastInitialDraw(GameRoom room, GameMatch match) {
+        // 从事件数据中读取实际分发数
+        int count = 4; // 默认值
+        broadcastToRoom(room, Map.of(
+                "type", "INITIAL_DRAW_ACTION",
+                "count", count
+        ), null);
+        log.info("[初始手牌] INITIAL_DRAW_ACTION 已广播 (每人 {} 张)", count);
+    }
 
-        // 如果当前玩家是 Bot，触发自动推进
-        triggerBotIfNeeded(roomId);
+    /**
+     * 分发初始手牌后，私发每个玩家手牌信息并广播全玩家状态
+     *
+     * <p>发送内容：</p>
+     * <ul>
+     *   <li>每名玩家收到自己的手牌列表（{@code MY_HAND}）</li>
+     *   <li>广播所有玩家的状态更新（{@code PLAYER_UPDATE}，含手牌数变化）</li>
+     * </ul>
+     */
+    private void broadcastInitialGameState(GameRoom room, GameMatch match) {
+        // 私发每个玩家自己的手牌
+        for (GamePlayer gp : match.getPlayers()) {
+            List<Map<String, Object>> cardList = new java.util.ArrayList<>();
+            for (CardInstance card : gp.getHandCards()) {
+                CardDef def = cardManager.getDef(card.getDefId());
+                Map<String, Object> cardMap = new java.util.HashMap<>();
+                cardMap.put("instanceId", card.getInstanceId());
+                cardMap.put("defId", card.getDefId());
+                cardMap.put("name", def != null ? def.getName() : card.getDefId());
+                cardMap.put("suit", card.getSuit().name());
+                cardMap.put("point", card.getPoint());
+                cardList.add(cardMap);
+            }
+            sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
+                    "type", "MY_HAND",
+                    "cards", cardList
+            )));
+            log.info("[初始手牌] 已发送 {} 的手牌 ({} 张)",
+                    gp.getPlayerName(), cardList.size());
+        }
+
+        // 广播全玩家状态更新（含手牌数）
+        List<Map<String, Object>> playerUpdates = match.getPlayers().stream()
+                .map(gp -> {
+                    Map<String, Object> p = new java.util.HashMap<>();
+                    p.put("playerId", gp.getPlayerId());
+                    p.put("playerName", gp.getPlayerName());
+                    p.put("gameSeat", gp.getGameSeat());
+                    p.put("heroId", gp.getHeroId());
+                    p.put("maxHp", gp.getMaxHp());
+                    p.put("currentHp", gp.getCurrentHp());
+                    p.put("handCardCount", gp.getHandCards().size());
+                    p.put("status", gp.getStatus().name());
+                    return p;
+                })
+                .toList();
+        broadcastToRoom(room, Map.of(
+                "type", "PLAYER_UPDATE",
+                "players", playerUpdates
+        ), null);
+        log.info("[初始手牌] PLAYER_UPDATE 已广播 ({} 人)", playerUpdates.size());
     }
 
     /**
@@ -1167,6 +1332,154 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 "toPhase", toPhase,
                 "gameSeat", gameSeat
         ), null);
+    }
+
+    /**
+     * 执行摸牌阶段并广播动画
+     *
+     * <p>此方法封装了摸牌阶段的完整流程：</p>
+     * <ol>
+     *   <li>调用 {@link GameService#drawCards}（内部通过 {@link DrawCardEvent} 触发完整生命周期）</li>
+     *   <li>广播 {@code DRAW_ACTION} 给所有玩家，前端据此播放摸牌动画</li>
+     *   <li>私发摸牌玩家更新后的手牌（{@code MY_HAND}）</li>
+     *   <li>广播所有玩家的状态更新（{@code PLAYER_UPDATE}，含手牌数变化）</li>
+     * </ol>
+     *
+     * <p><b>前端 {@code DRAW_ACTION} 消息格式：</b></p>
+     * <pre>{@code
+     * {
+     *   "type": "DRAW_ACTION",
+     *   "playerId": "player_xxx",       // 摸牌玩家 ID
+     *   "playerName": "张三",           // 摸牌玩家名称
+     *   "count": 2,                     // 摸牌张数
+     *   "gameSeat": 0                   // 摸牌玩家座位号
+     * }
+     * }</pre>
+     *
+     * @param roomId    房间 ID
+     * @param room      房间对象（用于广播）
+     * @param match     当前对局（需已加锁或调用前确保线程安全）
+     * @param player    摸牌的玩家
+     * @param drawCount 摸牌张数
+     */
+    private void broadcastDrawPhase(String roomId, GameRoom room, GameMatch match,
+                                     GamePlayer player, int drawCount) {
+        // 1) 执行摸牌（通过 DrawCardEvent 生命周期：BEFORE → ACTIVE → 摸牌 → AFTER）
+        gameService.drawCards(roomId, drawCount);
+
+        // 2) 广播摸牌动画到所有玩家
+        broadcastToRoom(room, Map.of(
+                "type", "DRAW_ACTION",
+                "playerId", player.getPlayerId(),
+                "playerName", player.getPlayerName(),
+                "count", drawCount,
+                "gameSeat", player.getGameSeat()
+        ), null);
+
+        // 3) 刷新对局数据，私发摸牌玩家更新后的手牌
+        match = gameService.getMatch(roomId);
+        player = match.currentPlayer();
+        if (player == null) return;
+
+        List<Map<String, Object>> cardList = new java.util.ArrayList<>();
+        for (CardInstance card : player.getHandCards()) {
+            CardDef def = cardManager.getDef(card.getDefId());
+            Map<String, Object> cardMap = new java.util.HashMap<>();
+            cardMap.put("instanceId", card.getInstanceId());
+            cardMap.put("defId", card.getDefId());
+            cardMap.put("name", def != null ? def.getName() : card.getDefId());
+            cardMap.put("suit", card.getSuit().name());
+            cardMap.put("point", card.getPoint());
+            cardList.add(cardMap);
+        }
+        sessionManager.sendMessage(player.getPlayerId(), toJson(Map.of(
+                "type", "MY_HAND",
+                "cards", cardList
+        )));
+
+        // 4) 广播全玩家状态更新（其他玩家看到手牌数变化）
+        List<Map<String, Object>> playerUpdates = match.getPlayers().stream()
+                .map(gp -> {
+                    Map<String, Object> p = new java.util.HashMap<>();
+                    p.put("playerId", gp.getPlayerId());
+                    p.put("currentHp", gp.getCurrentHp());
+                    p.put("handCardCount", gp.getHandCards().size());
+                    p.put("status", gp.getStatus().name());
+                    return p;
+                })
+                .toList();
+        broadcastToRoom(room, Map.of(
+                "type", "PLAYER_UPDATE",
+                "players", playerUpdates
+        ), null);
+
+        log.info("[摸牌动画] {} 摸了 {} 张牌 → DRAW_ACTION 已广播",
+                player.getPlayerName(), drawCount);
+    }
+
+    /**
+     * 处理前端手动推进阶段请求
+     *
+     * <p>玩家点击"下一阶段"时触发。当处于摸牌阶段（DRAW）时，
+     * 自动执行摸牌并广播 {@code DRAW_ACTION} 动画消息。</p>
+     */
+    private void handleNextPhase(WebSocketSession session, PlayerSession playerSession) {
+        GameRoom room = roomService.findRoomByPlayerId(playerSession.getPlayer().getPlayerId());
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
+            return;
+        }
+
+        String roomId = room.getRoomId();
+
+        try {
+            GameMatch match = gameService.getMatch(roomId);
+            if (match == null) {
+                sendJson(session, Map.of("type", "ERROR", "message", "对局不存在"));
+                return;
+            }
+
+            // 校验：只有当前回合玩家才能推进阶段
+            if (!playerSession.getPlayer().getPlayerId().equals(match.currentPlayer().getPlayerId())) {
+                sendJson(session, Map.of("type", "ERROR", "message", "当前不是你的回合"));
+                return;
+            }
+
+            String fromPhase = match.getCurrentPhase().name();
+
+            // ── 摸牌阶段：先摸牌再推进 ──
+            if ("DRAW".equals(fromPhase)) {
+                GamePlayer player = match.currentPlayer();
+                broadcastDrawPhase(roomId, room, match, player, 2);
+            }
+
+            // ── 推进到下一阶段 ──
+            match = gameService.nextPhase(roomId);
+            String toPhase = match.getCurrentPhase().name();
+
+            // 广播阶段变更
+            String curName = match.currentPlayer() != null ? match.currentPlayer().getPlayerName() : "";
+            broadcastPhaseEvent(room, fromPhase, toPhase, match.getCurrentPlayerIndex(), curName);
+
+            // ── 如果推进到弃牌阶段(DISCARD)，自动执行弃牌后进入结束阶段 ──
+            if ("DISCARD".equals(toPhase)) {
+                // 自动推进到 END 阶段
+                String fromDiscard = toPhase;
+                match = gameService.nextPhase(roomId);
+                String toEnd = match.getCurrentPhase().name();
+                broadcastPhaseEvent(room, fromDiscard, toEnd, match.getCurrentPlayerIndex(), curName);
+            }
+
+            // ── 如果推进到结束阶段(END)，自动切换到下一玩家回合 ──
+            if ("END".equals(toPhase) || "END".equals(match.getCurrentPhase().name())) {
+                match = gameService.nextTurn(roomId);
+                broadcastToRoom(room, buildTurnStartMessage(match, 0), null);
+                autoAdvanceToPlay(roomId, room);
+            }
+
+        } catch (IllegalStateException e) {
+            sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
+        }
     }
 
     private void handleNextTurn(WebSocketSession session, PlayerSession playerSession) {
@@ -1219,35 +1532,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 if ("DRAW".equals(fromPhase)) {
                     GamePlayer player = match.currentPlayer();
                     if (player != null) {
-                        // 带锁摸牌
-                        gameService.drawCards(roomId, 2);
-
-                        // 广播战报
-                        broadcastToRoom(room, Map.of(
-                                "type", "BATTLE_REPORT",
-                                "message", player.getPlayerName() + "摸了2张牌"
-                        ), null);
-
-                        // 私发更新后的手牌
-                        match = gameService.getMatch(roomId);
-                        player = match.currentPlayer();
-                        if (player != null) {
-                            List<Map<String, Object>> cardList = new java.util.ArrayList<>();
-                            for (CardInstance card : player.getHandCards()) {
-                                CardDef def = cardManager.getDef(card.getDefId());
-                                Map<String, Object> cardMap = new java.util.HashMap<>();
-                                cardMap.put("instanceId", card.getInstanceId());
-                                cardMap.put("defId", card.getDefId());
-                                cardMap.put("name", def != null ? def.getName() : card.getDefId());
-                                cardMap.put("suit", card.getSuit().name());
-                                cardMap.put("point", card.getPoint());
-                                cardList.add(cardMap);
-                            }
-                            sessionManager.sendMessage(player.getPlayerId(), toJson(Map.of(
-                                    "type", "MY_HAND",
-                                    "cards", cardList
-                            )));
-                        }
+                        broadcastDrawPhase(roomId, room, match, player, 2);
                     }
                 }
 

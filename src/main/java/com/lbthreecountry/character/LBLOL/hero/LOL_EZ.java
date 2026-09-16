@@ -12,7 +12,7 @@ public class LOL_EZ extends BaseHero {
                 "lol_EZ",           // heroId
                 "伊泽瑞尔",
                 "探险家", // heroTitle
-                KingdomType.EUD,     // kingdom
+                KingdomType.PET,     // kingdom
                 4,
                 4,                   // startHp
                 Gender.MALE,                // gender

@@ -116,21 +116,44 @@ public final class GameEventType {
     public static final String CARD_PLAYED = "CARD.PLAYED";
 
     // ================================================================
-    //  摸牌事件钩子
+    //  摸牌事件 — 完整生命周期
+    //
+    //  使用 DrawCardEvent.execute() 触发，自动按以下顺序发布：
+    //    CARD.DRAW.BEFORE（摸牌开始前，可修改）
+    //    CARD.DRAW.ACTIVE（摸牌开始时，可修改）
+    //    CARD.DRAW.AFTER（摸牌结束后，可修改）
     // ================================================================
 
-    /** 摸牌前 */
+    /** 摸牌主事件（父事件类型，一般不直接监听此类型） */
+    public static final String CARD_DRAW = "CARD.DRAW";
+
+    /** 摸牌开始前钩子 — 附带本次摸牌信息，可被其他事件监听、调用、修改 */
     public static final String CARD_DRAW_BEFORE = "CARD.DRAW.BEFORE";
 
-    /** 摸牌时 */
+    /** 摸牌开始时钩子 — 附带本次摸牌信息，可被其他事件监听、调用、修改 */
     public static final String CARD_DRAW_ACTIVE = "CARD.DRAW.ACTIVE";
 
-    /** 摸牌后 */
+    /** 摸牌结束后钩子 — 附带本次摸牌信息，可被其他事件监听、调用、修改 */
     public static final String CARD_DRAW_AFTER = "CARD.DRAW.AFTER";
 
     /** 摸牌（旧版） */
     @Deprecated
     public static final String CARD_DRAWN = "CARD.DRAWN";
+
+    // ================================================================
+    //  初始手牌分发事件
+    //
+    //  在武将选择完成（HERO_ASSIGNMENT 广播）之后触发，
+    //  此事件钩子包含"谁，摸多少牌"的信息，可被监听、修改。
+    //  钩子处理完毕后直接执行摸牌行为（绕过 DrawCardEvent 生命周期，
+    //  不触发 CARD.DRAW.BEFORE/ACTIVE/AFTER，此为例外）。
+    // ================================================================
+
+    /** 分发初始手牌 — 在武将选择完成后、第一回合开始前触发 */
+    public static final String CARD_INITIAL_DRAW = "CARD.INITIAL_DRAW";
+
+    /** 摸牌后检测 — CardManager.draw() 摸完牌后发布，附带 player 信息 */
+    public static final String CARD_DRAW_CHECK = "CARD.DRAW.CHECK";
 
     /** 弃牌 */
     public static final String CARD_DISCARDED = "CARD.DISCARDED";

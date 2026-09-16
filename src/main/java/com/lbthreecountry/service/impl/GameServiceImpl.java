@@ -7,6 +7,7 @@ import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
 import com.lbthreecountry.game.card.EffectEngine;
 import com.lbthreecountry.game.hero.HeroManager;
+import com.lbthreecountry.game.event.DrawCardEvent;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
@@ -315,58 +316,22 @@ public class GameServiceImpl implements GameService {
             GamePlayer player = match.currentPlayer();
             if (player == null) throw new IllegalStateException("当前回合没有玩家");
 
-            // 1) 摸牌前 — 已知谁、摸多少张
-            publishDrawHook(match, GameEventType.CARD_DRAW_BEFORE, player, count);
-            publishDrawHook(match, GameEventType.CARD_DRAW_ACTIVE, player, count);
+            // 使用 DrawCardEvent 执行完整的摸牌生命周期
+            DrawCardEvent.DrawResult result = DrawCardEvent.execute(
+                    match, player, count, eventBus, cardManager
+            );
 
-            // 2) 摸牌操作
-            List<CardInstance> drawn = cardManager.draw(match, player, count);
+            if (result.isCancelled()) {
+                log.info("[摸牌] {} 的摸牌被取消", player.getPlayerName());
+            } else {
+                log.info("[摸牌] {} 摸了 {} 张牌 (请求: {} 张)",
+                        player.getPlayerName(), result.getActualCount(), count);
+            }
 
-            // 3) 摸牌后
-            GameEvent afterEvent = buildDrawEvent(GameEventType.CARD_DRAW_AFTER, match, player, count, drawn);
-            eventBus.publish(afterEvent, match);
-            // 兼容旧版事件
-            GameEvent legacyEvent = buildDrawEvent(GameEventType.CARD_DRAWN, match, player, count, drawn);
-            eventBus.publish(legacyEvent, match);
-
-            log.info("[摸牌] {} 摸了 {} 张牌", player.getPlayerName(), drawn.size());
             return match;
         } finally {
             match.unlock();
         }
-    }
-
-    // ================================================================
-    //  私有方法
-    // ================================================================
-
-    private GameEvent buildDrawEvent(String type, GameMatch match, GamePlayer player, int count, List<CardInstance> drawn) {
-        GameEvent event = GameEvent.builder()
-                .type(type)
-                .sourceId(player.getPlayerId())
-                .build();
-        event.putData("roomId", match.getRoomId());
-        event.putData("playerId", player.getPlayerId());
-        event.putData("playerName", player.getPlayerName());
-        event.putData("count", count);
-        event.putData("actualCount", drawn.size());
-        // 摸到的卡牌实例 ID 列表
-        List<Long> cardIds = drawn.stream().map(CardInstance::getInstanceId).toList();
-        event.putData("cardIds", cardIds);
-        return event;
-    }
-
-    private void publishDrawHook(GameMatch match, String type, GamePlayer player, int count) {
-        GameEvent event = GameEvent.builder()
-                .type(type)
-                .sourceId(player.getPlayerId())
-                .build();
-        event.putData("roomId", match.getRoomId());
-        event.putData("playerId", player.getPlayerId());
-        event.putData("playerName", player.getPlayerName());
-        event.putData("count", count);
-        eventBus.publish(event, match);
-        log.info("[钩子] {} — {} 摸 {} 张", type, player.getPlayerName(), count);
     }
 
     @Override
@@ -571,11 +536,7 @@ public class GameServiceImpl implements GameService {
         // 初始化牌堆（从 JSON 展开副本、洗牌）
         cardManager.initDeck(match);
 
-        // 发起始手牌（每人4张）
-        for (GamePlayer gp : gamePlayers) {
-            cardManager.draw(match, gp, 4);
-        }
-
+        // 发起始手牌由 distributeInitialHands() 在武将选择完成后执行
         log.info("[游戏] 对局创建成功 ({} 人, {}), 等待主公选择武将", gamePlayers.size(), identityConfig);
 
         // 发布 GAME_START 事件（不启动回合，等待武将选择完成）
@@ -620,14 +581,6 @@ public class GameServiceImpl implements GameService {
                 throw new IllegalStateException("已经选择过武将了");
             }
 
-            Set<String> usedIds = new HashSet<>();
-            for (GamePlayer gp : match.getPlayers()) {
-                if (gp.getHeroId() != null) usedIds.add(gp.getHeroId());
-            }
-            if (usedIds.contains(heroId)) {
-                throw new IllegalStateException("该武将已被其他玩家选择");
-            }
-
             player.setHeroId(heroId);
 
             log.info("[武将选择] {} {} 选择了武将 [{}]",
@@ -664,43 +617,104 @@ public class GameServiceImpl implements GameService {
             match.setTotalTurns(1);
             match.setCurrentPlayerIndex(0);
 
-            GamePlayer firstPlayer = match.currentPlayer();
-            if (firstPlayer != null) {
-                GameEvent turnBefore = GameEvent.builder()
-                        .type(GameEventType.TURN_BEFORE)
-                        .sourceId(firstPlayer.getPlayerId())
-                        .build();
-                turnBefore.putData("roomId", roomId);
-                turnBefore.putData("playerId", firstPlayer.getPlayerId());
-                turnBefore.putData("playerName", firstPlayer.getPlayerName());
-                turnBefore.putData("gameSeat", firstPlayer.getGameSeat());
-                turnBefore.putData("round", match.getCurrentRound());
-                turnBefore.putData("totalTurns", match.getTotalTurns());
-                eventBus.publish(turnBefore, match);
-                log.info("[钩子] {} — {} 回合开始前",
-                        GameEventType.TURN_BEFORE, firstPlayer.getPlayerName());
+            return match;
+        } finally {
+            match.unlock();
+        }
+    }
 
-                // TURN_ACTIVE：回合进行中
-                GameEvent turnActive = GameEvent.builder()
-                        .type(GameEventType.TURN_ACTIVE)
-                        .sourceId(firstPlayer.getPlayerId())
-                        .build();
-                turnActive.putData("roomId", roomId);
-                turnActive.putData("playerId", firstPlayer.getPlayerId());
-                turnActive.putData("playerName", firstPlayer.getPlayerName());
-                turnActive.putData("gameSeat", firstPlayer.getGameSeat());
-                turnActive.putData("round", match.getCurrentRound());
-                turnActive.putData("totalTurns", match.getTotalTurns());
-                eventBus.publish(turnActive, match);
-                log.info("[钩子] {} — {} 回合进行中",
-                        GameEventType.TURN_ACTIVE, firstPlayer.getPlayerName());
+    @Override
+    public GameMatch distributeInitialHands(String roomId) {
+        GameMatch match = getMatch(roomId);
+        if (match == null) throw new IllegalStateException("对局不存在: " + roomId);
 
-                // 再发布 PREPARE 阶段钩子
-                publishPhaseHook(match, GameEventType.phaseBefore(GamePhase.PREPARE), GamePhase.PREPARE);
-                publishPhaseHook(match, GameEventType.phaseActive(GamePhase.PREPARE), GamePhase.PREPARE);
+        match.lock();
+        try {
+            // ── 1. 发布"分发初始手牌"事件钩子（可被监听、修改） ──
+            GameEvent initDrawEvent = GameEvent.builder()
+                    .type(GameEventType.CARD_INITIAL_DRAW)
+                    .sourceId("system")
+                    .build();
+            initDrawEvent.putData("roomId", roomId);
+
+            List<Map<String, Object>> playersInfo = new java.util.ArrayList<>();
+            for (GamePlayer gp : match.getPlayers()) {
+                playersInfo.add(Map.of(
+                        "playerId", gp.getPlayerId(),
+                        "playerName", gp.getPlayerName(),
+                        "gameSeat", gp.getGameSeat()
+                ));
+            }
+            initDrawEvent.putData("players", playersInfo);
+            initDrawEvent.putData("count", 4);  // 默认每人4张，可被监听器修改
+            eventBus.publish(initDrawEvent, match);
+            log.info("[初始手牌] {} 事件已发布，默认每人 4 张", GameEventType.CARD_INITIAL_DRAW);
+
+            // ── 2. 读取可能被修改后的摸牌数 ──
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> modifiedPlayers =
+                    (List<Map<String, Object>>) initDrawEvent.getDataOrDefault("players", playersInfo);
+            int drawCount = initDrawEvent.getDataOrDefault("count", 4);
+
+            // ── 3. 直接执行摸牌行为，不触发摸牌事件生命周期 ──
+            //     （此为例外：分发初始手牌只调用 cardManager.draw()，绕过 DrawCardEvent）
+            for (Map<String, Object> playerInfo : modifiedPlayers) {
+                String playerId = (String) playerInfo.get("playerId");
+                GamePlayer gp = match.getPlayers().stream()
+                        .filter(p -> p.getPlayerId().equals(playerId))
+                        .findFirst()
+                        .orElse(null);
+                if (gp == null) continue;
+
+                cardManager.draw(match, gp, drawCount);
+                log.info("[初始手牌] {} 摸了 {} 张牌", gp.getPlayerName(), drawCount);
             }
 
             return match;
+        } finally {
+            match.unlock();
+        }
+    }
+
+    @Override
+    public void initiateFirstTurn(String roomId) {
+        GameMatch match = getMatch(roomId);
+        if (match == null) throw new IllegalStateException("对局不存在");
+        match.lock();
+        try {
+            GamePlayer firstPlayer = match.currentPlayer();
+            if (firstPlayer == null) return;
+
+            GameEvent turnBefore = GameEvent.builder()
+                    .type(GameEventType.TURN_BEFORE)
+                    .sourceId(firstPlayer.getPlayerId())
+                    .build();
+            turnBefore.putData("roomId", roomId);
+            turnBefore.putData("playerId", firstPlayer.getPlayerId());
+            turnBefore.putData("playerName", firstPlayer.getPlayerName());
+            turnBefore.putData("gameSeat", firstPlayer.getGameSeat());
+            turnBefore.putData("round", match.getCurrentRound());
+            turnBefore.putData("totalTurns", match.getTotalTurns());
+            eventBus.publish(turnBefore, match);
+            log.info("[钩子] {} — {} 回合开始前",
+                    GameEventType.TURN_BEFORE, firstPlayer.getPlayerName());
+
+            GameEvent turnActive = GameEvent.builder()
+                    .type(GameEventType.TURN_ACTIVE)
+                    .sourceId(firstPlayer.getPlayerId())
+                    .build();
+            turnActive.putData("roomId", roomId);
+            turnActive.putData("playerId", firstPlayer.getPlayerId());
+            turnActive.putData("playerName", firstPlayer.getPlayerName());
+            turnActive.putData("gameSeat", firstPlayer.getGameSeat());
+            turnActive.putData("round", match.getCurrentRound());
+            turnActive.putData("totalTurns", match.getTotalTurns());
+            eventBus.publish(turnActive, match);
+            log.info("[钩子] {} — {} 回合进行中",
+                    GameEventType.TURN_ACTIVE, firstPlayer.getPlayerName());
+
+            publishPhaseHook(match, GameEventType.phaseBefore(GamePhase.PREPARE), GamePhase.PREPARE);
+            publishPhaseHook(match, GameEventType.phaseActive(GamePhase.PREPARE), GamePhase.PREPARE);
         } finally {
             match.unlock();
         }
