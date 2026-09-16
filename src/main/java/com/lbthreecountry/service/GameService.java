@@ -120,12 +120,12 @@ public interface GameService {
     GameMatch getMatch(String roomId);
 
     /**
-     * 选择武将 — 主公从候选列表中选择一个武将
+     * 选择武将 — 任意玩家从候选列表中选择一个武将
      *
-     * <p>仅在 {@code HERO_SELECT} 阶段有效，且只有主公可以调用。</p>
+     * <p>仅在 {@code HERO_SELECT} 阶段有效。</p>
      *
      * @param roomId   房间 ID
-     * @param playerId 主公玩家 ID
+     * @param playerId 玩家 ID
      * @param heroId   选择的武将 ID
      * @return 更新后的对局
      * @throws IllegalStateException 校验失败
@@ -133,20 +133,19 @@ public interface GameService {
     GameMatch selectHero(String roomId, String playerId, String heroId);
 
     /**
-     * 完成武将选择 — 主公选完后，为其余玩家自动分配武将并启动回合
+     * 结束武将选择阶段 — 所有玩家选完武将后，校验并启动回合
      *
      * <p>执行流程：</p>
      * <ol>
-     *   <li>检查主公已选择</li>
-     *   <li>为其他玩家从剩余武将池随机分配</li>
-     *   <li>设置 {@code GameStatus.PLAYING} 并启动第一回合（发布 TURN_BEFORE / TURN_ACTIVE / PREPARE 钩子）</li>
+     *   <li>校验所有玩家都已选择武将</li>
+     *   <li>设置 {@code GameStatus.PLAYING} 并启动第一回合</li>
      * </ol>
      *
      * @param roomId 房间 ID
      * @return 更新后的对局
-     * @throws IllegalStateException 主公尚未选择
+     * @throws IllegalStateException 有玩家尚未选择
      */
-    GameMatch completeHeroSelection(String roomId);
+    GameMatch finalizeHeroSelection(String roomId);
 
     /**
      * 销毁对局（游戏结束后清理）

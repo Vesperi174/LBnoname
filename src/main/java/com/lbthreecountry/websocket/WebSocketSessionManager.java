@@ -79,6 +79,22 @@ public class WebSocketSessionManager {
     }
 
     /**
+     * 移除会话并立即关闭底层 WebSocket 连接（用于重连时清理旧会话）
+     *
+     * @param sessionId WebSocket 会话 ID
+     */
+    public void removeSessionAndClose(String sessionId) {
+        PlayerSession ps = sessionMap.get(sessionId);
+        if (ps != null && ps.isValid()) {
+            try {
+                ps.getSession().close();
+            } catch (IOException ignored) {
+            }
+        }
+        removeSession(sessionId);
+    }
+
+    /**
      * 根据 playerId 获取玩家会话
      */
     public PlayerSession getByPlayerId(String playerId) {
@@ -87,6 +103,21 @@ public class WebSocketSessionManager {
             return null;
         }
         return sessionMap.get(sessionId);
+    }
+
+    /**
+     * 根据玩家名称查找现有会话（用于检测重连）
+     *
+     * @param playerName 玩家名称
+     * @return 第一个匹配的 PlayerSession，未找到返回 null
+     */
+    public PlayerSession getByPlayerName(String playerName) {
+        for (PlayerSession ps : sessionMap.values()) {
+            if (ps.getPlayer().getName().equals(playerName)) {
+                return ps;
+            }
+        }
+        return null;
     }
 
     /**
@@ -170,12 +201,32 @@ public class WebSocketSessionManager {
      */
     private void sendRawMessage(WebSocketSession session, String message) {
         try {
+            // 从 JSON 中提取 type 字段值（快速字符串匹配，无需反序列化）
+            String type = extractType(message);
+            System.out.println("[发送消息] type=" + type);
+
             synchronized (session) {
                 session.sendMessage(new org.springframework.web.socket.TextMessage(message));
             }
         } catch (IOException e) {
             System.err.println("[错误] 发送消息失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 从 JSON 消息中快速提取 type 字段值
+     */
+    private String extractType(String json) {
+        // 匹配 "type":"VALUE" 或 "type": "VALUE"
+        int typeIdx = json.indexOf("\"type\"");
+        if (typeIdx == -1) return "未知";
+        int colonIdx = json.indexOf(':', typeIdx + 6);
+        if (colonIdx == -1) return "未知";
+        int quoteStart = json.indexOf('"', colonIdx + 1);
+        if (quoteStart == -1) return "未知";
+        int quoteEnd = json.indexOf('"', quoteStart + 1);
+        if (quoteEnd == -1) return "未知";
+        return json.substring(quoteStart + 1, quoteEnd);
     }
 
     /**

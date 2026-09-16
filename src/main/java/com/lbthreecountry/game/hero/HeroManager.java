@@ -119,9 +119,7 @@ public class HeroManager {
         map.put("heroId", hero.getHeroId());
         map.put("heroName", hero.getHeroName());
         map.put("heroTitle", hero.getHeroTitle());
-        map.put("kingdomCode", hero.getKingdom() != null ? hero.getKingdom().getCode() : null);
-        map.put("kingdomName", hero.getKingdom() != null ? hero.getKingdom().getDescription() : null);
-        map.put("kingdomColor", hero.getKingdom() != null ? hero.getKingdom().getColor() : null);
+        map.put("kingdom", hero.getKingdom());
         map.put("maxHp", hero.getMaxHp());
         map.put("startHp", hero.getStartHp());
         map.put("gender", hero.getGender() != null ? hero.getGender().getDescription() : null);

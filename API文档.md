@@ -393,13 +393,8 @@
   "players": [
     {
       "playerId": "uuid",
-      "playerName": "玩家名",
+      "playerName": "张三",
       "gameSeat": 0,
-      "maxHp": 4,
-      "currentHp": 4,
-      "handCardCount": 4,
-      "kingdom": "WEI",
-      "kingdomColor": "#0055A4",
       "bot": false
     }
   ],
@@ -413,14 +408,12 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| players | array | 所有玩家公开信息列表（不含身份和手牌） |
+| players | array | 玩家基本信息（仅含 ID/名称/座位/是否Bot），**不含身份和血量** |
 | currentPlayerIndex | number | 当前行动玩家的 gameSeat |
 | currentPhase | string | 当前阶段：`PREPARE` `JUDGE` `DRAW` `PLAY` `DISCARD` `END` |
 | round | number | 当前轮次 |
 | totalTurns | number | 总回合数 |
 | turnTime | number | 每回合限时（秒） |
-| kingdom | string | 势力代码：`WEI` `SHU` `WU` `QUN` `SHEN` |
-| kingdomColor | string | 势力颜色（十六进制） |
 
 ---
 
@@ -523,7 +516,6 @@
   "type": "YOUR_PRIVATE_INFO",
   "playerId": "uuid",
   "role": "LORD",
-  "gameSeat": 0,
   "handCardCount": 4
 }
 ```
@@ -531,10 +523,10 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | role | string | 身份：`LORD`(主公) `MINION`(忠臣) `REBEL`(反贼) `INTRUDER`(内奸) |
-| gameSeat | number | 游戏座位号（0-based，排序决定行动顺序） |
 | handCardCount | number | 手牌数量 |
 
 > ⚠️ **此消息仅发给对应玩家本人**，前端应根据 role 字段展示身份。
+> 座位号请从 `GAME_START.players[].gameSeat` 获取。
 
 ---
 
@@ -681,61 +673,7 @@
 
 ---
 
-### 2.25 GAME_LOG — 游戏日志
-
-**简单格式（通用日志）：**
-```json
-{
-  "type": "GAME_LOG",
-  "message": "玩家A对玩家B使用了杀"
-}
-```
-
-**丰富格式（身份分配等结构化日志）：**
-```json
-{
-  "type": "GAME_LOG",
-  "category": "ROLE_ASSIGNMENT",
-  "message": "身份分发完成",
-  "playerCount": 6,
-  "details": [
-    {
-      "playerName": "张三",
-      "gameSeat": 0,
-      "role": "主公"
-    },
-    {
-      "playerName": "李四",
-      "gameSeat": 1,
-      "role": "忠臣"
-    }
-  ]
-}
-```
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| message | string | 是 | 日志文本 |
-| category | string | 否 | 日志分类，如 `ROLE_ASSIGNMENT`(身份分配) |
-| playerCount | number | 否 | 玩家人数（分类相关时携带） |
-| details | array | 否 | 详细信息列表（分类相关时携带） |
-
-> 用于开发调试，前端收到后在日志面板显示。
->
-> 发布方式（后端代码中使用）：
-> ```java
-> GameEvent logEvent = GameEvent.builder()
->     .type(GameEventType.GAME_LOG)
->     .sourceId("system")
->     .build();
-> logEvent.putData("roomId", roomId);
-> logEvent.putData("message", "日志内容");
-> eventBus.publish(logEvent, match);
-> ```
-
----
-
-### 2.26 ONLINE_PLAYERS — 在线玩家列表
+### 2.25 ONLINE_PLAYERS — 在线玩家列表
 
 ```json
 {

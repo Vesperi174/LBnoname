@@ -25,6 +25,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -66,6 +67,18 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     /** 对局中是否正在执行机器人推进（roomId → true），防止重复调度 */
     private final Map<String, Boolean> botAdvancing = new ConcurrentHashMap<>();
 
+    /** 等待客户端初始化完成 ACK（roomId → 未回复的 playerId 集合） */
+    private final Map<String, Set<String>> pendingInitAcks = new ConcurrentHashMap<>();
+
+    /** 所有玩家初始化完成后的回调（roomId → Runnable） */
+    private final Map<String, Runnable> initCompleteCallbacks = new ConcurrentHashMap<>();
+
+    /** 等待非主公玩家选将完成（roomId → 未选完的真人 playerId 集合） */
+    private final Map<String, Set<String>> pendingHeroSelectAcks = new ConcurrentHashMap<>();
+
+    /** 房间的 turnTime 缓存（roomId → turnTime），供选将流程后续阶段使用 */
+    private final Map<String, Integer> roomTurnTimeCache = new ConcurrentHashMap<>();
+
     // ──────────────────────────────────────────────
     // 连接生命周期
     // ──────────────────────────────────────────────
@@ -76,9 +89,24 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         String playerName = (String) attributes.get("playerName");
         String avatar = (String) attributes.get("avatar");
 
-        PlayerInfo playerInfo = PlayerInfo.create(playerName);
-        if (avatar != null) {
-            playerInfo.setAvatar(avatar);
+        // ── 检测同名的旧会话（刷新页面重连）──
+        PlayerSession oldSession = sessionManager.getByPlayerName(playerName);
+        PlayerInfo playerInfo;
+        if (oldSession != null) {
+            // 复用旧的 PlayerInfo（保持同一 playerId），避免房间数据混乱
+            playerInfo = oldSession.getPlayer();
+            // 更新头像（可能变了）
+            if (avatar != null) {
+                playerInfo.setAvatar(avatar);
+            }
+            // 清理旧会话（从 sessionMap 移除并关闭底层连接）
+            sessionManager.removeSessionAndClose(oldSession.getSessionId());
+            System.out.println("[重连] 玩家 " + playerName + " 重新连接，复用 playerId=" + playerInfo.getPlayerId());
+        } else {
+            playerInfo = PlayerInfo.create(playerName);
+            if (avatar != null) {
+                playerInfo.setAvatar(avatar);
+            }
         }
 
         PlayerSession playerSession = sessionManager.registerSession(session, playerInfo);
@@ -107,17 +135,25 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         GameRoom room = roomService.findRoomByPlayerId(playerId);
         if (room != null) {
             String roomId = room.getRoomId();
+            System.out.println("[连接关闭] 玩家 " + playerSession.getPlayer().getName()
+                    + " 在房间 " + room.getRoomName()
+                    + " (playerCount=" + room.getPlayerCount() + ")");
 
             // 检查游戏是否正在进行
             GameMatch match = gameService.getMatch(roomId);
             if (match != null && "PLAYING".equals(match.getStatus().name())) {
                 // 游戏进行中断线 → 转为机器人
+                System.out.println("[连接关闭] 游戏进行中 → 转 Bot");
                 handlePlayerToBot(room, match, playerId, playerSession.getPlayer().getName());
             } else {
                 // 非游戏状态，正常离开
+                System.out.println("[连接关闭] 非游戏状态 → 正常离开");
                 roomService.leaveRoom(roomId, playerId);
 
                 GameRoom updatedRoom = roomService.getRoom(roomId);
+                System.out.println("[连接关闭] leaveRoom 后 room=" + (updatedRoom == null ? "已删除"
+                        : ("存在, playerCount=" + updatedRoom.getPlayerCount())));
+
                 if (updatedRoom != null) {
                     broadcastToRoom(updatedRoom, Map.of(
                             "type", "PLAYER_LEFT",
@@ -130,6 +166,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     ), null);
                 }
             }
+        } else {
+            System.out.println("[连接关闭] 玩家 " + playerSession.getPlayer().getName() + " 不在任何房间中");
         }
 
         sessionManager.removeSession(session.getId());
@@ -182,6 +220,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "UPDATE_ROOM_SETTINGS" -> handleUpdateRoomSettings(session, playerSession, msg);
             case "PLAY_CARD"            -> handlePlayCard(session, playerSession, msg);
             case "SELECT_HERO"          -> handleSelectHero(session, playerSession, msg);
+            case "CLIENT_READY"         -> handleClientReady(playerSession);
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -277,10 +316,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         String roomId = room.getRoomId();
         String playerName = playerSession.getPlayer().getName();
 
+        System.out.println("[主动离开] " + playerName + " 离开 " + room.getRoomName()
+                + " (playerCount=" + room.getPlayerCount() + ")");
+
         // 检查游戏是否正在进行
         GameMatch match = gameService.getMatch(roomId);
         if (match != null && "PLAYING".equals(match.getStatus().name())) {
             // 游戏进行中 → 转为机器人
+            System.out.println("[主动离开] 游戏进行中 → 转 Bot");
             handlePlayerToBot(room, match, playerId, playerName);
             sendJson(session, Map.of("type", "ROOM_LEFT", "roomId", roomId));
             broadcastRoomList();
@@ -291,11 +334,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         boolean wasOwner = room.getOwnerPlayerId().equals(playerId);
         roomService.leaveRoom(roomId, playerId);
 
+        GameRoom updatedRoom = roomService.getRoom(roomId);
+        System.out.println("[主动离开] leaveRoom 后 room=" + (updatedRoom == null ? "已删除"
+                : ("存在, playerCount=" + updatedRoom.getPlayerCount())));
+
         // 通知离开者
         sendJson(session, Map.of("type", "ROOM_LEFT", "roomId", roomId));
 
         // 通知房间内其他人
-        GameRoom updatedRoom = roomService.getRoom(roomId);
         if (updatedRoom != null) {
             broadcastToRoom(updatedRoom, Map.of(
                     "type", "PLAYER_LEFT",
@@ -418,11 +464,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             // 为每个玩家构建其私有信息（包含手牌和身份）
             Map<String, Object> gameStartData = buildGameStartData(match, null);
 
-            // 获取出手时间
-            int turnTime = 15;
-            if (settings != null && settings.get("turnTime") instanceof Number) {
-                turnTime = ((Number) settings.get("turnTime")).intValue();
-            }
+            final int turnTime = (settings != null && settings.get("turnTime") instanceof Number)
+                    ? ((Number) settings.get("turnTime")).intValue() : 15;
 
             // 广播游戏开始基础信息给所有人
             broadcastToRoom(room, Map.of(
@@ -436,22 +479,18 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "turnTime", turnTime
             ), null);
 
-            // ── 身份分发完毕，向前端日志推送身份分配信息 ──
-            List<Map<String, Object>> roleLogEntries = match.getPlayers().stream()
-                    .sorted(java.util.Comparator.comparingInt(GamePlayer::getGameSeat))
-                    .<Map<String, Object>>map(gp -> Map.of(
-                            "playerName", (Object) gp.getPlayerName(),
-                            "gameSeat", (Object) gp.getGameSeat(),
-                            "role", (Object) gp.getRole().getDescription()
-                    ))
-                    .toList();
-            broadcastToRoom(room, Map.of(
-                    "type", "GAME_LOG",
-                    "category", "ROLE_ASSIGNMENT",
-                    "message", "身份分发完成",
-                    "playerCount", match.getPlayers().size(),
-                    "details", roleLogEntries
-            ), null);
+            // 广播谁是主公
+            final GamePlayer lord = match.getPlayers().stream()
+                    .filter(p -> p.getRole().name().equals("LORD"))
+                    .findFirst().orElse(null);
+            if (lord != null) {
+                broadcastToRoom(room, Map.of(
+                        "type", "KINGDOM_REVEAL",
+                        "lordPlayerId", lord.getPlayerId(),
+                        "lordPlayerName", lord.getPlayerName(),
+                        "lordSeat", lord.getGameSeat()
+                ), null);
+            }
 
             // 私发每个玩家自己的手牌和身份
             for (GamePlayer gp : match.getPlayers()) {
@@ -459,55 +498,61 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                         "type", "YOUR_PRIVATE_INFO",
                         "playerId", gp.getPlayerId(),
                         "role", gp.getRole().name(),
-                        "gameSeat", gp.getGameSeat(),
                         "handCardCount", gp.getHandCards().size()
                 )));
 
-                // 私发手牌详情（卡面数据供前端渲染）
-                List<Map<String, Object>> cardList = new java.util.ArrayList<>();
-                for (CardInstance card : gp.getHandCards()) {
-                    CardDef def = cardManager.getDef(card.getDefId());
-                    Map<String, Object> cardMap = new java.util.HashMap<>();
-                    cardMap.put("instanceId", card.getInstanceId());
-                    cardMap.put("defId", card.getDefId());
-                    cardMap.put("name", def != null ? def.getName() : card.getDefId());
-                    cardMap.put("suit", card.getSuit().name());
-                    cardMap.put("point", card.getPoint());
-                    cardList.add(cardMap);
-                }
-                sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
-                        "type", "MY_HAND",
-                        "cards", cardList
-                )));
+                // TODO: 暂不发送 MY_HAND，后续回合开始时再推
+                // List<Map<String, Object>> cardList = new java.util.ArrayList<>();
+                // for (CardInstance card : gp.getHandCards()) {
+                //     CardDef def = cardManager.getDef(card.getDefId());
+                //     Map<String, Object> cardMap = new java.util.HashMap<>();
+                //     cardMap.put("instanceId", card.getInstanceId());
+                //     cardMap.put("defId", card.getDefId());
+                //     cardMap.put("name", def != null ? def.getName() : card.getDefId());
+                //     cardMap.put("suit", card.getSuit().name());
+                //     cardMap.put("point", card.getPoint());
+                //     cardList.add(cardMap);
+                // }
+                // sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
+                //         "type", "MY_HAND",
+                //         "cards", cardList
+                // )));
             }
 
-            // ── 进入武将选择阶段：给主公推送候选武将 ──
-            GamePlayer lord = match.currentPlayer(); // gameSeat 0 = 主公
-            if (lord != null) {
-                // 随机抽取 3 个武将给主公选
-                List<BaseHero> candidates = heroManager.pickRandomHeroes(3, List.of());
-                List<Map<String, Object>> candidateList = candidates.stream()
-                        .map(heroManager::heroToMap)
-                        .toList();
-
-                sessionManager.sendMessage(lord.getPlayerId(), toJson(Map.of(
-                        "type", "HERO_SELECT_OPTIONS",
-                        "candidates", candidateList,
-                        "timeout", 30 // 30秒内需选择
-                )));
-
-                log.info("[武将选择] 主公 {} 收到 {} 个武将候选",
-                        lord.getPlayerName(), candidates.size());
-
-                // 如果主公是 Bot，自动选择第一个候选武将
-                if (lord.isBot() && !candidates.isEmpty()) {
-                    String autoHeroId = candidates.get(0).getHeroId();
-                    log.info("[武将选择] 主公 {} 是 Bot，自动选择武将 [{}]",
-                            lord.getPlayerName(), autoHeroId);
-
-                    gameService.selectHero(room.getRoomId(), lord.getPlayerId(), autoHeroId);
-                    broadcastHeroSelectionAndStartGame(room, match, turnTime);
+            // ── 等待所有玩家前端初始化完毕（ACK）──
+            Set<String> pending = ConcurrentHashMap.newKeySet();
+            for (GamePlayer gp : match.getPlayers()) {
+                // Bot 没有前端，不需要 ACK，自动算 ready
+                if (!gp.isBot()) {
+                    pending.add(gp.getPlayerId());
                 }
+            }
+
+            if (pending.isEmpty()) {
+                // 全是 Bot，直接进入武将选择
+                System.out.println("[初始化等待] 全是 Bot，无需等待 ACK");
+                pushHeroSelect(room, match, lord, turnTime);
+            } else {
+                pendingInitAcks.put(room.getRoomId(), pending);
+
+                // 保存回调：所有人 ready 后进入武将选择
+                initCompleteCallbacks.put(room.getRoomId(), () -> {
+                    pushHeroSelect(room, match, lord, turnTime);
+                });
+
+                System.out.println("[初始化等待] 房间 " + room.getRoomName()
+                        + " 等待 " + pending.size() + " 个真人玩家 CLIENT_READY");
+
+                // 15 秒超时：强制继续，跳过未回复玩家
+                botScheduler.schedule(() -> {
+                    Set<String> remain = pendingInitAcks.remove(room.getRoomId());
+                    if (remain != null && !remain.isEmpty()) {
+                        System.out.println("[初始化等待] 超时！跳过 " + remain.size()
+                                + " 个未回复玩家，强制继续");
+                        Runnable cb = initCompleteCallbacks.remove(room.getRoomId());
+                        if (cb != null) cb.run();
+                    }
+                }, 15, TimeUnit.SECONDS);
             }
 
             // 通知大厅中的玩家房间状态已更新
@@ -516,6 +561,141 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 所有人初始化完毕后，推送武将选择给主公
+     */
+    private void pushHeroSelect(GameRoom room, GameMatch match, GamePlayer lord, int turnTime) {
+        if (lord == null) return;
+
+        roomTurnTimeCache.put(room.getRoomId(), turnTime);
+
+        List<BaseHero> candidates = heroManager.pickRandomHeroes(3, List.of());
+        List<Map<String, Object>> candidateList = candidates.stream()
+                .map(heroManager::heroToMap)
+                .toList();
+
+        sessionManager.sendMessage(lord.getPlayerId(), toJson(Map.of(
+                "type", "HERO_SELECT_OPTIONS",
+                "candidates", candidateList,
+                "timeout", 30
+        )));
+
+        log.info("[武将选择] 主公 {} 收到 {} 个武将候选",
+                lord.getPlayerName(), candidates.size());
+
+        if (lord.isBot() && !candidates.isEmpty()) {
+            String autoHeroId = candidates.get(0).getHeroId();
+            log.info("[武将选择] 主公 {} 是 Bot，自动选择武将 [{}]",
+                    lord.getPlayerName(), autoHeroId);
+
+            gameService.selectHero(room.getRoomId(), lord.getPlayerId(), autoHeroId);
+
+            broadcastLordHero(room, lord);
+
+            processFollowerHeroSelect(room, match);
+        }
+    }
+
+    /**
+     * 主公选完武将后，处理所有非主公玩家的选将：
+     * Bot 自动选第一个候选，真人发候选列表等待前端回复
+     */
+    private void processFollowerHeroSelect(GameRoom room, GameMatch match) {
+        String roomId = room.getRoomId();
+        Set<String> pending = ConcurrentHashMap.newKeySet();
+
+        for (GamePlayer gp : match.getPlayers()) {
+            if (gp.getHeroId() != null) continue;
+
+            List<BaseHero> usedHeroes = match.getPlayers().stream()
+                    .filter(p -> p.getHeroId() != null)
+                    .map(p -> heroManager.getHero(p.getHeroId()))
+                    .filter(h -> h != null)
+                    .toList();
+            List<String> usedIds = usedHeroes.stream().map(BaseHero::getHeroId).toList();
+
+            List<BaseHero> candidates = heroManager.pickRandomHeroes(3, usedIds);
+
+            if (gp.isBot()) {
+                String autoHeroId = candidates.isEmpty() ? null : candidates.get(0).getHeroId();
+                if (autoHeroId != null) {
+                    log.info("[武将选择] Bot 玩家 {} 自动选择武将 [{}]", gp.getPlayerName(), autoHeroId);
+                    gameService.selectHero(roomId, gp.getPlayerId(), autoHeroId);
+                    BaseHero hero = heroManager.getHero(autoHeroId);
+                    sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
+                            "type", "HERO_SELECTED",
+                            "playerId", gp.getPlayerId(),
+                            "hero", heroManager.heroToMap(hero)
+                    )));
+                }
+            } else {
+                List<Map<String, Object>> candidateList = candidates.stream()
+                        .map(heroManager::heroToMap)
+                        .toList();
+                sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
+                        "type", "HERO_SELECT_OPTIONS",
+                        "candidates", candidateList,
+                        "timeout", 30
+                )));
+                log.info("[武将选择] 玩家 {} 收到 {} 个武将候选", gp.getPlayerName(), candidates.size());
+                pending.add(gp.getPlayerId());
+            }
+        }
+
+        if (!pending.isEmpty()) {
+            pendingHeroSelectAcks.put(roomId, pending);
+            System.out.println("[武将选择] 等待 " + pending.size() + " 位玩家选将: " + pending);
+        } else {
+            checkFollowerHeroProgress(roomId);
+        }
+    }
+
+    /**
+     * 检查非主公玩家选将进度，全部完成则启动回合
+     */
+    private void checkFollowerHeroProgress(String roomId) {
+        Set<String> pending = pendingHeroSelectAcks.get(roomId);
+        if (pending != null && !pending.isEmpty()) {
+            System.out.println("[武将选择] 等待中，剩余 " + pending.size() + " 人: " + pending);
+            return;
+        }
+        if (pending != null) {
+            pendingHeroSelectAcks.remove(roomId);
+        }
+
+        GameRoom room = roomService.getRoom(roomId);
+        if (room == null) return;
+
+        int turnTime = roomTurnTimeCache.remove(roomId);
+        GameMatch updated = gameService.finalizeHeroSelection(roomId);
+        broadcastHeroAssignmentAndTurn(room, updated, turnTime);
+    }
+
+    /**
+     * 处理前端 CLIENT_READY 消息：确认初始化完毕
+     */
+    private void handleClientReady(PlayerSession playerSession) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+        if (room == null) return;
+
+        Set<String> pending = pendingInitAcks.get(room.getRoomId());
+        if (pending == null) return;
+
+        pending.remove(playerId);
+        System.out.println("[初始化ACK] " + playerSession.getPlayer().getName()
+                + " 已就绪，剩余 " + pending.size() + " 人");
+
+        if (pending.isEmpty()) {
+            pendingInitAcks.remove(room.getRoomId());
+            Runnable cb = initCompleteCallbacks.remove(room.getRoomId());
+            if (cb != null) {
+                System.out.println("[初始化ACK] 所有人就绪，进入下一阶段");
+                cb.run();
+            }
         }
     }
 
@@ -539,38 +719,36 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        // 校验武将 ID 是否存在
         if (heroManager.getHero(heroId) == null) {
             sendJson(session, Map.of("type", "ERROR", "message", "武将不存在: " + heroId));
             return;
         }
 
         try {
-            // 记录主公选择的武将
             GameMatch match = gameService.selectHero(roomId, playerId, heroId);
-
-            // 通知主公选择成功（并附带武将完整信息供前端展示）
             BaseHero hero = heroManager.getHero(heroId);
+
             sendJson(session, Map.of(
                     "type", "HERO_SELECTED",
                     "playerId", playerId,
                     "hero", heroManager.heroToMap(hero)
             ));
 
-            log.info("[武将选择] 主公 {} 选择了 [{}]", playerSession.getPlayer().getName(), heroId);
+            log.info("[武将选择] {} 选择了 [{}]", playerSession.getPlayer().getName(), heroId);
 
-            // ── 完成剩余武将自动分配 + 启动回合 ──
-            match = gameService.completeHeroSelection(roomId);
+            GamePlayer self = match.findPlayer(playerId);
+            boolean isLord = self != null && self.getRole().name().equals("LORD");
 
-            // 获取出手时间
-            int turnTime = 15;
-            Map<String, Object> settings = room.getRoomSettings();
-            if (settings != null && settings.get("turnTime") instanceof Number) {
-                turnTime = ((Number) settings.get("turnTime")).intValue();
+            if (isLord) {
+                broadcastLordHero(room, self);
+                processFollowerHeroSelect(room, match);
+            } else {
+                Set<String> pending = pendingHeroSelectAcks.get(roomId);
+                if (pending != null) {
+                    pending.remove(playerId);
+                }
+                checkFollowerHeroProgress(roomId);
             }
-
-            // 广播武将分配结果 + 启动回合
-            broadcastHeroAssignmentAndTurn(room, match, turnTime);
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
@@ -919,11 +1097,24 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     // ──────────────────────────────────────────────
 
     /**
-     * Bot 主公自动选将后：完成所有玩家武将分配 + 广播 + 启动回合
+     * 主公选将后，单独先推一条消息告诉所有人主公选了哪个武将
      */
-    private void broadcastHeroSelectionAndStartGame(GameRoom room, GameMatch match, int turnTime) {
-        GameMatch updated = gameService.completeHeroSelection(room.getRoomId());
-        broadcastHeroAssignmentAndTurn(room, updated, turnTime);
+    private void broadcastLordHero(GameRoom room, GamePlayer lord) {
+        String heroId = lord.getHeroId();
+        BaseHero hero = heroId != null ? heroManager.getHero(heroId) : null;
+
+        Map<String, Object> msg = new java.util.HashMap<>();
+        msg.put("type", "LORD_HERO_SELECTED");
+        msg.put("lordPlayerId", lord.getPlayerId());
+        msg.put("lordPlayerName", lord.getPlayerName());
+        msg.put("lordSeat", lord.getGameSeat());
+        msg.put("heroId", heroId);
+        msg.put("heroName", hero != null ? hero.getHeroName() : null);
+        msg.put("maxHp", lord.getMaxHp());
+        msg.put("currentHp", lord.getCurrentHp());
+        msg.put("kingdom", hero != null ? hero.getKingdom() : null);
+
+        broadcastToRoom(room, msg, null);
     }
 
     /**
@@ -944,9 +1135,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     entry.put("heroName", h != null ? h.getHeroName() : null);
                     entry.put("maxHp", gp.getMaxHp());
                     entry.put("currentHp", gp.getCurrentHp());
-                    entry.put("kingdomCode", h != null && h.getKingdom() != null ? h.getKingdom().getCode() : null);
-                    entry.put("kingdomName", h != null && h.getKingdom() != null ? h.getKingdom().getDescription() : null);
-                    entry.put("kingdomColor", h != null && h.getKingdom() != null ? h.getKingdom().getColor() : null);
+                    entry.put("kingdom", h != null ? h.getKingdom() : null);
                     return entry;
                 })
                 .toList();
@@ -968,7 +1157,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
     /**
      * 广播阶段变更（PHASE_CHANGE — 供前端渲染界面）
-     * <p>战报（BATTLE_REPORT）由 {@link GameEventBroadcaster} 统一推送。</p>
      */
     private void broadcastPhaseEvent(GameRoom room, String fromPhase, String toPhase,
                                       int gameSeat, String playerName) {
@@ -1084,11 +1272,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     p.put("playerId", gp.getPlayerId());
                     p.put("playerName", gp.getPlayerName());
                     p.put("gameSeat", gp.getGameSeat());
-                    p.put("maxHp", gp.getMaxHp());
-                    p.put("currentHp", gp.getCurrentHp());
-                    p.put("handCardCount", gp.getHandCards().size());
-                    p.put("kingdom", gp.getKingdom() != null ? gp.getKingdom().getCode() : null);
-                    p.put("kingdomColor", gp.getKingdom() != null ? gp.getKingdom().getColor() : null);
                     p.put("bot", gp.isBot());
                     return p;
                 })
