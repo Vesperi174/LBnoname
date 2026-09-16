@@ -522,7 +522,6 @@ public class GameServiceImpl implements GameService {
             gamePlayers.add(GamePlayer.builder()
                     .playerId(rp.getPlayerId())
                     .playerName(rp.getPlayerName())
-                    .roomSeat(rp.getSeatNumber())
                     .bot(rp.isBot())
                     .status(PlayerStatus.ALIVE)
                     .handCards(new ArrayList<>())
@@ -532,25 +531,15 @@ public class GameServiceImpl implements GameService {
                     .build());
         }
 
-        // 1) 随机分配身份（包含主公，所有人的身份完全随机）
-        assignRolesRandomly(gamePlayers, identityConfig);
-
-        // 2) 按主公座位重排：主公 → seat 0，其余玩家随机分配剩余座位
-        List<GamePlayer> rearranged = new ArrayList<>();
-        GamePlayer lordPlayer = null;
-        for (GamePlayer gp : gamePlayers) {
-            if (gp.getRole() == RoleType.LORD) {
-                lordPlayer = gp;
-            } else {
-                rearranged.add(gp);
-            }
+        // 1) 将所有玩家随机排序，决定游戏座位号
+        Collections.shuffle(gamePlayers);
+        for (int i = 0; i < gamePlayers.size(); i++) {
+            gamePlayers.get(i).setGameSeat(i);
         }
-        // 打乱非主公玩家的顺序，避免房主（加入最早）总是 1/2 号位
-        Collections.shuffle(rearranged);
-        gamePlayers.clear();
-        if (lordPlayer != null) gamePlayers.add(lordPlayer);
-        gamePlayers.addAll(rearranged);
-        for (int i = 0; i < gamePlayers.size(); i++) gamePlayers.get(i).setGameSeat(i);
+
+        // 2) 排第一的玩家（gameSeat 0）为主公，其余玩家按模板随机分配身份
+        gamePlayers.get(0).setRole(RoleType.LORD);
+        assignRolesToRemaining(gamePlayers, identityConfig);
 
         // 3) 初始体力
         for (GamePlayer gp : gamePlayers) {
@@ -579,10 +568,9 @@ public class GameServiceImpl implements GameService {
         // 初始化牌堆（从 JSON 展开副本、洗牌）
         cardManager.initDeck(match);
 
-        // 发起始手牌（主公多摸1张）
+        // 发起始手牌（每人4张）
         for (GamePlayer gp : gamePlayers) {
-            int drawCount = (gp.getGameSeat() == 0) ? 5 : 4;
-            cardManager.draw(match, gp, drawCount);
+            cardManager.draw(match, gp, 4);
         }
 
         log.info("[游戏] 对局创建成功 ({} 人, {})", gamePlayers.size(), identityConfig);
@@ -711,17 +699,21 @@ public class GameServiceImpl implements GameService {
     }
 
     /**
-     * 完全随机分配身份：所有身份（含主公）打乱后随机分给每个玩家，与座位号无关
+     * 为剩余玩家（非主公）随机分配身份
+     * <p>主公（gameSeat 0）已确定，从模板中移除主公后打乱分配给其余玩家。</p>
      */
-    private void assignRolesRandomly(List<GamePlayer> players, String identityConfig) {
+    private void assignRolesToRemaining(List<GamePlayer> players, String identityConfig) {
         int count = players.size();
         List<RoleType> template = getRoleTemplate(count, identityConfig);
 
-        List<RoleType> shuffled = new ArrayList<>(template);
-        Collections.shuffle(shuffled);
+        // 移除主公，剩余身份打乱
+        List<RoleType> remainingRoles = new ArrayList<>(template);
+        remainingRoles.remove(RoleType.LORD);
+        Collections.shuffle(remainingRoles);
 
-        for (int i = 0; i < players.size(); i++) {
-            players.get(i).setRole(shuffled.get(i));
+        // 从 gameSeat 1 开始分配
+        for (int i = 1; i < players.size(); i++) {
+            players.get(i).setRole(remainingRoles.get(i - 1));
         }
     }
 }

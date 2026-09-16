@@ -32,12 +32,9 @@ public class GamePlayer {
     /** 玩家名称（冗余，方便显示） */
     private String playerName;
 
-    /** 房间座位号（0-based，对应 RoomPlayer.seatNumber，加入房间时的顺序） */
-    private int roomSeat;
-
     /**
      * 游戏内座位号（0-based，游戏开始时随机分配）
-     * <p>决定出牌顺序，与房间座位号无关。</p>
+     * <p>决定出牌顺序。</p>
      */
     private int gameSeat;
 

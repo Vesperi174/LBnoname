@@ -28,11 +28,6 @@ public class RoomPlayer {
     private String playerName;
 
     /**
-     * 座位号
-     */
-    private int seatNumber;
-
-    /**
      * 选择的武将 ID
      */
     private String heroId;

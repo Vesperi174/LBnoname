@@ -103,7 +103,7 @@ public class RoomServiceImpl implements RoomService {
     public List<GameRoom> getJoinableRooms() {
         return roomMap.values().stream()
                 .filter(r -> r.getStatus() == RoomStatus.WAITING)
-                .filter(r -> r.getPlayerCount() + r.getClosedSeats().size() < r.getMaxPlayers())
+                .filter(r -> r.getPlayerCount() < r.getMaxPlayers())
                 .toList();
     }
 
@@ -125,31 +125,5 @@ public class RoomServiceImpl implements RoomService {
             return null;
         }
         return roomMap.get(roomId);
-    }
-
-    @Override
-    public boolean closeSeat(String roomId, String playerId, int seatNumber) {
-        GameRoom room = roomMap.get(roomId);
-        if (room == null) {
-            return false;
-        }
-        // 只有房主可以关闭座位
-        if (!room.getOwnerPlayerId().equals(playerId)) {
-            return false;
-        }
-        return room.closeSeatNumber(seatNumber);
-    }
-
-    @Override
-    public boolean openSeat(String roomId, String playerId, int seatNumber) {
-        GameRoom room = roomMap.get(roomId);
-        if (room == null) {
-            return false;
-        }
-        // 只有房主可以打开座位
-        if (!room.getOwnerPlayerId().equals(playerId)) {
-            return false;
-        }
-        return room.openSeatNumber(seatNumber);
     }
 }

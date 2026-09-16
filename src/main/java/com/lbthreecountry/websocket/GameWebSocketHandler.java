@@ -45,8 +45,6 @@ import java.util.stream.Collectors;
  *   <li>{@code ROOM_LIST} — 查询房间列表</li>
  *   <li>{@code PLAYER_READY} — 准备/取消准备</li>
  *   <li>{@code START_GAME} — 开始游戏（仅房主）</li>
- *   <li>{@code CLOSE_SEAT} — 关闭空座位（仅房主）</li>
- *   <li>{@code OPEN_SEAT} — 打开已关闭的座位（仅房主）</li>
  * </ul>
  */
 @Component
@@ -180,8 +178,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "START_SINGLE_PLAYER" -> handleStartSinglePlayer(session, playerSession, msg);
             case "NEXT_PHASE"    -> handleNextPhase(session, playerSession);
             case "LIST_ONLINE_PLAYERS" -> broadcastOnlinePlayers();
-            case "CLOSE_SEAT"    -> handleCloseSeat(session, playerSession, msg);
-            case "OPEN_SEAT"     -> handleOpenSeat(session, playerSession, msg);
             case "UPDATE_ROOM_SETTINGS" -> handleUpdateRoomSettings(session, playerSession, msg);
             case "PLAY_CARD"            -> handlePlayCard(session, playerSession, msg);
             default -> sendJson(session, Map.of(
@@ -579,102 +575,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
         }
-    }
-
-    // ──────────────────────────────────────────────
-    //  关闭座位
-    // ──────────────────────────────────────────────
-
-    @SuppressWarnings("unchecked")
-    private void handleCloseSeat(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
-        String playerId = playerSession.getPlayer().getPlayerId();
-        GameRoom room = roomService.findRoomByPlayerId(playerId);
-
-        if (room == null) {
-            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
-            return;
-        }
-
-        // 只有房主可以关闭座位
-        if (!room.getOwnerPlayerId().equals(playerId)) {
-            sendJson(session, Map.of("type", "ERROR", "message", "只有房主可以关闭座位"));
-            return;
-        }
-
-        // 提取 seatNumber
-        Object seatObj = msg.get("seatNumber");
-        if (seatObj == null) {
-            sendJson(session, Map.of("type", "ERROR", "message", "缺少 seatNumber 字段"));
-            return;
-        }
-        int seatNumber = ((Number) seatObj).intValue();
-
-        boolean success = roomService.closeSeat(room.getRoomId(), playerId, seatNumber);
-        if (!success) {
-            sendJson(session, Map.of("type", "ERROR", "message",
-                    "关闭座位失败：座位 " + seatNumber + " 已被占用、已关闭或至少需保留 2 个开放座位"));
-            return;
-        }
-
-        System.out.println("[房间] 关闭座位 " + seatNumber + "，当前关闭的座位: " + room.getClosedSeats());
-
-        // 广播更新后的房间信息给房间内所有人
-        GameRoom updatedRoom = roomService.getRoom(room.getRoomId());
-        broadcastToRoom(updatedRoom, Map.of(
-                "type", "ROOM_UPDATE",
-                "room", updatedRoom.toRoomInfoMap()
-        ), null);
-
-        // 广播大厅房间列表更新
-        broadcastRoomList();
-    }
-
-    // ──────────────────────────────────────────────
-    //  打开座位
-    // ──────────────────────────────────────────────
-
-    @SuppressWarnings("unchecked")
-    private void handleOpenSeat(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
-        String playerId = playerSession.getPlayer().getPlayerId();
-        GameRoom room = roomService.findRoomByPlayerId(playerId);
-
-        if (room == null) {
-            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
-            return;
-        }
-
-        // 只有房主可以打开座位
-        if (!room.getOwnerPlayerId().equals(playerId)) {
-            sendJson(session, Map.of("type", "ERROR", "message", "只有房主可以打开座位"));
-            return;
-        }
-
-        // 提取 seatNumber
-        Object seatObj = msg.get("seatNumber");
-        if (seatObj == null) {
-            sendJson(session, Map.of("type", "ERROR", "message", "缺少 seatNumber 字段"));
-            return;
-        }
-        int seatNumber = ((Number) seatObj).intValue();
-
-        boolean success = roomService.openSeat(room.getRoomId(), playerId, seatNumber);
-        if (!success) {
-            sendJson(session, Map.of("type", "ERROR", "message",
-                    "打开座位失败：座位 " + seatNumber + " 未关闭或无效"));
-            return;
-        }
-
-        System.out.println("[房间] 打开座位 " + seatNumber + "，当前关闭的座位: " + room.getClosedSeats());
-
-        // 广播更新后的房间信息给房间内所有人
-        GameRoom updatedRoom = roomService.getRoom(room.getRoomId());
-        broadcastToRoom(updatedRoom, Map.of(
-                "type", "ROOM_UPDATE",
-                "room", updatedRoom.toRoomInfoMap()
-        ), null);
-
-        // 广播大厅房间列表更新
-        broadcastRoomList();
     }
 
     // ──────────────────────────────────────────────
