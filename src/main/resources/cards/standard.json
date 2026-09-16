@@ -177,7 +177,7 @@
       ]
     },
     {
-      "id": "legion",
+      "id": "lebu",
       "name": "乐不思蜀",
       "description": "对一名角色使用，其判定结果不为红桃则跳过出牌阶段",
       "copies": [
@@ -187,7 +187,7 @@
       ]
     },
     {
-      "id": "lightning",
+      "id": "shandian",
       "name": "闪电",
       "description": "置于判定区，判定结果为黑桃2~9则受到3点雷伤",
       "copies": [
@@ -195,7 +195,7 @@
       ]
     },
     {
-      "id": "qinglong_blade",
+      "id": "qinglong",
       "name": "青龙偃月刀",
       "description": "攻击范围3，杀被闪避后可立即追刀",
       "copies": [
@@ -228,7 +228,7 @@
       ]
     },
     {
-      "id": "zhulu_niu",
+      "id": "zhuge",
       "name": "诸葛连弩",
       "description": "攻击范围1，可连续使用任意张杀",
       "copies": [
@@ -237,7 +237,7 @@
       ]
     },
     {
-      "id": "guanshifu",
+      "id": "guanshi",
       "name": "贯石斧",
       "description": "攻击范围3，可弃2发动强杀",
       "copies": [
@@ -245,7 +245,7 @@
       ]
     },
     {
-      "id": "qingangjian",
+      "id": "qinggang",
       "name": "青釭剑",
       "description": "攻击范围2，无视其防具",
       "copies": [
@@ -269,7 +269,7 @@
       ]
     },
     {
-      "id": "da_yuan",
+      "id": "dawan",
       "name": "大宛",
       "description": "-1马，计算距离时减1",
       "copies": [
@@ -277,7 +277,7 @@
       ]
     },
     {
-      "id": "di_lu",
+      "id": "dilu",
       "name": "的卢",
       "description": "+1马，计算距离时加1",
       "copies": [
@@ -285,7 +285,7 @@
       ]
     },
     {
-      "id": "zi_yan",
+      "id": "zixin",
       "name": "紫骍",
       "description": "+1马，计算距离时加1",
       "copies": [

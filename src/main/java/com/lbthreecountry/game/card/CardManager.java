@@ -6,12 +6,14 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
-import com.lbthreecountry.model.card.def.CardCopy;
 import com.lbthreecountry.model.card.def.CardDef;
+import com.lbthreecountry.model.card.def.CardCopy;
 import com.lbthreecountry.model.enums.impl.CardStatus;
 import com.lbthreecountry.model.enums.impl.CardSuit;
 import com.lbthreecountry.model.enums.impl.CardSubType;
 import com.lbthreecountry.model.enums.impl.CardType;
+import com.lbthreecountry.websocket.WebSocketSessionManager;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,13 +35,17 @@ public class CardManager {
 
     private final CardLibrary cardLibrary;
     private final EventBus eventBus;
+    private final WebSocketSessionManager sessionManager;
+    private final ObjectMapper objectMapper;
 
     /** 实例 ID 生成器（全局唯一，跨对局） */
     private final AtomicLong instanceIdCounter = new AtomicLong(0);
 
-    public CardManager(CardLibrary cardLibrary, EventBus eventBus) {
+    public CardManager(CardLibrary cardLibrary, EventBus eventBus, WebSocketSessionManager sessionManager) {
         this.cardLibrary = cardLibrary;
         this.eventBus = eventBus;
+        this.sessionManager = sessionManager;
+        this.objectMapper = new ObjectMapper();
     }
 
     /**
@@ -98,6 +104,12 @@ public class CardManager {
      */
     public List<CardInstance> draw(GameMatch match, GamePlayer player, int count) {
         List<CardInstance> drawn = new ArrayList<>();
+        // 提前获取房间所有玩家 ID（用于广播）
+        List<String> allPlayerIds = match.getPlayers().stream()
+                .map(GamePlayer::getPlayerId)
+                .toList();
+
+        // ── 阶段一：逐张摸牌（仅操作数据，不推送消息） ──
         for (int i = 0; i < count; i++) {
             if (match.getDrawPile().isEmpty()) {
                 // 牌堆为空：将弃牌堆洗回
@@ -110,6 +122,41 @@ public class CardManager {
             player.getHandCards().add(card);
             drawn.add(card);
         }
+
+        // ── 阶段二：全部摸完后，一次性发送 DRAW_CARD 消息 ──
+        if (!drawn.isEmpty()) {
+            // 构造摸牌者可见的牌面数据
+            List<Map<String, Object>> cardDataList = new ArrayList<>();
+            for (CardInstance card : drawn) {
+                CardDef def = cardLibrary.getDef(card.getDefId());
+                Map<String, Object> cardData = new LinkedHashMap<>();
+                cardData.put("instanceId", card.getInstanceId());
+                cardData.put("defId", card.getDefId());
+                cardData.put("name", def != null ? def.getName() : card.getDefId());
+                cardData.put("suit", card.getSuit().name());
+                cardData.put("point", card.getPoint());
+                cardDataList.add(cardData);
+            }
+
+            // 本人 → 携带所有牌数据
+            String ownerMsg = toJson(Map.of(
+                    "type", "DRAW_CARD",
+                    "playerId", player.getPlayerId(),
+                    "cards", cardDataList,
+                    "count", drawn.size()
+            ));
+            sessionManager.sendMessage(player.getPlayerId(), ownerMsg);
+
+            // 对手 → 空数组（看不到具体牌面）
+            String otherMsg = toJson(Map.of(
+                    "type", "DRAW_CARD",
+                    "playerId", player.getPlayerId(),
+                    "cards", List.of(),
+                    "count", drawn.size()
+            ));
+            sessionManager.broadcastToRoom(allPlayerIds, otherMsg, player.getPlayerId());
+        }
+
         // ── 摸牌后检测事件钩子 ──
         GameEvent checkEvent = GameEvent.builder()
                 .type(GameEventType.CARD_DRAW_CHECK)
@@ -202,5 +249,21 @@ public class CardManager {
             case "SPADES" -> CardSuit.SPADES;
             default -> null;
         };
+    }
+
+    // ================================================================
+    //  JSON 工具
+    // ================================================================
+
+    /**
+     * 将对象转为 JSON 字符串
+     */
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.error("[CardManager] JSON 序列化失败", e);
+            return "{\"type\":\"ERROR\",\"message\":\"序列化失败\"}";
+        }
     }
 }

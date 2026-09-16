@@ -8,6 +8,9 @@ import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
 import com.lbthreecountry.game.card.CardPlayabilityChecker;
+import com.lbthreecountry.game.event.EventBus;
+import com.lbthreecountry.game.event.GameEvent;
+import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.game.event.DrawCardEvent;
 import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.model.card.CardInstance;
@@ -62,6 +65,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final CardManager cardManager;
     private final HeroManager heroManager;
     private final CardPlayabilityChecker cardPlayabilityChecker;
+    private final EventBus eventBus;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 机器人自动推进调度器 */
@@ -681,6 +685,17 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         // 私发每个玩家更新后的手牌（MY_HAND）和武将+手牌信息
         broadcastInitialGameState(room, matchWithHands);
+
+        // ── 战斗开始事件钩子 + 前端广播 ──
+        GameEvent battleStartEvent = GameEvent.builder()
+                .type(GameEventType.BATTLE_START)
+                .sourceId("system")
+                .build();
+        battleStartEvent.putData("roomId", roomId);
+        eventBus.publish(battleStartEvent, matchWithHands);
+
+        broadcastToRoom(room, Map.of("type", "BATTLE_START"), null);
+        log.info("[战斗开始] BATTLE_START 事件已发布并广播");
     }
 
     /**
@@ -914,32 +929,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
 
-            // 检测所有手牌的可用性
-            Map<Long, CardPlayabilityChecker.CardCheckResult> results =
-                    cardPlayabilityChecker.checkAllHandCards(match, player);
-
-            // 构建返回数据
-            GamePlayer curPlayer = match.currentPlayer();
-            boolean isMyTurn = curPlayer != null && curPlayer.getPlayerId().equals(playerId);
-
-            List<Map<String, Object>> cardStatusList = results.entrySet().stream()
-                    .map(entry -> {
-                        Map<String, Object> cardMap = new java.util.HashMap<>();
-                        cardMap.put("instanceId", entry.getKey());
-                        cardMap.put("status", entry.getValue().getStatus().getCode());
-                        cardMap.put("statusName", entry.getValue().getStatus().name());
-                        cardMap.put("reason", entry.getValue().getReason());
-                        return cardMap;
-                    })
-                    .toList();
-
-            Map<String, Object> response = new java.util.HashMap<>();
-            response.put("type", "HAND_STATUS");
-            response.put("cards", cardStatusList);
-            response.put("phase", match.getCurrentPhase().name());
-            response.put("isMyTurn", isMyTurn);
-
-            sendJson(session, response);
+            // 检测所有手牌的可用性（自动推送 HAND_STATUS 给前端）
+            cardPlayabilityChecker.checkAllHandCards(match, player);
 
         } catch (Exception e) {
             log.error("[卡牌检测] 检测失败", e);
