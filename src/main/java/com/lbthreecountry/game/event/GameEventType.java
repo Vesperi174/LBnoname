@@ -168,13 +168,14 @@ public final class GameEventType {
     // ================================================================
     //  摸牌事件 — 完整生命周期
     //
-    //  使用 DrawCardEvent.execute() 触发，自动按以下顺序发布：
+    //  发布 CARD.DRAW 触发事件（需附带 driver/playerId/count 数据），
+    //  由 DrawCardEvent 组件监听到后自动按以下顺序发布子钩子：
     //    CARD.DRAW.BEFORE（摸牌开始前，可修改）
     //    CARD.DRAW.ACTIVE（摸牌开始时，可修改）
     //    CARD.DRAW.AFTER（摸牌结束后，可修改）
     // ================================================================
 
-    /** 摸牌主事件（父事件类型，一般不直接监听此类型） */
+    /** 摸牌触发事件 — 发布此事件即可触发摸牌生命周期（由 DrawCardEvent @Component 监听） */
     public static final String CARD_DRAW = "CARD.DRAW";
 
     /** 摸牌开始前钩子 — 附带本次摸牌信息，可被其他事件监听、调用、修改 */

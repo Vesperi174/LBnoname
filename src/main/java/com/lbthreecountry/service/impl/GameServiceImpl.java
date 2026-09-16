@@ -8,7 +8,7 @@ import com.lbthreecountry.game.card.CardManager;
 import com.lbthreecountry.game.card.EffectEngine;
 import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.game.state.RoundStateMachine;
-import com.lbthreecountry.game.event.DrawCardEvent;
+import com.lbthreecountry.game.event.DrawCardEvent.DrawDriver;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
@@ -315,16 +315,26 @@ public class GameServiceImpl implements GameService {
             GamePlayer player = match.currentPlayer();
             if (player == null) throw new IllegalStateException("当前回合没有玩家");
 
-            // 使用 DrawCardEvent 执行完整的摸牌生命周期
-            DrawCardEvent.DrawResult result = DrawCardEvent.execute(
-                    match, player, count, eventBus, cardManager
-            );
+            // ── 发布 CARD.DRAW 触发事件，由 DrawCardEvent 监听处理 ──
+            GameEvent drawTrigger = GameEvent.builder()
+                    .type(GameEventType.CARD_DRAW)
+                    .sourceId(player.getPlayerId())
+                    .build()
+                    .putData("driver", DrawDriver.OTHER)
+                    .putData("playerId", player.getPlayerId())
+                    .putData("count", count);
 
-            if (result.isCancelled()) {
+            eventBus.publish(drawTrigger, match);
+
+            // 从事件中读取摸牌结果（同步处理，publish 返回后结果已写入）
+            boolean cancelled = drawTrigger.getDataOrDefault("cancelled", false);
+            int actualCount = drawTrigger.getDataOrDefault("actualCount", 0);
+
+            if (cancelled) {
                 log.info("[摸牌] {} 的摸牌被取消", player.getPlayerName());
             } else {
                 log.info("[摸牌] {} 摸了 {} 张牌 (请求: {} 张)",
-                        player.getPlayerName(), result.getActualCount(), count);
+                        player.getPlayerName(), actualCount, count);
             }
 
             return match;
