@@ -12,6 +12,7 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.game.event.DrawCardEvent;
+import com.lbthreecountry.game.state.RoundStateMachine;
 import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.game.distance.DistanceManager;
 import com.lbthreecountry.model.card.CardInstance;
@@ -68,6 +69,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final CardPlayabilityChecker cardPlayabilityChecker;
     private final EventBus eventBus;
     private final DistanceManager distanceManager;
+    private final RoundStateMachine roundStateMachine;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 机器人自动推进调度器 */
@@ -690,6 +692,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         broadcastInitialGameState(room, matchWithHands);
 
         // ── 战斗开始事件钩子 + 前端广播 ──
+        // 先广播 BATTLE_START 给前端，让前端做好战斗准备
+        // 再发布 BATTLE_START 事件（第 1 轮在 EventLoop 上同步处理，事件钩子中的广播对前端可见）
+        broadcastToRoom(room, Map.of("type", "BATTLE_START"), null);
+
         GameEvent battleStartEvent = GameEvent.builder()
                 .type(GameEventType.BATTLE_START)
                 .sourceId("system")
@@ -697,8 +703,57 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         battleStartEvent.putData("roomId", roomId);
         eventBus.publish(battleStartEvent, matchWithHands);
 
-        broadcastToRoom(room, Map.of("type", "BATTLE_START"), null);
+        // ── 游戏主循环：异步驱动后续轮次 ──
+        // BATTLE_START 处理完毕后第 1 轮已完成（enterFinished 设置了 roundFinished=true）
+        // 注意：不要在 EventLoop 线程上重置 roundFinished！
+        // 由 asyncGameLoop 在 botScheduler 线程中读取标记并重置，避免竞态条件
+        if (matchWithHands.isRoundFinished()) {
+            log.info("[游戏主循环] 🌀 第 1 轮完成 → 异步调度后续轮次");
+            asyncGameLoop(matchWithHands);
+        }
+
         log.info("[战斗开始] BATTLE_START 事件已发布并广播");
+    }
+
+    // ================================================================
+    //  异步游戏循环
+    // ================================================================
+
+    /**
+     * 异步游戏循环 — 驱动后续轮次
+     *
+     * <p>此方法在 {@link #botScheduler} 线程池中运行，与 Netty EventLoop 线程解耦。
+     * 每轮 {@link RoundStateMachine#onRoundComplete} 在完全展开的调用栈中执行，
+     * 彻底避免轮次间栈累积导致 StackOverflowError。</p>
+     *
+     * <h3>并发安全</h3>
+     * <ul>
+     *   <li>{@link com.lbthreecountry.game.GameMatch} 使用 {@code ReentrantLock} 保护</li>
+     *   <li>{@link com.lbthreecountry.game.event.EventBus} 使用 {@code ConcurrentHashMap} 线程安全</li>
+     *   <li>WebSocket 消息处理器通过 {@link #botAdvancing} 标记避免重复调度</li>
+     * </ul>
+     *
+     * @param match 当前对局（BATTLE_START 处理完毕后的状态）
+     */
+    private void asyncGameLoop(GameMatch match) {
+        botScheduler.submit(() -> {
+            try {
+                while (match.isRoundFinished()) {
+                    match.setRoundFinished(false);
+                    int round = match.getCurrentRound();
+                    log.info("[游戏主循环] 🌀 第 {} 轮完成 → 驱动下一轮 (第 {} 轮)",
+                            round, round + 1);
+                    roundStateMachine.onRoundComplete(match);
+                }
+                int finalRound = match.getCurrentRound();
+                if (finalRound > 0) {
+                    log.info("[游戏主循环] 🏁 游戏第 {} 轮后结束（roundFinished=false，游戏终止条件已满足）",
+                            finalRound);
+                }
+            } catch (Exception e) {
+                log.error("[游戏主循环] 轮次处理异常，游戏循环终止", e);
+            }
+        });
     }
 
     /**

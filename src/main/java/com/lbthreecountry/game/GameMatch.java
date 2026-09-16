@@ -101,6 +101,19 @@ public class GameMatch {
     @Builder.Default
     private GameStatus status = GameStatus.INIT;
 
+    /**
+     * 本轮回合是否已完成（所有存活玩家均完成了一轮）
+     *
+     * <p>由 {@link com.lbthreecountry.game.state.PlayerTurnStateMachine#enterFinished}
+     * 在每轮结束时设置为 {@code true}。</p>
+     *
+     * <p>外部游戏循环（{@code GameWebSocketHandler}）检查此标记，当为 {@code true}
+     * 时调用 {@link com.lbthreecountry.game.state.RoundStateMachine#onRoundComplete}
+     * 驱动下一轮。这样每轮之间调用栈会彻底展开，避免轮次递归导致 StackOverflow。</p>
+     */
+    @Builder.Default
+    private boolean roundFinished = false;
+
     // ============ 并发锁 ============
 
     /**

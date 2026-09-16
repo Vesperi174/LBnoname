@@ -127,17 +127,31 @@ public class EventBus {
     // ================================================================
 
     /**
-     * 发布事件 — 压入对局的结算栈，由 {@code settle()} 循环调度
+     * 发布事件 — 压入结算栈并同步处理
      *
-     * <p>调用此方法后：</p>
-     * <ol>
-     *   <li>快照当前监听器列表，创建 {@link SettlementFrame}</li>
-     *   <li>压入 {@code match} 的结算栈</li>
-     *   <li>如果栈此前为空，启动 {@code settle()} 循环；否则等外层循环处理</li>
-     * </ol>
+     * <p>此方法始终是<b>同步阻塞</b>的：发布后所有监听器执行完毕才返回。</p>
      *
-     * <p>{@code settle()} 循环每次只执行栈顶帧的一个监听器，然后重新检查栈顶，
-     * 自然实现 LIFO 嵌套结算。</p>
+     * <h4>调度策略</h4>
+     * <ul>
+     *   <li><b>顶层发布（结算栈为空）</b> — 启动 {@code settle()} 循环，完整处理整个结算栈</li>
+     *   <li><b>嵌套发布（结算栈非空）</b> — 帧压入后立即同步处理本帧所有监听器，处理完毕弹出再返回。
+     *       外层 {@code settle()} 循环继续处理栈中剩余帧。</li>
+     * </ul>
+     *
+     * <h4>顺序保证</h4>
+     * <p>同一监听器中顺序发布的多个事件按 <b>FIFO</b> 顺序处理：</p>
+     * <pre>{@code
+     * publish(A); // A 的所有监听器执行完毕 → 返回
+     * publish(B); // B 的所有监听器执行完毕 → 返回
+     * }</pre>
+     *
+     * <p>监听器中嵌套发布的事件按 <b>LIFO</b> 处理（子事件优先于父事件的后续监听器）：</p>
+     * <pre>{@code
+     * listener_of_A:            // 处理 A 的监听器
+     *     publish(B);           // B 的所有监听器立即执行
+     *     // B（以及 B 嵌套的事件）全部处理完
+     *     // 才继续 A 监听器的后续代码
+     * }</pre>
      *
      * @param event 事件对象
      * @param match 当前对局实例（必须有结算栈）
@@ -180,11 +194,17 @@ public class EventBus {
                     event.getType(), event.getSourceId(), stack.size());
         }
 
-        // 4) 如果栈此前为空，启动 settle 循环
+        // 4) 始终同步处理本帧
         if (stack.size() == 1) {
+            // 结算栈为空 → 启动 settle 循环（处理所有帧直到栈空）
             settle(match);
+        } else {
+            // 结算栈非空 → 立即同步处理本帧所有监听器，然后弹出
+            // 保证同一监听器中顺序发布的 sibling 事件按 FIFO 执行
+            processFrameSync(frame);
+            // 使用引用相等 (==) 移除，避免 @Data 的 equals 误删其他帧
+            stack.removeIf(f -> f == frame);
         }
-        // 如果栈此前非空，说明正在外层 settle() 中，新帧会由外层循环的下次迭代处理
     }
 
     /**
@@ -325,6 +345,45 @@ public class EventBus {
         }
 
         return false; // 可能还有更多监听器，由 caller 重新检查
+    }
+
+    /**
+     * 同步处理栈帧 — 按优先级顺序执行帧内所有监听器
+     *
+     * <p>与 {@link #dispatchNext} 不同，此方法一次性执行完帧的所有监听器，
+     * 而不是逐个由 settle() 循环驱动。用于嵌套发布场景（栈非空时），
+     * 保证当前帧的监听器全部处理完再返回给调用者。</p>
+     *
+     * <p>处理期间如果监听器嵌套发布了新事件（调用 {@link #publish(GameEvent, GameMatch)}），
+     * 新事件帧会被推入结算栈并通过递归调用本方法同步处理，然后恢复当前帧的后续监听器。
+     * 即嵌套事件按 <b>LIFO</b>（后进先出）语义处理。</p>
+     */
+    private void processFrameSync(SettlementFrame frame) {
+        List<EventListener> listeners = frame.getListeners();
+        if (listeners == null || listeners.isEmpty()) {
+            frame.setCompleted(true);
+            return;
+        }
+
+        GameEvent event = frame.getEvent();
+
+        for (int i = 0; i < listeners.size(); i++) {
+            // 检查事件是否被取消
+            if (event.isCancelled()) {
+                break;
+            }
+
+            EventListener listener = listeners.get(i);
+            try {
+                listener.onEvent(event, frame.getMatch());
+            } catch (Exception e) {
+                log.error("[事件] 监听器执行异常 [type={}, source={}]",
+                        event.getType(), event.getSourceId(), e);
+            }
+        }
+
+        frame.setCompleted(true);
+        frame.setListenerCursor(listeners.size());
     }
 
     // ================================================================
