@@ -13,6 +13,7 @@ import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.game.event.DrawCardEvent;
 import com.lbthreecountry.game.hero.HeroManager;
+import com.lbthreecountry.game.distance.DistanceManager;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
 import com.lbthreecountry.model.enums.impl.RoomStatus;
@@ -66,6 +67,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final HeroManager heroManager;
     private final CardPlayabilityChecker cardPlayabilityChecker;
     private final EventBus eventBus;
+    private final DistanceManager distanceManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 机器人自动推进调度器 */
@@ -230,6 +232,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "SELECT_HERO"          -> handleSelectHero(session, playerSession, msg);
             case "CLIENT_READY"         -> handleClientReady(playerSession);
             case "NEXT_PHASE"           -> handleNextPhase(session, playerSession);
+            case "VIEW_DISTANCE"        -> handleViewDistance(session, playerSession, msg);
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -721,6 +724,52 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 cb.run();
             }
         }
+    }
+
+    // ──────────────────────────────────────────────
+    //  距离
+    // ──────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void handleViewDistance(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
+        String playerId = (String) msg.get("playerId");
+        if (playerId == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "缺少 playerId"));
+            return;
+        }
+
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "玩家不在房间中"));
+            return;
+        }
+
+        GameMatch match = gameService.getMatch(room.getRoomId());
+        if (match == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "对局不存在"));
+            return;
+        }
+
+        GamePlayer from = match.findPlayer(playerId);
+        if (from == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "玩家不在对局中"));
+            return;
+        }
+
+        // 收集所有存活玩家，用 DistanceManager 获取距离
+        java.util.Map<String, Integer> distances = new java.util.LinkedHashMap<>();
+        for (GamePlayer target : match.getPlayers()) {
+            if (target.isAlive() && !target.getPlayerId().equals(playerId)) {
+                int dist = distanceManager.getDistance(match, from, target);
+                distances.put(target.getPlayerId(), dist);
+            }
+        }
+
+        sendJson(session, Map.of(
+                "type", "VIEW_DISTANCE",
+                "playerId", playerId,
+                "distances", distances
+        ));
     }
 
     // ──────────────────────────────────────────────

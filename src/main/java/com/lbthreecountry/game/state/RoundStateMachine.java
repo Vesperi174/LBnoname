@@ -21,12 +21,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * <h3>状态流转</h3>
  * <pre>
  * ┌──────────────────────────────────────────────────────────────┐
- * │  监听 BATTLE_START 事件触发（轮次初始化为 0）                  │
+ * │  监听 BATTLE_START 事件触发                                    │
  * │                                                              │
- * │   ┌────────────────┐    ① round++ (0→1)                     │
- * │   │  ROUND_START   │ ── ② ROUND.START 钩子事件               │
- * │   │  (第 x 轮开始)  │    ③ 钩子走完 → PLAYER_TURN             │
- * │   └───────┬────────┘                                        │
+ * │   ┌────────────────┐                                         │
+ * │   │  ROUND_START   │ ── ① ROUND.ROLL 事件（RoundController 处理轮次递增）│
+ * │   │  (第 x 轮开始)  │ ── ② ROUND.START 钩子事件               │
+ * │   └───────┬────────┘    ③ 钩子走完 → PLAYER_TURN             │
  * │           │                                                  │
  * │           ▼                                                  │
  * │   ┌────────────────┐    ① ROUND.TURN_START 钩子              │
@@ -36,35 +36,28 @@ import java.util.concurrent.ConcurrentHashMap;
  * │           │                                                  │
  * │           ▼                                                  │
  * │   ┌────────────────┐    ① ROUND.END 钩子事件                  │
- * │   │  ROUND_END     │ ── ② 回到 ROUND_START（内部 round++）    │
+ * │   │  ROUND_END     │ ── ② 回到 ROUND_START（RoundController 递增轮次）│
  * │   │  (第 x 轮结束)  │                                        │
  * │   └────────────────┘                                        │
  * │           │                                                  │
  * │           ▼  (下一轮)                                         │
  * │   ┌────────────────┐                                        │
- * │   │  ROUND_START   │  ← round++ (x→x+1) → ROUND.START       │
+ * │   │  ROUND_START   │  ← ROUND.ROLL → ROUND.START            │
  * │   │  (第 x+1 轮)    │    → PLAYER_TURN                        │
  * │   └────────────────┘                                        │
  * └──────────────────────────────────────────────────────────────┘
  *
+ * <h3>轮次记录</h3>
+ * <p>轮次数值由 {@link RoundController} 独⾃管理，状态机内不维护 round 字段，
+ * 如需当前轮次请读取 {@link GameMatch#getCurrentRound()}。</p>
+ *
  * <h3>集成说明</h3>
  * <ul>
- *   <li>由 {@link #onBattleStart(GameEvent, GameMatch)} 监听 BATTLE_START 启动第 1 轮
- *       （轮次初始化为 0，进入 ROUND_START 后 +1）</li>
+ *   <li>由 {@link #onBattleStart(GameEvent, GameMatch)} 监听 BATTLE_START 启动第 1 轮</li>
  *   <li>由 {@link #onRoundComplete(GameMatch)} 被 {@code GameServiceImpl.nextTurn()} 调用，
  *       在检测到 {@code nextIndex == 0}（所有存活玩家均完成一轮）时触发</li>
  *   <li>轮次切换在 {@code onRoundComplete()} 内部同步完成：
- *       ROUND.END → ROUND_START(round++ → ROUND.START → PLAYER_TURN)</li>
- *   <li>{@code nextTurn()} 中不再直接操作 round 增减和事件发布，
- *       全部委托给状态机处理</li>
- * </ul>
- *
- * <h3>轮次+1 时机</h3>
- * <p>轮次递增统一在 {@link RoundPhase#ROUND_START} 状态入口处完成：</p>
- * <ul>
- *   <li>游戏初始化时 {@code match.currentRound = 0}</li>
- *   <li>首次 {@code enterRoundStart()} → 0→1（第 1 轮）</li>
- *   <li>每轮结束后回到 {@code enterRoundStart()} → +1（第 n+1 轮）</li>
+ *       ROUND.END → 回到 ROUND_START → ROUND.ROLL(RoundController递增) → ROUND.START → PLAYER_TURN</li>
  * </ul>
  *
  * <h3>终止条件</h3>
@@ -110,8 +103,6 @@ public class RoundStateMachine {
     private static class RoundState {
         /** 当前轮次阶段 */
         private RoundPhase phase = RoundPhase.IDLE;
-        /** 当前轮次数（从 1 开始） */
-        private int currentRound = 0;
     }
 
     // ================================================================
@@ -122,7 +113,10 @@ public class RoundStateMachine {
     public void init() {
         // 监听 BATTLE_START 事件，触发第 1 轮启动
         eventBus.register(GameEventType.BATTLE_START, EventPriority.ENGINE, this::onBattleStart);
-        log.info("[轮次状态机] 已注册 BATTLE_START 监听器");
+        // 监听自己的轮次钩子——通过事件驱动状态转移
+        eventBus.register(GameEventType.ROUND_START, EventPriority.ENGINE, this::onRoundStart);
+        eventBus.register(GameEventType.ROUND_END,   EventPriority.ENGINE, this::onRoundEnd);
+        log.info("[轮次状态机] 已注册 BATTLE_START / ROUND_START / ROUND_END 监听器");
     }
 
     @PreDestroy
@@ -131,25 +125,59 @@ public class RoundStateMachine {
     }
 
     // ================================================================
-    //  事件回调
+    //  事件回调 — 驱动状态转移
     // ================================================================
 
     /**
      * BATTLE_START 事件处理 — 启动第 1 轮
      *
-     * <p>进入 {@link RoundPhase#ROUND_START} 状态，发布 ROUND.START 钩子事件，
-     * 然后转入 {@link RoundPhase#PLAYER_TURN} 状态等待玩家回合驱动。</p>
+     * <p>轮次初始化由 {@link RoundController} 在 ROUND.ROLL 事件中处理，
+     * 此处仅创建状态并进入 {@link RoundPhase#ROUND_START}。</p>
      */
     private void onBattleStart(GameEvent event, GameMatch match) {
         String roomId = match.getRoomId();
         if (roomId == null) return;
 
         RoundState state = getOrCreateState(roomId);
-        // 轮次初始化为 0，由 enterRoundStart() 负责 +1
-        state.setCurrentRound(0);
-        match.setCurrentRound(0);
 
         log.info("[轮次状态机]  BATTLE_START → 进入第 1 轮·开始阶段");
+        enterRoundStart(match, state);
+    }
+
+    /**
+     * ROUND.START 事件回调 — 轮次正式开始
+     *
+     * <p>当 {@link #enterRoundStart} 发布 ROUND.START 事件后，
+     * 此监听器在 {@link EventPriority#ENGINE ENGINE} 优先级下执行
+     *（在所有技能、卡牌效果之后），然后转入玩家回合状态机。</p>
+     *
+     * <p>此钩子只有状态机自己监听，safe。</p>
+     */
+    private void onRoundStart(GameEvent event, GameMatch match) {
+        String roomId = match.getRoomId();
+        if (roomId == null) return;
+
+        RoundState state = states.get(roomId);
+        if (state == null || state.getPhase() != RoundPhase.ROUND_START) return;
+
+        log.info("[轮次状态机]  ROUND.START 钩子走完 → 转入玩家回合阶段");
+        enterPlayerTurn(match, state);
+    }
+
+    /**
+     * ROUND.END 事件回调 — 轮次正式结束
+     *
+     * <p>当 {@link #enterRoundEnd} 发布 ROUND.END 事件后，
+     * 此监听器在 ENGINE 优先级下执行，然后自动进入下一轮的 ROUND_START。</p>
+     */
+    private void onRoundEnd(GameEvent event, GameMatch match) {
+        String roomId = match.getRoomId();
+        if (roomId == null) return;
+
+        RoundState state = states.get(roomId);
+        if (state == null || state.getPhase() != RoundPhase.ROUND_END) return;
+
+        log.info("[轮次状态机]  ROUND.END 钩子走完 → 进入第 {} 轮·开始阶段", match.getCurrentRound() + 1);
         enterRoundStart(match, state);
     }
 
@@ -162,33 +190,38 @@ public class RoundStateMachine {
      *
      * <p>内部顺序：</p>
      * <ol>
-     *   <li><b>轮次 +1</b>（游戏初始化时轮次为 0，首次进入 → 第 1 轮）</li>
+     * <li>发布 {@link GameEventType#ROUND_ROLL} 事件 → {@link RoundController} 完成 round++</li>
      *   <li>发布 {@link GameEventType#ROUND_START} 钩子事件</li>
-     *   <li>所有钩子走完后自动转入 {@link #enterPlayerTurn(GameMatch, RoundState)}</li>
+     *   <li>触发 {@link #onRoundStart} 监听器完成下一状态转移</li>
      * </ol>
      */
     private void enterRoundStart(GameMatch match, RoundState state) {
         state.setPhase(RoundPhase.ROUND_START);
 
-        // ── ① 轮次 +1（通知轮次控制器） ──
-        int round = state.getCurrentRound() + 1;
-        state.setCurrentRound(round);
-        match.setCurrentRound(round);
+        int round = match.getCurrentRound();
+        log.info("[轮次状态机]  第 {} 轮前·推进阶段 — 发布 ROUND.ROLL 事件", round + 1);
 
-        log.info("[轮次状态机]  第 {} 轮·开始阶段 — 发布 ROUND.START 事件", round);
+        // ── ① 发布 ROUND.ROLL（同步阻塞）→ RoundController round++ ──
+        GameEvent rollEvent = GameEvent.builder()
+                .type(GameEventType.ROUND_ROLL)
+                .sourceId("system")
+                .build();
+        rollEvent.putData("roomId", match.getRoomId());
+        rollEvent.putData("round", round);
+        eventBus.publish(rollEvent, match);
 
-        // ── ② 发布 ROUND.START 事件（同步阻塞，等所有钩子走完） ──
+        int newRound = match.getCurrentRound();
+        log.info("[轮次状态机]  第 {} 轮·开始阶段 — 发布 ROUND.START 事件", newRound);
+
+        // ── ② 发布 ROUND.START（同步阻塞）→ onRoundStart → enterPlayerTurn ──
         GameEvent roundStartEvent = GameEvent.builder()
                 .type(GameEventType.ROUND_START)
                 .sourceId("system")
                 .build();
         roundStartEvent.putData("roomId", match.getRoomId());
-        roundStartEvent.putData("round", round);
+        roundStartEvent.putData("round", newRound);
         roundStartEvent.putData("totalTurns", match.getTotalTurns());
         eventBus.publish(roundStartEvent, match);
-
-        // ── ③ 所有钩子事件走完，转入玩家回合状态机 ──
-        enterPlayerTurn(match, state);
     }
 
     /**
@@ -206,7 +239,7 @@ public class RoundStateMachine {
      */
     private void enterPlayerTurn(GameMatch match, RoundState state) {
         state.setPhase(RoundPhase.PLAYER_TURN);
-        int round = state.getCurrentRound();
+        int round = match.getCurrentRound();
 
         log.info("[轮次状态机] 🎮 第 {} 轮·玩家回合阶段 — 发布 ROUND.TURN_START 事件", round);
 
@@ -229,11 +262,11 @@ public class RoundStateMachine {
      *
      * <p>发布 {@link GameEventType#ROUND_END} 钩子事件，所有监听器执行完毕后，
      * 自动回到 {@link #enterRoundStart(GameMatch, RoundState)} 开启下一轮
-     *（轮次递增在 {@code enterRoundStart} 中完成）。</p>
+     *（轮次递增由 {@link RoundController} 在 ROUND.ROLL 事件中处理）。</p>
      */
     private void enterRoundEnd(GameMatch match, RoundState state) {
         state.setPhase(RoundPhase.ROUND_END);
-        int round = state.getCurrentRound();
+        int round = match.getCurrentRound();
 
         log.info("[轮次状态机] 🔚 第 {} 轮·结束阶段 — 发布 ROUND.END 事件", round);
 
@@ -246,9 +279,8 @@ public class RoundStateMachine {
         roundEndEvent.putData("round", round);
         roundEndEvent.putData("totalTurns", match.getTotalTurns());
         eventBus.publish(roundEndEvent, match);
-
-        // ── 所有钩子走完，进入下一轮的"开始时"状态（内部会轮次+1） ──
-        enterRoundStart(match, state);
+        // ── publish 返回后，onRoundEnd 监听器已执行完毕
+        //    （包括其内的 enterRoundStart → 下一轮 ROUND.START → onRoundStart → enterPlayerTurn）──
     }
 
     // ================================================================
@@ -291,7 +323,7 @@ public class RoundStateMachine {
         }
 
         log.info("[轮次状态机] ✅ 第 {} 轮所有玩家回合完成 → 进入结束阶段",
-                state.getCurrentRound());
+                match.getCurrentRound());
 
         enterRoundEnd(match, state);
         return true;
@@ -310,17 +342,6 @@ public class RoundStateMachine {
     public RoundPhase getCurrentPhase(String roomId) {
         RoundState state = states.get(roomId);
         return state != null ? state.getPhase() : RoundPhase.IDLE;
-    }
-
-    /**
-     * 获取指定房间的当前轮次数
-     *
-     * @param roomId 房间 ID
-     * @return 轮次数（从 1 开始），如果房间不存在则返回 0
-     */
-    public int getCurrentRound(String roomId) {
-        RoundState state = states.get(roomId);
-        return state != null ? state.getCurrentRound() : 0;
     }
 
     /**

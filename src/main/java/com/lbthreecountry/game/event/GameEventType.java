@@ -77,6 +77,15 @@ public final class GameEventType {
     // ================================================================
 
     /**
+     * 轮次推进 — 进入 ROUND_START 之前由 RoundStateMachine 发布
+     *
+     * <p>此钩子仅由 {@code RoundStateMachine} 自己监听（ENGINE 优先级），
+     * 用于将当前轮次 +1。拆成独立钩子的目的是让所有状态变化都走事件驱动，
+     * 便于后续扩展（如监听轮次递增做日志、统计等）。</p>
+     */
+    public static final String ROUND_ROLL = "ROUND.ROLL";
+
+    /**
      * 轮次开始 — 第 x 轮开始时由 RoundStateMachine 发布
      * <p>监听此事件可在每轮开始时执行逻辑（如重置全局标记、触发每轮一次的技能）。</p>
      */
@@ -95,6 +104,26 @@ public final class GameEventType {
      * 此事件发布后，外部驱动应开始调度第 1 个玩家的回合。</p>
      */
     public static final String ROUND_TURN_START = "ROUND.TURN_START";
+
+    // ================================================================
+    //  距离
+    // ================================================================
+
+    /**
+     * 距离计算 — 由 DistanceManager 在计算两名玩家距离时发布
+     *
+     * <p>监听者可修改事件数据中的 {@code distance} 字段来影响最终距离值。
+     * 事件数据格式：</p>
+     * <pre>{@code
+     * {
+     *   "fromId": "<源玩家ID>",
+     *   "toId":   "<目标玩家ID>",
+     *   "seatDistance": 2,       // 座次原始距离（不可修改）
+     *   "distance": 2            // 最终距离（监听器可修改）
+     * }
+     * }</pre>
+     */
+    public static final String DISTANCE_CALC = "DISTANCE.CALC";
 
     // ================================================================
     //  阶段钩子生成方法

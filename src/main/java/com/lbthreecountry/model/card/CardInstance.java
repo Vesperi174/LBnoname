@@ -103,7 +103,7 @@ public class CardInstance {
             case "guohe" -> CardSubType.GUOHE;
             case "wuxie" -> CardSubType.WUXIE;
             // 装备牌
-            case "qinglong_blade" -> CardSubType.QINGLONG;
+            case "qinglong" -> CardSubType.QINGLONG;
             case "zhangba" -> CardSubType.ZHANGBA;
             case "fangtian" -> CardSubType.FANGTIAN;
             case "renwang" -> CardSubType.RENWANG;
@@ -120,8 +120,11 @@ public class CardInstance {
         return switch (defId) {
             case "sha", "shan", "tao", "jiu" -> CardType.BASIC;
             case "juedou", "nanman", "wanjian", "taoyuan", "wuzhong",
-                 "shunshou", "guohe", "wuxie" -> CardType.STRATEGY;
-            case "qinglong_blade", "zhangba", "fangtian", "renwang", "bagua" -> CardType.EQUIPMENT;
+                 "shunshou", "guohe", "wuxie",
+                 "lebu", "shandian" -> CardType.STRATEGY;
+            case "qinglong", "zhangba", "fangtian", "renwang", "bagua",
+                 "zhuge", "guanshi", "qinggang", "cixiong",
+                 "chitu", "dawan", "dilu", "zixin" -> CardType.EQUIPMENT;
             default -> null;
         };
     }

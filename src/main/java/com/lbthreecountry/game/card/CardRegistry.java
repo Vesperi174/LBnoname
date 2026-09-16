@@ -205,6 +205,24 @@ public class CardRegistry {
                         .rangeLimit(1)
                         .build())
                 .build());
+
+        register(CardDef.builder()
+                .id("lebu")
+                .type("STRATEGY").subType("LEBU")
+                .rules(CardRules.builder()
+                        .targetCount(1)
+                        .targetType("ENEMY")
+                        .rangeLimit(1)
+                        .build())
+                .build());
+
+        register(CardDef.builder()
+                .id("shandian")
+                .type("STRATEGY").subType("SHANDIAN")
+                .rules(CardRules.builder()
+                        .targetCount(0)
+                        .build())
+                .build());
     }
 
     // ================================================================
@@ -212,12 +230,54 @@ public class CardRegistry {
     // ================================================================
 
     private void registerEquipmentCards() {
+        // ── 武器 ──
+
         register(CardDef.builder()
-                .id("qinglong_blade")
+                .id("qinglong")
                 .type("EQUIPMENT").subType("QINGLONG")
                 .rules(CardRules.builder()
                         .equipSlot("WEAPON")
                         .attackRange(3)
+                        .targetCount(0)
+                        .build())
+                .build());
+
+        register(CardDef.builder()
+                .id("zhuge")
+                .type("EQUIPMENT").subType("ZHUGENU")
+                .rules(CardRules.builder()
+                        .equipSlot("WEAPON")
+                        .attackRange(1)
+                        .targetCount(0)
+                        .build())
+                .build());
+
+        register(CardDef.builder()
+                .id("guanshi")
+                .type("EQUIPMENT").subType("GUANSHI")
+                .rules(CardRules.builder()
+                        .equipSlot("WEAPON")
+                        .attackRange(3)
+                        .targetCount(0)
+                        .build())
+                .build());
+
+        register(CardDef.builder()
+                .id("qinggang")
+                .type("EQUIPMENT").subType("QINGGANG")
+                .rules(CardRules.builder()
+                        .equipSlot("WEAPON")
+                        .attackRange(2)
+                        .targetCount(0)
+                        .build())
+                .build());
+
+        register(CardDef.builder()
+                .id("cixiong")
+                .type("EQUIPMENT").subType("CIXIONG")
+                .rules(CardRules.builder()
+                        .equipSlot("WEAPON")
+                        .attackRange(2)
                         .targetCount(0)
                         .build())
                 .build());
@@ -280,8 +340,8 @@ public class CardRegistry {
                 .build());
 
         register(CardDef.builder()
-                .id("da_yuan")
-                .type("EQUIPMENT").subType("QINGLONG")
+                .id("dawan")
+                .type("EQUIPMENT").subType("DAWAN")
                 .rules(CardRules.builder()
                         .equipSlot("MOUNT_MINUS")
                         .targetCount(0)
@@ -289,8 +349,8 @@ public class CardRegistry {
                 .build());
 
         register(CardDef.builder()
-                .id("di_lu")
-                .type("EQUIPMENT").subType("QINGLONG")
+                .id("dilu")
+                .type("EQUIPMENT").subType("DILU")
                 .rules(CardRules.builder()
                         .equipSlot("MOUNT_PLUS")
                         .targetCount(0)
@@ -298,8 +358,8 @@ public class CardRegistry {
                 .build());
 
         register(CardDef.builder()
-                .id("zi_yan")
-                .type("EQUIPMENT").subType("QINGLONG")
+                .id("zixin")
+                .type("EQUIPMENT").subType("ZIXIN")
                 .rules(CardRules.builder()
                         .equipSlot("MOUNT_PLUS")
                         .targetCount(0)
