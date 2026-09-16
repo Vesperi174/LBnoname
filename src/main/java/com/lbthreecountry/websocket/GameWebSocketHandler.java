@@ -7,9 +7,11 @@ import com.lbthreecountry.entity.RoomPlayer;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
+import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
 import com.lbthreecountry.model.enums.impl.RoomStatus;
+import com.lbthreecountry.model.hero.BaseHero;
 import com.lbthreecountry.model.player.PlayerInfo;
 import com.lbthreecountry.model.player.PlayerSession;
 import com.lbthreecountry.service.GameService;
@@ -55,6 +57,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final RoomService roomService;
     private final GameService gameService;
     private final CardManager cardManager;
+    private final HeroManager heroManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 机器人自动推进调度器 */
@@ -178,6 +181,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "LIST_ONLINE_PLAYERS" -> broadcastOnlinePlayers();
             case "UPDATE_ROOM_SETTINGS" -> handleUpdateRoomSettings(session, playerSession, msg);
             case "PLAY_CARD"            -> handlePlayCard(session, playerSession, msg);
+            case "SELECT_HERO"          -> handleSelectHero(session, playerSession, msg);
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -432,6 +436,23 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                     "turnTime", turnTime
             ), null);
 
+            // ── 身份分发完毕，向前端日志推送身份分配信息 ──
+            List<Map<String, Object>> roleLogEntries = match.getPlayers().stream()
+                    .sorted(java.util.Comparator.comparingInt(GamePlayer::getGameSeat))
+                    .<Map<String, Object>>map(gp -> Map.of(
+                            "playerName", (Object) gp.getPlayerName(),
+                            "gameSeat", (Object) gp.getGameSeat(),
+                            "role", (Object) gp.getRole().getDescription()
+                    ))
+                    .toList();
+            broadcastToRoom(room, Map.of(
+                    "type", "GAME_LOG",
+                    "category", "ROLE_ASSIGNMENT",
+                    "message", "身份分发完成",
+                    "playerCount", match.getPlayers().size(),
+                    "details", roleLogEntries
+            ), null);
+
             // 私发每个玩家自己的手牌和身份
             for (GamePlayer gp : match.getPlayers()) {
                 sessionManager.sendMessage(gp.getPlayerId(), toJson(Map.of(
@@ -460,18 +481,96 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 )));
             }
 
-            // 广播第一回合开始（含轮次和牌堆信息）
-            broadcastToRoom(room, buildTurnStartMessage(match, turnTime), null);
+            // ── 进入武将选择阶段：给主公推送候选武将 ──
+            GamePlayer lord = match.currentPlayer(); // gameSeat 0 = 主公
+            if (lord != null) {
+                // 随机抽取 3 个武将给主公选
+                List<BaseHero> candidates = heroManager.pickRandomHeroes(3, List.of());
+                List<Map<String, Object>> candidateList = candidates.stream()
+                        .map(heroManager::heroToMap)
+                        .toList();
 
-            // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY（战报可见每个阶段）
-            autoAdvanceToPlay(room.getRoomId(), room);
+                sessionManager.sendMessage(lord.getPlayerId(), toJson(Map.of(
+                        "type", "HERO_SELECT_OPTIONS",
+                        "candidates", candidateList,
+                        "timeout", 30 // 30秒内需选择
+                )));
 
-            // 如果当前玩家是 Bot（例如全部为 Bot 的测试场景），触发自动推进
-            triggerBotIfNeeded(room.getRoomId());
+                log.info("[武将选择] 主公 {} 收到 {} 个武将候选",
+                        lord.getPlayerName(), candidates.size());
+
+                // 如果主公是 Bot，自动选择第一个候选武将
+                if (lord.isBot() && !candidates.isEmpty()) {
+                    String autoHeroId = candidates.get(0).getHeroId();
+                    log.info("[武将选择] 主公 {} 是 Bot，自动选择武将 [{}]",
+                            lord.getPlayerName(), autoHeroId);
+
+                    gameService.selectHero(room.getRoomId(), lord.getPlayerId(), autoHeroId);
+                    broadcastHeroSelectionAndStartGame(room, match, turnTime);
+                }
+            }
 
             // 通知大厅中的玩家房间状态已更新
             broadcastRoomList();
             broadcastOnlinePlayers();
+
+        } catch (IllegalStateException e) {
+            sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  武将选择
+    // ──────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    private void handleSelectHero(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "你不在任何房间中"));
+            return;
+        }
+
+        String roomId = room.getRoomId();
+        String heroId = (String) msg.get("heroId");
+        if (heroId == null || heroId.isEmpty()) {
+            sendJson(session, Map.of("type", "ERROR", "message", "缺少 heroId"));
+            return;
+        }
+
+        // 校验武将 ID 是否存在
+        if (heroManager.getHero(heroId) == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "武将不存在: " + heroId));
+            return;
+        }
+
+        try {
+            // 记录主公选择的武将
+            GameMatch match = gameService.selectHero(roomId, playerId, heroId);
+
+            // 通知主公选择成功（并附带武将完整信息供前端展示）
+            BaseHero hero = heroManager.getHero(heroId);
+            sendJson(session, Map.of(
+                    "type", "HERO_SELECTED",
+                    "playerId", playerId,
+                    "hero", heroManager.heroToMap(hero)
+            ));
+
+            log.info("[武将选择] 主公 {} 选择了 [{}]", playerSession.getPlayer().getName(), heroId);
+
+            // ── 完成剩余武将自动分配 + 启动回合 ──
+            match = gameService.completeHeroSelection(roomId);
+
+            // 获取出手时间
+            int turnTime = 15;
+            Map<String, Object> settings = room.getRoomSettings();
+            if (settings != null && settings.get("turnTime") instanceof Number) {
+                turnTime = ((Number) settings.get("turnTime")).intValue();
+            }
+
+            // 广播武将分配结果 + 启动回合
+            broadcastHeroAssignmentAndTurn(room, match, turnTime);
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
@@ -600,7 +699,38 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        // 更新设置
+        // ── 处理 maxPlayers 动态修改 ──
+        if (settings.containsKey("maxPlayers")) {
+            Object maxPlayersObj = settings.get("maxPlayers");
+            int newMaxPlayers;
+            if (maxPlayersObj instanceof Number) {
+                newMaxPlayers = ((Number) maxPlayersObj).intValue();
+            } else {
+                sendJson(session, Map.of("type", "ERROR", "message", "maxPlayers 必须是数字"));
+                return;
+            }
+
+            // 取值范围：2 ~ 8
+            if (newMaxPlayers < 2 || newMaxPlayers > 8) {
+                sendJson(session, Map.of("type", "ERROR", "message", "maxPlayers 取值范围为 2 ~ 8"));
+                return;
+            }
+
+            // 不能小于当前 playerCount
+            if (newMaxPlayers < room.getPlayerCount()) {
+                sendJson(session, Map.of(
+                        "type", "ERROR",
+                        "message", "maxPlayers 不能小于当前玩家数（" + room.getPlayerCount() + "）"
+                ));
+                return;
+            }
+
+            // 更新房间的 maxPlayers 字段
+            room.setMaxPlayers(newMaxPlayers);
+            System.out.println("[房间] 最大人数已更新: " + newMaxPlayers);
+        }
+
+        // 更新其他设置
         room.getRoomSettings().putAll(settings);
         System.out.println("[房间] 设置已更新: " + settings);
 
@@ -783,6 +913,58 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     }
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GameWebSocketHandler.class);
+
+    // ──────────────────────────────────────────────
+    //  武将选择流程辅助方法
+    // ──────────────────────────────────────────────
+
+    /**
+     * Bot 主公自动选将后：完成所有玩家武将分配 + 广播 + 启动回合
+     */
+    private void broadcastHeroSelectionAndStartGame(GameRoom room, GameMatch match, int turnTime) {
+        GameMatch updated = gameService.completeHeroSelection(room.getRoomId());
+        broadcastHeroAssignmentAndTurn(room, updated, turnTime);
+    }
+
+    /**
+     * 主公选择（含 Bot 自动选择）完成后：广播武将分配 + 启动第一回合
+     */
+    private void broadcastHeroAssignmentAndTurn(GameRoom room, GameMatch match, int turnTime) {
+        String roomId = room.getRoomId();
+
+        // 广播所有玩家武将信息
+        List<Map<String, Object>> heroAssignmentList = match.getPlayers().stream()
+                .map(gp -> {
+                    Map<String, Object> entry = new java.util.HashMap<>();
+                    entry.put("playerId", gp.getPlayerId());
+                    entry.put("playerName", gp.getPlayerName());
+                    entry.put("gameSeat", gp.getGameSeat());
+                    entry.put("heroId", gp.getHeroId());
+                    BaseHero h = gp.getHeroId() != null ? heroManager.getHero(gp.getHeroId()) : null;
+                    entry.put("heroName", h != null ? h.getHeroName() : null);
+                    entry.put("maxHp", gp.getMaxHp());
+                    entry.put("currentHp", gp.getCurrentHp());
+                    entry.put("kingdomCode", h != null && h.getKingdom() != null ? h.getKingdom().getCode() : null);
+                    entry.put("kingdomName", h != null && h.getKingdom() != null ? h.getKingdom().getDescription() : null);
+                    entry.put("kingdomColor", h != null && h.getKingdom() != null ? h.getKingdom().getColor() : null);
+                    return entry;
+                })
+                .toList();
+
+        broadcastToRoom(room, Map.of(
+                "type", "HERO_ASSIGNMENT",
+                "heroes", heroAssignmentList
+        ), null);
+
+        // 广播第一回合开始（含轮次和牌堆信息）
+        broadcastToRoom(room, buildTurnStartMessage(match, turnTime), null);
+
+        // 自动快速推进 PREPARE → JUDGE → DRAW → PLAY
+        autoAdvanceToPlay(roomId, room);
+
+        // 如果当前玩家是 Bot，触发自动推进
+        triggerBotIfNeeded(roomId);
+    }
 
     /**
      * 广播阶段变更（PHASE_CHANGE — 供前端渲染界面）

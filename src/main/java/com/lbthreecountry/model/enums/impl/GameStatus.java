@@ -10,8 +10,9 @@ import com.lbthreecountry.model.enums.utils.EnumUtils;
  */
 public enum GameStatus implements BaseEnum {
     INIT(0, "初始化"),
-    PLAYING(1, "进行中"),
-    FINISHED(2, "已结束");
+    HERO_SELECT(1, "武将选择"),
+    PLAYING(2, "进行中"),
+    FINISHED(3, "已结束");
 
     private final Integer code;
     private final String description;

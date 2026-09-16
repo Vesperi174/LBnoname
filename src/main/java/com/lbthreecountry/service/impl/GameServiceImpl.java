@@ -6,6 +6,7 @@ import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
 import com.lbthreecountry.game.card.EffectEngine;
+import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
@@ -16,6 +17,7 @@ import com.lbthreecountry.model.enums.impl.GameStatus;
 import com.lbthreecountry.model.enums.impl.PlayerStatus;
 import com.lbthreecountry.model.enums.impl.RoleType;
 import com.lbthreecountry.model.enums.impl.RoomStatus;
+import com.lbthreecountry.model.hero.BaseHero;
 import com.lbthreecountry.model.player.PlayerInfo;
 import com.lbthreecountry.service.GameService;
 import com.lbthreecountry.service.RoomService;
@@ -43,6 +45,7 @@ public class GameServiceImpl implements GameService {
     private final EventBus eventBus;
     private final CardManager cardManager;
     private final EffectEngine effectEngine;
+    private final HeroManager heroManager;
 
     /** roomId → GameMatch */
     private final Map<String, GameMatch> matchMap = new ConcurrentHashMap<>();
@@ -559,7 +562,7 @@ public class GameServiceImpl implements GameService {
                 .otherPile(new ArrayList<>())
                 .currentRound(1)
                 .totalTurns(1)
-                .status(GameStatus.PLAYING)
+                .status(GameStatus.HERO_SELECT)
                 .build();
 
         room.setStatus(RoomStatus.IN_PROGRESS);
@@ -573,9 +576,28 @@ public class GameServiceImpl implements GameService {
             cardManager.draw(match, gp, 4);
         }
 
-        log.info("[游戏] 对局创建成功 ({} 人, {})", gamePlayers.size(), identityConfig);
+        log.info("[游戏] 对局创建成功 ({} 人, {}), 等待主公选择武将", gamePlayers.size(), identityConfig);
 
-        // 发布 GAME_START 事件
+        // ── 身份分发完毕，输出详细信息到控制台 ──
+        System.out.println("═══════════════════════════════════════");
+        System.out.println("  身份分发完成 — 共 " + gamePlayers.size() + " 人");
+        System.out.println("═══════════════════════════════════════");
+        // 按座位排序输出
+        gamePlayers.stream()
+                .sorted(Comparator.comparingInt(GamePlayer::getGameSeat))
+                .forEach(gp -> {
+                    String roleIcon = switch (gp.getRole()) {
+                        case LORD    -> "👑";
+                        case MINION  -> "🛡️";
+                        case REBEL   -> "⚔️";
+                        case INTRUDER -> "🗡️";
+                    };
+                    System.out.printf("  [座位%d] %s %s — %s%n",
+                            gp.getGameSeat(), roleIcon, gp.getPlayerName(), gp.getRole().getDescription());
+                });
+        System.out.println("═══════════════════════════════════════");
+
+        // 发布 GAME_START 事件（不启动回合，等待武将选择完成）
         GameEvent startEvent = GameEvent.builder()
                 .type(GameEventType.GAME_START)
                 .sourceId("system")
@@ -594,44 +616,124 @@ public class GameServiceImpl implements GameService {
                 .toList());
         eventBus.publish(startEvent, match);
 
-        // 发布第一个回合的 TURN_BEFORE（玩家回合开始前）
-        GamePlayer firstPlayer = match.currentPlayer();
-        if (firstPlayer != null) {
-            GameEvent turnBefore = GameEvent.builder()
-                    .type(GameEventType.TURN_BEFORE)
-                    .sourceId(firstPlayer.getPlayerId())
-                    .build();
-            turnBefore.putData("roomId", roomId);
-            turnBefore.putData("playerId", firstPlayer.getPlayerId());
-            turnBefore.putData("playerName", firstPlayer.getPlayerName());
-            turnBefore.putData("gameSeat", firstPlayer.getGameSeat());
-            turnBefore.putData("round", match.getCurrentRound());
-            turnBefore.putData("totalTurns", match.getTotalTurns());
-            eventBus.publish(turnBefore, match);
-            log.info("[钩子] {} — {} 回合开始前",
-                    GameEventType.TURN_BEFORE, firstPlayer.getPlayerName());
-
-            // TURN_ACTIVE：回合进行中
-            GameEvent turnActive = GameEvent.builder()
-                    .type(GameEventType.TURN_ACTIVE)
-                    .sourceId(firstPlayer.getPlayerId())
-                    .build();
-            turnActive.putData("roomId", roomId);
-            turnActive.putData("playerId", firstPlayer.getPlayerId());
-            turnActive.putData("playerName", firstPlayer.getPlayerName());
-            turnActive.putData("gameSeat", firstPlayer.getGameSeat());
-            turnActive.putData("round", match.getCurrentRound());
-            turnActive.putData("totalTurns", match.getTotalTurns());
-            eventBus.publish(turnActive, match);
-            log.info("[钩子] {} — {} 回合进行中",
-                    GameEventType.TURN_ACTIVE, firstPlayer.getPlayerName());
-
-            // 再发布 PREPARE 阶段钩子
-            publishPhaseHook(match, GameEventType.phaseBefore(GamePhase.PREPARE), GamePhase.PREPARE);
-            publishPhaseHook(match, GameEventType.phaseActive(GamePhase.PREPARE), GamePhase.PREPARE);
-        }
-
         return match;
+    }
+
+    // ================================================================
+    //  武将选择
+    // ================================================================
+
+    @Override
+    public GameMatch selectHero(String roomId, String playerId, String heroId) {
+        GameMatch match = getMatch(roomId);
+        if (match == null) throw new IllegalStateException("对局不存在");
+        match.lock();
+        try {
+            if (match.getStatus() != GameStatus.HERO_SELECT) {
+                throw new IllegalStateException("当前不在武将选择阶段");
+            }
+
+            GamePlayer player = match.findPlayer(playerId);
+            if (player == null) throw new IllegalStateException("玩家不在对局中");
+            if (player.getRole() != RoleType.LORD) {
+                throw new IllegalStateException("只有主公才能选择武将");
+            }
+            if (player.getHeroId() != null) {
+                throw new IllegalStateException("已经选择过武将了");
+            }
+
+            // 记录主公选择的武将
+            player.setHeroId(heroId);
+
+            log.info("[武将选择] 主公 {} 选择了武将 [{}]", player.getPlayerName(), heroId);
+
+            return match;
+        } finally {
+            match.unlock();
+        }
+    }
+
+    @Override
+    public GameMatch completeHeroSelection(String roomId) {
+        GameMatch match = getMatch(roomId);
+        if (match == null) throw new IllegalStateException("对局不存在");
+        match.lock();
+        try {
+            if (match.getStatus() != GameStatus.HERO_SELECT) {
+                throw new IllegalStateException("当前不在武将选择阶段");
+            }
+
+            // 检查主公是否已选择
+            GamePlayer lord = match.currentPlayer(); // gameSeat 0
+            if (lord == null || lord.getHeroId() == null) {
+                throw new IllegalStateException("主公还未选择武将");
+            }
+
+            // 收集已被占用的 heroId
+            Set<String> usedIds = new HashSet<>();
+            if (lord.getHeroId() != null) usedIds.add(lord.getHeroId());
+
+            // 为其余玩家随机分配武将（每个玩家从剩余池中随机抽一个）
+            for (GamePlayer gp : match.getPlayers()) {
+                if (gp.getPlayerId().equals(lord.getPlayerId())) continue;
+                // 从英雄池中随机选一个未被占用的
+                List<BaseHero> candidates = heroManager.pickRandomHeroes(1, usedIds);
+                if (!candidates.isEmpty()) {
+                    gp.setHeroId(candidates.get(0).getHeroId());
+                    usedIds.add(candidates.get(0).getHeroId());
+                }
+            }
+
+            log.info("[武将选择] 所有玩家武将分配完成");
+
+            // ── 武将分配完成后，正式启动回合 ──
+            match.setStatus(GameStatus.PLAYING);
+            match.setCurrentPhase(GamePhase.PREPARE);
+            match.setCurrentRound(1);
+            match.setTotalTurns(1);
+            match.setCurrentPlayerIndex(0);
+
+            // 发布第一个回合的 TURN_BEFORE（玩家回合开始前）
+            GamePlayer firstPlayer = match.currentPlayer();
+            if (firstPlayer != null) {
+                GameEvent turnBefore = GameEvent.builder()
+                        .type(GameEventType.TURN_BEFORE)
+                        .sourceId(firstPlayer.getPlayerId())
+                        .build();
+                turnBefore.putData("roomId", roomId);
+                turnBefore.putData("playerId", firstPlayer.getPlayerId());
+                turnBefore.putData("playerName", firstPlayer.getPlayerName());
+                turnBefore.putData("gameSeat", firstPlayer.getGameSeat());
+                turnBefore.putData("round", match.getCurrentRound());
+                turnBefore.putData("totalTurns", match.getTotalTurns());
+                eventBus.publish(turnBefore, match);
+                log.info("[钩子] {} — {} 回合开始前",
+                        GameEventType.TURN_BEFORE, firstPlayer.getPlayerName());
+
+                // TURN_ACTIVE：回合进行中
+                GameEvent turnActive = GameEvent.builder()
+                        .type(GameEventType.TURN_ACTIVE)
+                        .sourceId(firstPlayer.getPlayerId())
+                        .build();
+                turnActive.putData("roomId", roomId);
+                turnActive.putData("playerId", firstPlayer.getPlayerId());
+                turnActive.putData("playerName", firstPlayer.getPlayerName());
+                turnActive.putData("gameSeat", firstPlayer.getGameSeat());
+                turnActive.putData("round", match.getCurrentRound());
+                turnActive.putData("totalTurns", match.getTotalTurns());
+                eventBus.publish(turnActive, match);
+                log.info("[钩子] {} — {} 回合进行中",
+                        GameEventType.TURN_ACTIVE, firstPlayer.getPlayerName());
+
+                // 再发布 PREPARE 阶段钩子
+                publishPhaseHook(match, GameEventType.phaseBefore(GamePhase.PREPARE), GamePhase.PREPARE);
+                publishPhaseHook(match, GameEventType.phaseActive(GamePhase.PREPARE), GamePhase.PREPARE);
+            }
+
+            return match;
+        } finally {
+            match.unlock();
+        }
     }
 
     // ================================================================

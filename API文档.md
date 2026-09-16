@@ -155,7 +155,8 @@
   "type": "UPDATE_ROOM_SETTINGS",
   "settings": {
     "doubleIntruder": false,
-    "turnTime": 15
+    "turnTime": 15,
+    "maxPlayers": 6
   }
 }
 ```
@@ -165,7 +166,17 @@
 | type | string | 是 | 固定为 `"UPDATE_ROOM_SETTINGS"` |
 | settings | object | 是 | 要更新的设置键值对，合并到现有设置 |
 
+**settings 支持的字段：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| doubleIntruder | boolean | 是否启用双内奸模式 |
+| turnTime | number | 每回合出手时间（秒），默认 15 |
+| maxPlayers | number | 动态修改房间最大人数（2~8），不能小于当前玩家数 |
+
 > 服务端回复：`ROOM_SETTINGS_UPDATED` + `ROOM_UPDATE`
+>
+> 若 `maxPlayers` 校验失败，回复 `ERROR`
 
 ---
 
@@ -178,6 +189,26 @@
 ```
 
 > 服务端回复：广播 `ONLINE_PLAYERS`
+
+---
+
+### 1.11 SELECT_HERO — 选择武将（主公专用）
+
+```json
+{
+  "type": "SELECT_HERO",
+  "heroId": "lol_EZ"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| type | string | 是 | 固定为 `"SELECT_HERO"` |
+| heroId | string | 是 | 选择的武将 ID |
+
+> 仅在游戏刚开始时的"武将选择"阶段有效，且只有主公可以发送。
+>
+> 服务端回复：`HERO_SELECTED`（主公本人）→ `HERO_ASSIGNMENT`（全房间广播）→ `TURN_START`（全房间广播）
 
 ---
 
@@ -393,7 +424,99 @@
 
 ---
 
-### 2.15 YOUR_PRIVATE_INFO — 玩家私有信息（私发）
+### 2.15 HERO_SELECT_OPTIONS — 武将候选列表（私发给主公）
+
+```json
+{
+  "type": "HERO_SELECT_OPTIONS",
+  "candidates": [
+    {
+      "heroId": "lol_EZ",
+      "heroName": "伊泽瑞尔",
+      "heroTitle": "探险家",
+      "kingdomCode": 101,
+      "kingdomName": "艾",
+      "kingdomColor": "#1abc9c",
+      "maxHp": 4,
+      "startHp": 4,
+      "gender": "男",
+      "skills": []
+    }
+  ],
+  "timeout": 30
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| candidates | array | 3 个候选武将，每个包含 heroId/heroName/heroTitle/kingdom/maxHp/skills 等 |
+| timeout | number | 选择超时时间（秒） |
+
+> ⚠️ **此消息仅发给主公本人**。主公需在 timeout 秒内选择，前端根据 candidates 渲染 3 张武将选择卡片。
+>
+> 武将信息包含：
+> - `heroId` — 武将唯一 ID（选择时回传）
+> - `heroName` — 武将名称
+> - `heroTitle` — 武将称号
+> - `kingdomCode/kingdomName/kingdomColor` — 势力信息
+> - `maxHp/startHp` — 体力上限/初始体力
+> - `gender` — 性别
+> - `skills` — 技能列表（`[{skillId, skillName, description}]`）
+
+---
+
+### 2.16 HERO_SELECTED — 主公武将选择成功
+
+```json
+{
+  "type": "HERO_SELECTED",
+  "playerId": "uuid",
+  "hero": {
+    "...完整武将信息..."
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| playerId | string | 主公玩家 ID |
+| hero | object | 已选择的武将完整信息 |
+
+> ⚠️ **此消息仅发给主公本人**
+
+---
+
+### 2.17 HERO_ASSIGNMENT — 所有玩家武将分配完成（广播）
+
+```json
+{
+  "type": "HERO_ASSIGNMENT",
+  "heroes": [
+    {
+      "playerId": "uuid",
+      "playerName": "张三",
+      "gameSeat": 0,
+      "heroId": "lol_EZ",
+      "heroName": "伊泽瑞尔",
+      "maxHp": 4,
+      "currentHp": 4,
+      "kingdomCode": 101,
+      "kingdomName": "艾",
+      "kingdomColor": "#1abc9c"
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| heroes | array | 所有玩家的武将分配结果，按 gameSeat 排列 |
+
+> 主公选择完成后广播给房间所有人，前端根据此消息渲染所有玩家的武将头像/名称/体力。
+
+---
+
+### 2.18 YOUR_PRIVATE_INFO — 玩家私有信息（私发）
 
 ```json
 {
@@ -415,7 +538,7 @@
 
 ---
 
-### 2.16 MY_HAND — 我的手牌（私发）
+### 2.19 MY_HAND — 我的手牌（私发）
 
 ```json
 {
@@ -444,7 +567,7 @@
 
 ---
 
-### 2.17 TURN_START — 回合开始
+### 2.20 TURN_START — 回合开始
 
 ```json
 {
@@ -472,7 +595,7 @@
 
 ---
 
-### 2.18 PHASE_CHANGE — 阶段变更
+### 2.21 PHASE_CHANGE — 阶段变更
 
 ```json
 {
@@ -492,7 +615,7 @@
 
 ---
 
-### 2.19 PLAY_ACTION — 出牌动作
+### 2.22 PLAY_ACTION — 出牌动作
 
 ```json
 {
@@ -517,7 +640,7 @@
 
 ---
 
-### 2.20 PLAYER_UPDATE — 玩家状态更新
+### 2.23 PLAYER_UPDATE — 玩家状态更新
 
 ```json
 {
@@ -541,7 +664,7 @@
 
 ---
 
-### 2.21 BATTLE_REPORT — 战报
+### 2.24 BATTLE_REPORT — 战报
 
 ```json
 {
@@ -558,8 +681,9 @@
 
 ---
 
-### 2.22 GAME_LOG — 游戏日志（调试用）
+### 2.25 GAME_LOG — 游戏日志
 
+**简单格式（通用日志）：**
 ```json
 {
   "type": "GAME_LOG",
@@ -567,9 +691,34 @@
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| message | string | 日志文本 |
+**丰富格式（身份分配等结构化日志）：**
+```json
+{
+  "type": "GAME_LOG",
+  "category": "ROLE_ASSIGNMENT",
+  "message": "身份分发完成",
+  "playerCount": 6,
+  "details": [
+    {
+      "playerName": "张三",
+      "gameSeat": 0,
+      "role": "主公"
+    },
+    {
+      "playerName": "李四",
+      "gameSeat": 1,
+      "role": "忠臣"
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| message | string | 是 | 日志文本 |
+| category | string | 否 | 日志分类，如 `ROLE_ASSIGNMENT`(身份分配) |
+| playerCount | number | 否 | 玩家人数（分类相关时携带） |
+| details | array | 否 | 详细信息列表（分类相关时携带） |
 
 > 用于开发调试，前端收到后在日志面板显示。
 >
@@ -586,7 +735,7 @@
 
 ---
 
-### 2.23 ONLINE_PLAYERS — 在线玩家列表
+### 2.26 ONLINE_PLAYERS — 在线玩家列表
 
 ```json
 {
@@ -690,6 +839,11 @@
    |←──────────── GAME_START ────────|
    |←────── YOUR_PRIVATE_INFO ───────| (私发)
    |←──────────── MY_HAND ───────────| (私发)
+   |                                  |
+   |←── HERO_SELECT_OPTIONS ─────────| (仅主公, 3候选)
+   |── SELECT_HERO ────────────────→  | (主公)
+   |←────────── HERO_SELECTED ───────| (仅主公)
+   |←──────── HERO_ASSIGNMENT ───────| (广播)
    |←────────── TURN_START ──────────|
    |                                  |
    |── PLAY_CARD ──────────────────→  |

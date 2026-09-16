@@ -49,6 +49,9 @@ public final class GameEventType {
     /** 游戏日志（调试用） — 前端收到后会在日志面板显示 */
     public static final String GAME_LOG = "GAME.LOG";
 
+    /** 武将选择 — 主公从候选武将中选一个 */
+    public static final String HERO_SELECT = "HERO.SELECT";
+
     // ================================================================
     //  回合钩子
     // ================================================================
