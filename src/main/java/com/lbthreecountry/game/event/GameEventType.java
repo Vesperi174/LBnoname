@@ -206,6 +206,9 @@ public final class GameEventType {
     /** 摸牌后检测 — CardManager.draw() 摸完牌后发布，附带 player 信息 */
     public static final String CARD_DRAW_CHECK = "CARD.DRAW.CHECK";
 
+    /** 出牌选择 — 出牌阶段循环中，每次要求玩家决策时发布，附带当前玩家手牌/装备/状态等信息 */
+    public static final String CARD_SELECT_ACTIVE = "CARD.SELECT.ACTIVE";
+
     /** 战斗开始 — 初始手牌分发完毕、全玩家状态就绪后触发 */
     public static final String BATTLE_START = "BATTLE.START";
 
