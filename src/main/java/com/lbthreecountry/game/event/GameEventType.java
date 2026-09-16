@@ -72,8 +72,29 @@ public final class GameEventType {
     @Deprecated
     public static final String TURN_START = "TURN.START";
 
-    /** 新轮次开始 */
-    public static final String ROUND_CHANGE = "ROUND.CHANGE";
+    // ================================================================
+    //  轮次钩子（由 RoundStateMachine 发布）
+    // ================================================================
+
+    /**
+     * 轮次开始 — 第 x 轮开始时由 RoundStateMachine 发布
+     * <p>监听此事件可在每轮开始时执行逻辑（如重置全局标记、触发每轮一次的技能）。</p>
+     */
+    public static final String ROUND_START = "ROUND.START";
+
+    /**
+     * 轮次结束 — 第 x 轮结束时由 RoundStateMachine 发布
+     * <p>监听此事件可在每轮结束时执行逻辑（如结算每轮一次的技能效果）。</p>
+     */
+    public static final String ROUND_END = "ROUND.END";
+
+    /**
+     * 轮次·回合序列开始 — 由 RoundStateMachine 在 ROUND.START 钩子走完后进入
+     * {@link com.lbthreecountry.game.state.RoundStateMachine.RoundPhase#PLAYER_TURN} 状态时发布。
+     * <p>监听此事件可在本轮所有玩家回合开始前执行逻辑（如初始化回合计数器、重置回合标记）。
+     * 此事件发布后，外部驱动应开始调度第 1 个玩家的回合。</p>
+     */
+    public static final String ROUND_TURN_START = "ROUND.TURN_START";
 
     // ================================================================
     //  阶段钩子生成方法

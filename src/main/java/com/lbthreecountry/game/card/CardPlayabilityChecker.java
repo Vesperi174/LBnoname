@@ -3,6 +3,7 @@ package com.lbthreecountry.game.card;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.event.EventBus;
+import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
@@ -141,7 +142,7 @@ public class CardPlayabilityChecker {
     @PostConstruct
     public void registerHooks() {
         // ── 摸牌后检测：CardManager.draw() 摸完牌后触发 ──
-        eventBus.register(GameEventType.CARD_DRAW_CHECK, 0, (event, match) -> {
+        eventBus.register(GameEventType.CARD_DRAW_CHECK, EventPriority.EQUIP_CARD, (event, match) -> {
             String playerId = event.getData("playerId");
             log.info("[卡牌检测]玩家 {} 摸了牌 → 重新检测手牌状态并推送 HAND_STATUS", playerId);
 
@@ -154,7 +155,7 @@ public class CardPlayabilityChecker {
         });
 
         // ── 战斗开始：初始手牌分发完毕，重新检测所有玩家手牌状态 ──
-        eventBus.register(GameEventType.BATTLE_START, 0, (event, match) -> {
+        eventBus.register(GameEventType.BATTLE_START, EventPriority.EQUIP_CARD, (event, match) -> {
             log.info("[卡牌检测]战斗开始，重新检测所有玩家手牌状态");
             for (GamePlayer gp : match.getPlayers()) {
                 checkAllHandCards(match, gp);
@@ -162,22 +163,22 @@ public class CardPlayabilityChecker {
         });
 
         // ── TODO: 进入出牌阶段 → 重新检测所有卡牌 ──
-        // eventBus.register("PHASE.ACTIVE.PLAY", 0, (event, match) -> {
+        // eventBus.register("PHASE.ACTIVE.PLAY", EventPriority.EQUIP_CARD, (event, match) -> {
         //     // 重新计算当前玩家手牌状态并推送给前端
         // });
 
         // ── TODO: 阶段切换 → 更新卡牌可点击状态 ──
-        // eventBus.register("PHASE.CHANGE", 0, (event, match) -> {
+        // eventBus.register("PHASE.CHANGE", EventPriority.EQUIP_CARD, (event, match) -> {
         //     // 不是出牌阶段 → 所有卡牌不可点击
         // });
 
         // ── TODO: 卡牌被使用 → 更新次数限制（如"杀"已使用） ──
-        // eventBus.register("CARD.PLAYED", 0, (event, match) -> {
+        // eventBus.register("CARD.PLAYED", EventPriority.EQUIP_CARD, (event, match) -> {
         //     // 更新本回合已出杀的标记
         // });
 
         // ── TODO: 回合开始 → 重置本回合使用标记 ──
-        // eventBus.register("TURN.ACTIVE", 0, (event, match) -> {
+        // eventBus.register("TURN.ACTIVE", EventPriority.EQUIP_CARD, (event, match) -> {
         //     // 重置所有次数限制
         //     // 重新检测手牌状态
         // });

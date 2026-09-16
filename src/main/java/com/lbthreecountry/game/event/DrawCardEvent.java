@@ -46,13 +46,13 @@ import java.util.List;
  * <h3>使用示例</h3>
  * <pre>{@code
  * // ===== 技能监听：修改摸牌数量（在 BEFORE 或 ACTIVE 钩子中） =====
- * eventBus.register("CARD.DRAW.BEFORE", 100, (event, match) -> {
+ * eventBus.register("CARD.DRAW.BEFORE", EventPriority.SKILL, (event, match) -> {
  *     int count = event.getData("count");
  *     event.putData("count", count + 1); // 摸牌数 +1（英姿效果）
  * });
  *
  * // ===== 技能监听：读取摸牌结果（AFTER 可修改） =====
- * eventBus.register("CARD.DRAW.AFTER", 100, (event, match) -> {
+ * eventBus.register("CARD.DRAW.AFTER", EventPriority.SKILL, (event, match) -> {
  *     int actualCount = event.getData("actualCount");        // 实际摸了几张
  *     List<Long> cardIds = event.getData("cardIds");         // 摸到了哪些牌
  *     String playerName = event.getData("playerName");        // 谁摸的

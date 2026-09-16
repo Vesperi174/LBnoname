@@ -1,5 +1,8 @@
 package com.lbthreecountry.model.hero;
 
+import com.lbthreecountry.game.GameMatch;
+import com.lbthreecountry.game.GamePlayer;
+import com.lbthreecountry.game.skill.SkillManager;
 import com.lbthreecountry.model.enums.impl.Gender;
 import com.lbthreecountry.model.enums.impl.KingdomType;
 import lombok.AllArgsConstructor;
@@ -77,5 +80,36 @@ public abstract class BaseHero {
         return "【" + kingdom.getDescription() + "】" + heroName + "（" + maxHp + "体力）";
     }
 
+    // ============ 技能注册钩子 ============
 
+    /**
+     * 注册本武将所有技能的事件监听器
+     *
+     * <p>在 {@link SkillManager} 侦听到 {@code BATTLE_START} 事件后，
+     * 按座位顺序为每个存活玩家调用此方法。</p>
+     *
+     * <p>具体武将子类应重写此方法，在其中调用
+     * {@link SkillManager#registerSkillListener(String, com.lbthreecountry.game.event.EventListener, String, int) skillManager.registerSkillListener()}
+     * 来注册每个技能所需的事件监听器。</p>
+     *
+     * <h3>示例</h3>
+     * <pre>{@code
+     * @Override
+     * public void registerSkillListeners(SkillManager skillManager, GameMatch match, GamePlayer player, int seatIndex) {
+     *     // 注册"英姿"技能：摸牌阶段多摸一张
+     *     skillManager.registerSkillListener("CARD.DRAW.BEFORE", (event, match) -> {
+     *         int count = event.getData("count");
+     *         event.putData("count", count + 1);
+     *     }, "yingzi", seatIndex);
+     * }
+     * }</pre>
+     *
+     * @param skillManager 技能管理器（调用其 registerSkillListener 注册监听器）
+     * @param match        当前对局
+     * @param player       当前玩家（本武将的持有者）
+     * @param seatIndex    玩家座位号
+     */
+    public void registerSkillListeners(SkillManager skillManager, GameMatch match, GamePlayer player, int seatIndex) {
+        // 默认空实现，具体武将子类重写此方法注册技能
+    }
 }

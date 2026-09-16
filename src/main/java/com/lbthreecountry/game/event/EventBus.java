@@ -24,7 +24,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * </p>
  * <pre>{@code
  * // 注册监听器监听"伤害前"钩子
- * eventBus.register("DAMAGE.BEFORE", 100, (event, match) -> {
+ * eventBus.register("DAMAGE.BEFORE", EventPriority.SKILL, (event, match) -> {
  *     int amount = event.getData("amount");
  *     event.putData("amount", amount + 1); // 伤害+1
  * });
@@ -228,25 +228,25 @@ public class EventBus {
      *
      * <p>示例：</p>
      * <pre>{@code
-     * // 在处理"杀"事件的监听器中发布伤害前/后钩子
-     * eventBus.register("CARD.PLAYED.SHA", 100, (event, match) -> {
-     *     // 发布 "CARD.PLAYED.SHA.BEFORE" 钩子
-     *     event.publishHook("BEFORE", eventBus, match);
-     *
-     *     // 执行伤害逻辑
-     *     int damage = 1;
-     *     event.putData("damage", damage);
-     *
-     *     // 发布 "CARD.PLAYED.SHA.AFTER" 钩子
-     *     event.publishHook("AFTER", eventBus, match);
-     * });
-     *
-     * // 其他技能监听伤害前钩子来增加伤害
-     * eventBus.register("CARD.PLAYED.SHA.BEFORE", 100, (event, match) -> {
-     *     int damage = event.getData("damage");
-     *     event.putData("damage", damage + 1); // 伤害+1
-     * });
-     * }</pre>
+ * // 在处理"杀"事件的监听器中发布伤害前/后钩子
+ * eventBus.register("CARD.PLAYED.SHA", EventPriority.EQUIP_CARD, (event, match) -> {
+ *     // 发布 "CARD.PLAYED.SHA.BEFORE" 钩子
+ *     event.publishHook("BEFORE", eventBus, match);
+ *
+ *     // 执行伤害逻辑
+ *     int damage = 1;
+ *     event.putData("damage", damage);
+ *
+ *     // 发布 "CARD.PLAYED.SHA.AFTER" 钩子
+ *     event.publishHook("AFTER", eventBus, match);
+ * });
+ *
+ * // 其他技能监听伤害前钩子来增加伤害
+ * eventBus.register("CARD.PLAYED.SHA.BEFORE", EventPriority.SKILL, (event, match) -> {
+ *     int damage = event.getData("damage");
+ *     event.putData("damage", damage + 1); // 伤害+1
+ * });
+ * }</pre>
      *
      * @param parentEvent 父事件（作为钩子的基础）
      * @param hookSuffix  钩子后缀（如 "BEFORE"、"AFTER"、"CALCULATE"）

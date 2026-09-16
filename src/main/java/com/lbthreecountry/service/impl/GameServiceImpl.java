@@ -7,6 +7,7 @@ import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
 import com.lbthreecountry.game.card.EffectEngine;
 import com.lbthreecountry.game.hero.HeroManager;
+import com.lbthreecountry.game.state.RoundStateMachine;
 import com.lbthreecountry.game.event.DrawCardEvent;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
@@ -47,6 +48,7 @@ public class GameServiceImpl implements GameService {
     private final CardManager cardManager;
     private final EffectEngine effectEngine;
     private final HeroManager heroManager;
+    private final RoundStateMachine roundStateMachine;
 
     /** roomId → GameMatch */
     private final Map<String, GameMatch> matchMap = new ConcurrentHashMap<>();
@@ -142,22 +144,19 @@ public class GameServiceImpl implements GameService {
 
             // 3) 切换到下一玩家
             int nextIndex = match.nextAlivePlayerIndex(match.getCurrentPlayerIndex());
+
+            // ── 检测轮次切换：所有存活玩家完成一轮 ──
+            //     委托状态机处理 ROUND.END → round++ → ROUND.START
+            if (nextIndex == 0) {
+                roundStateMachine.onRoundComplete(match);
+                // 状态机内部已执行：match.setCurrentRound(nextRound) + 发布相关事件
+            }
+
             match.setCurrentPlayerIndex(nextIndex);
             match.setCurrentPhase(GamePhase.PREPARE);
             match.setTotalTurns(match.getTotalTurns() + 1);
 
             GamePlayer newPlayer = match.currentPlayer();
-
-            if (nextIndex == 0) {
-                match.setCurrentRound(match.getCurrentRound() + 1);
-                GameEvent roundEvent = GameEvent.builder()
-                        .type(GameEventType.ROUND_CHANGE)
-                        .sourceId("system")
-                        .build();
-                roundEvent.putData("roomId", roomId);
-                roundEvent.putData("round", match.getCurrentRound());
-                eventBus.publish(roundEvent, match);
-            }
 
             if (newPlayer != null) newPlayer.setHasPlayedSha(false);
 
@@ -358,6 +357,9 @@ public class GameServiceImpl implements GameService {
             endEvent.putData("winnerDesc", winnerDesc);
             eventBus.publish(endEvent, match);
 
+            // 清理状态机状态
+            roundStateMachine.clearState(roomId);
+
             return match;
         } finally {
             match.unlock();
@@ -376,6 +378,7 @@ public class GameServiceImpl implements GameService {
     @Override
     public void removeMatch(String roomId) {
         matchMap.remove(roomId);
+        roundStateMachine.clearState(roomId);
         log.info("[游戏] 对局已清理");
     }
 
@@ -613,7 +616,6 @@ public class GameServiceImpl implements GameService {
 
             match.setStatus(GameStatus.PLAYING);
             match.setCurrentPhase(GamePhase.PREPARE);
-            match.setCurrentRound(1);
             match.setTotalTurns(1);
             match.setCurrentPlayerIndex(0);
 

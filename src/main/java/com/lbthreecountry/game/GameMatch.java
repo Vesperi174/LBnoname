@@ -1,5 +1,6 @@
 package com.lbthreecountry.game;
 
+import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.SettlementFrame;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.enums.impl.GamePhase;
@@ -190,5 +191,54 @@ public class GameMatch {
                 .filter(p -> playerId.equals(p.getPlayerId()))
                 .findFirst()
                 .orElse(null);
+    }
+
+    // ============ 距离计算 ============
+
+    /**
+     * 计算两名玩家间的座次距离
+     *
+     * <p>存活玩家按 {@link GamePlayer#gameSeat 座位号} 围成一圈，
+     * 相邻存活玩家距离为 1，每隔一人 +1。
+     * 若顺时针和逆时针两个方向算出不同距离，取最小值。</p>
+     *
+     * <p><b>示例</b>（○ 死亡，● 存活）：</p>
+     * <pre>
+     * 座位:  0     1     2     3     4     5
+     * 存活:  ●     ○     ●     ●     ●     ●
+     * 到 5:  1           3     2     1     0   (距离)
+     * </pre>
+     * 从座位 0 到座位 4 距离为 1（直接邻接），
+     * 从座位 1 到座位 4 距离为 3（逆时针：1→0→5→4 = 3，顺时针需绕过 1）。
+     *
+     * @param from 起始玩家
+     * @param to   目标玩家
+     * @return 座次距离；若两玩家相同返回 0；若任一玩家不在存活列表中返回 {@code Integer.MAX_VALUE}
+     */
+    public int calculateDistance(GamePlayer from, GamePlayer to) {
+        if (from == null || to == null) return Integer.MAX_VALUE;
+        if (from.getPlayerId().equals(to.getPlayerId())) return 0;
+
+        // 按 gameSeat 升序提取存活玩家（players 列表本身就是 gameSeat 升序）
+        List<GamePlayer> alive = new ArrayList<>(players.size());
+        for (GamePlayer p : players) {
+            if (p.isAlive()) alive.add(p);
+        }
+
+        int n = alive.size();
+        if (n <= 1) return 0;
+
+        // 在存活列表中定位两个玩家
+        int fromPos = -1;
+        int toPos = -1;
+        for (int i = 0; i < n; i++) {
+            if (alive.get(i).getPlayerId().equals(from.getPlayerId())) fromPos = i;
+            if (alive.get(i).getPlayerId().equals(to.getPlayerId())) toPos = i;
+        }
+        if (fromPos == -1 || toPos == -1) return Integer.MAX_VALUE;
+
+        int clockwise = (toPos - fromPos + n) % n;
+        int counterClockwise = n - clockwise;
+        return Math.min(clockwise, counterClockwise);
     }
 }

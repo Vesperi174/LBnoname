@@ -10,7 +10,7 @@ import com.lbthreecountry.game.GameMatch;
  *
  * <h3>基本用法</h3>
  * <pre>{@code
- * eventBus.register("TURN.START", 0, (event, match) -> {
+ * eventBus.register("TURN.START", EventPriority.ENGINE, (event, match) -> {
  *     String playerId = event.getSourceId();
  *     System.out.println("轮到玩家: " + playerId);
  * });
@@ -20,7 +20,7 @@ import com.lbthreecountry.game.GameMatch;
  * <p>在事件处理过程中，可以发布子事件（钩子），其他技能可以监听这些钩子。</p>
  * <pre>{@code
  * // 事件处理器：在摸牌过程中发布钩子
- * eventBus.register("CARD.DRAW", 0, (event, match) -> {
+ * eventBus.register("CARD.DRAW", EventPriority.ENGINE, (event, match) -> {
  *     // 发布摸牌前钩子 → 监听器可修改摸牌数量
  *     event.publishHook("BEFORE", eventBus, match);
  *
@@ -33,7 +33,7 @@ import com.lbthreecountry.game.GameMatch;
  * });
  *
  * // 技能监听："英姿"监听 CARD.DRAW.BEFORE 钩子 → 摸牌数+1
- * eventBus.register("CARD.DRAW.BEFORE", 100, (event, match) -> {
+ * eventBus.register("CARD.DRAW.BEFORE", EventPriority.SKILL, (event, match) -> {
  *     int count = event.getData("count");
  *     event.putData("count", count + 1);
  * });
