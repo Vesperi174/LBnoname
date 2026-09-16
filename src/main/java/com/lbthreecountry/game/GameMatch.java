@@ -1,12 +1,15 @@
 package com.lbthreecountry.game;
 
+import com.lbthreecountry.game.event.SettlementFrame;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.enums.impl.GamePhase;
 import com.lbthreecountry.model.enums.impl.GameStatus;
 import lombok.*;
 import lombok.EqualsAndHashCode;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -119,6 +122,28 @@ public class GameMatch {
     /** 解锁 */
     public void unlock() {
         gameLock.unlock();
+    }
+
+    // ============ 结算栈 ============
+
+    /**
+     * 事件结算栈（LIFO）
+     * <p>每次 {@link com.lbthreecountry.game.event.EventBus#publish(GameEvent, GameMatch)}
+     * 会压入一个 {@link SettlementFrame}，由 {@code EventBus.settle()} 循环
+     * 按 LIFO 顺序执行。栈数据结构和调度逻辑分离，栈仅作存储。</p>
+     */
+    @Builder.Default
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private transient Deque<SettlementFrame> settlementStack = new ArrayDeque<>();
+
+    public Deque<SettlementFrame> getSettlementStack() {
+        if (settlementStack == null) {
+            settlementStack = new ArrayDeque<>();
+        }
+        return settlementStack;
     }
 
     // ============ 便捷方法 ============

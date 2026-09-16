@@ -2,6 +2,7 @@ package com.lbthreecountry.game.card;
 
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.card.component.EffectComponent;
+import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
 import org.slf4j.Logger;
@@ -42,9 +43,11 @@ public class EffectEngine {
     private static final Logger log = LoggerFactory.getLogger(EffectEngine.class);
 
     private final EffectManager effectManager;
+    private final EventBus eventBus;
 
-    public EffectEngine(EffectManager effectManager) {
+    public EffectEngine(EffectManager effectManager, EventBus eventBus) {
         this.effectManager = effectManager;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -72,6 +75,7 @@ public class EffectEngine {
 
         EffectContext ctx = EffectContext.builder()
                 .match(match)
+                .eventBus(eventBus)
                 .sourceCard(card)
                 .invokerId(invoker)
                 .targetIds(targets)
@@ -101,6 +105,7 @@ public class EffectEngine {
 
         EffectContext ctx = EffectContext.builder()
                 .match(match)
+                .eventBus(eventBus)
                 .sourceCard(card)
                 .invokerId(responder)
                 .targetIds(targets)
