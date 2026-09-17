@@ -6,6 +6,7 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
+import com.lbthreecountry.model.card.CardInstance;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,9 +24,11 @@ import org.springframework.stereotype.Component;
  * │ filterType   │ String   │ 目标筛选类型（必填）                       │
  * │              │          │  ALL / SELF / IN_ATTACK_RANGE /         │
  * │              │          │  CAN_ATTACK_ME / DISTANCE_WITHIN         │
- * │ sourceType   │ String   │ 来源类型：SKILL / BASIC_CARD /         │
- * │              │          │  STRATEGY_CARD / EQUIPMENT_CARD        │
- * │ sourceName   │ String   │ 具体来源名称（如 sha / 技能名）             │
+ * │ source       │ Source   │ 来源对象，含 type 和 name（推荐）          │
+ * │ sourceType   │ String   │ 来源类型（兼容旧版）                       │
+ * │              │          │  SKILL / BASIC_CARD /                     │
+ * │              │          │  STRATEGY_CARD / EQUIPMENT_CARD           │
+ * │ sourceName   │ String   │ 具体来源名称（兼容旧版）                   │
  * │ distance     │ int      │ 筛选距离（filterType=DISTANCE_WITHIN 时）  │
  * │ includeSelf  │ boolean  │ 是否可以将自身作为目标（默认 false）         │
  * ├──────────────┴──────────┴──────────────────────────────────────────┤
@@ -85,8 +88,18 @@ public class GetTargetEvent {
         // ── 读取调用方传入的参数 ──
         String playerId = event.getData("playerId");
         String filterType = event.getData("filterType");
-        String sourceType = event.getData("sourceType");
-        String sourceName = event.getData("sourceName");
+        Source source = event.getData("source");
+        if (source == null) {
+            // 兼容旧版：从独立字符串构造，并尝试附加原始对象
+            String sourceType = event.getData("sourceType");
+            String sourceName = event.getData("sourceName");
+            if (sourceType != null) {
+                Object origin = null;
+                CardInstance card = event.getData("card");
+                if (card != null) origin = card;
+                source = new Source(sourceType, sourceName, origin);
+            }
+        }
         Integer distance = event.getData("distance");
         Boolean includeSelf = event.getData("includeSelf");
         if (includeSelf == null) includeSelf = false;
@@ -99,8 +112,8 @@ public class GetTargetEvent {
             filterType = FILTER_ALL;
         }
 
-        log.debug("[获取目标事件] playerId={}, filterType={}, sourceType={}, sourceName={}, distance={}, includeSelf={}",
-                playerId, filterType, sourceType, sourceName, distance, includeSelf);
+        log.debug("[获取目标事件] playerId={}, filterType={}, source={}, distance={}, includeSelf={}",
+                playerId, filterType, source, distance, includeSelf);
 
         // ── 根据 filterType 执行目标筛选 ──
         java.util.List<String> targets = new java.util.ArrayList<>();
@@ -206,8 +219,8 @@ public class GetTargetEvent {
         }
 
         // ── 遍历目标列表，逐个抛出"即将成为目标"钩子 ──
-        String finalSourceType = sourceType != null ? sourceType : SOURCE_SKILL;
-        String finalSourceName = sourceName != null ? sourceName : "unknown";
+        String finalSourceType = source != null ? source.getType() : SOURCE_SKILL;
+        String finalSourceName = source != null ? source.getName() : "unknown";
 
         for (String targetId : targets) {
             GameEvent becomeEvent = GameEvent.builder()
@@ -216,6 +229,7 @@ public class GetTargetEvent {
                     .build();
             becomeEvent.putData("initiatorId", playerId);
             becomeEvent.putData("playerId", targetId);
+            becomeEvent.putData("source", source);
             becomeEvent.putData("sourceType", finalSourceType);
             becomeEvent.putData("sourceName", finalSourceName);
             eventBus.publish(becomeEvent, match);

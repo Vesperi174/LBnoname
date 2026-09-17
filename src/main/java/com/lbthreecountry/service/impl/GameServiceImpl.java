@@ -319,6 +319,7 @@ public class GameServiceImpl implements GameService {
                     .sourceId(player.getPlayerId())
                     .build()
                     .putData("driver", DrawDriver.OTHER)
+                    .putData("player", player)
                     .putData("playerId", player.getPlayerId())
                     .putData("count", count);
 
@@ -465,10 +466,12 @@ public class GameServiceImpl implements GameService {
             playEvent.putData("roomId", roomId);
             playEvent.putData("playerId", playerId);
             playEvent.putData("playerName", player.getPlayerName());
+            playEvent.putData("player", player);
             playEvent.putData("cardDefId", card.getDefId());
             playEvent.putData("cardName", cardDef.getName());
             playEvent.putData("suit", card.getSuit() != null ? card.getSuit().name() : null);
             playEvent.putData("point", card.getPoint());
+            playEvent.putData("card", card);
             playEvent.putData("targetIds", safeTargets);
             eventBus.publish(playEvent, match);
 

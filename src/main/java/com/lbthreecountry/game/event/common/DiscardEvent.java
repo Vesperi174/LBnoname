@@ -97,16 +97,18 @@ public class DiscardEvent {
      */
     private void onDiscard(GameEvent event, GameMatch match) {
         // ── 读取调用方传入的参数 ──
-        String playerId = event.getData("playerId");
-        if (playerId == null) {
-            log.warn("[弃牌事件] 事件中无 playerId，忽略");
-            return;
-        }
-
-        GamePlayer player = match.findPlayer(playerId);
+        GamePlayer player = event.getData("player");
         if (player == null) {
-            log.warn("[弃牌事件] 玩家 {} 不存在，忽略", playerId);
-            return;
+            String playerId = event.getData("playerId");
+            if (playerId == null) {
+                log.warn("[弃牌事件] 事件中无 player，忽略");
+                return;
+            }
+            player = match.findPlayer(playerId);
+            if (player == null) {
+                log.warn("[弃牌事件] 玩家 {} 不存在，忽略", playerId);
+                return;
+            }
         }
 
         int count = event.getDataOrDefault("count", 0);
@@ -115,15 +117,15 @@ public class DiscardEvent {
             return;
         }
 
-        log.info("[弃牌事件] 玩家 {} 需要弃 {} 张牌", playerId, count);
+        log.info("[弃牌事件] 玩家 {} 需要弃 {} 张牌", player.getPlayerId(), count);
 
         // ── 构造可修改的临时数据对象 ──
-        HookData data = new HookData(playerId, count);
+        HookData data = new HookData(player, count);
 
         // ── 1) 弃牌开始前（初始数据） ──
         data.publishAndSync(GameEventType.CARD_DISCARD_BEFORE, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[弃牌事件] BEFORE 钩子已取消 — {} 的弃牌被取消", playerId);
+            log.info("[弃牌事件] BEFORE 钩子已取消 — {} 的弃牌被取消", player.getPlayerId());
             writeResult(event, data);
             return;
         }
@@ -131,7 +133,7 @@ public class DiscardEvent {
         // ── 2) 弃牌进行中（BEFORE 修改后的数据） ──
         data.publishAndSync(GameEventType.CARD_DISCARD_ACTIVE, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[弃牌事件] ACTIVE 钩子已取消 — {} 的弃牌被取消", playerId);
+            log.info("[弃牌事件] ACTIVE 钩子已取消 — {} 的弃牌被取消", player.getPlayerId());
             writeResult(event, data);
             return;
         }
@@ -147,7 +149,7 @@ public class DiscardEvent {
         //       暂记本次弃牌信息供 AFTER 钩子和前端通信使用
         data.actualCount = data.count;
 
-        log.info("[弃牌事件] 玩家 {} 弃掉 {} 张牌", playerId, data.actualCount);
+        log.info("[弃牌事件] 玩家 {} 弃掉 {} 张牌", player.getPlayerId(), data.actualCount);
 
         // ── 前端通信（预留） ──
         // TODO: 在此处推送弃牌结果到前端，包含以下信息：
@@ -183,13 +185,13 @@ public class DiscardEvent {
      * 临时数据容器 — 发布钩子后从事件中回读可能被修改的数据
      */
     private static class HookData {
-        final String playerId;
+        final GamePlayer player;
         int count;
         int actualCount;
         boolean cancelled;
 
-        HookData(String playerId, int count) {
-            this.playerId = playerId;
+        HookData(GamePlayer player, int count) {
+            this.player = player;
             this.count = count;
         }
 
@@ -203,7 +205,8 @@ public class DiscardEvent {
                     .type(hookType)
                     .sourceId(originalEvent.getSourceId())
                     .build();
-            hookEvent.putData("playerId", playerId)
+            hookEvent.putData("player", player)
+                    .putData("playerId", player.getPlayerId())
                     .putData("count", count);
             eventBus.publish(hookEvent, match);
 
@@ -226,7 +229,8 @@ public class DiscardEvent {
                     .type(GameEventType.CARD_DISCARD_AFTER)
                     .sourceId(originalEvent.getSourceId())
                     .build();
-            hookEvent.putData("playerId", playerId)
+            hookEvent.putData("player", player)
+                    .putData("playerId", player.getPlayerId())
                     .putData("count", count)
                     .putData("actualCount", actualCount)
                     .putData("cancelled", false);

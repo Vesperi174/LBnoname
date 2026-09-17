@@ -6,6 +6,7 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
+import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.websocket.WebSocketSessionManager;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -29,10 +30,7 @@ import org.springframework.stereotype.Component;
  * ┌──────────────┬──────────┬──────────────────────────────────────────┐
  * │ 字段          │ 类型      │ 说明                                     │
  * ├──────────────┼──────────┼──────────────────────────────────────────┤
- * │ sourceType   │ String   │ 回复来源类型（必填）                      │
- * │              │          │  BASIC_CARD / STRATEGY_CARD /            │
- * │              │          │  EQUIPMENT_CARD / SKILL / PLAYER         │
- * │ sourceName   │ String   │ 回复来源具体名称（如 tao / 技能名）        │
+ * │ source       │ Source   │ 来源对象（必填），含 type 和 name          │
  * │ targetId     │ String   │ 回复体力的玩家 ID（必填）                  │
  * │ amount       │ int      │ 回复体力点数（默认 1）                    │
  * └──────────────┴──────────┴──────────────────────────────────────────┘
@@ -45,8 +43,7 @@ import org.springframework.stereotype.Component;
  *     .type(GameEventType.RECOVER_HP)
  *     .sourceId(targetId)
  *     .build()
- *     .putData("sourceType", RecoverHpEvent.SOURCE_BASIC_CARD)
- *     .putData("sourceName", "tao")
+ *     .putData("source", new Source(SOURCE_BASIC_CARD, "tao"))
  *     .putData("targetId", targetId)
  *     .putData("amount", 1);
  * eventBus.publish(event, match);
@@ -118,43 +115,56 @@ public class RecoverHpEvent {
      */
     private void onRecoverHp(GameEvent event, GameMatch match) {
         // ── 读取调用方传入的参数 ──
-        String sourceType = event.getData("sourceType");
-        String sourceName = event.getData("sourceName");
-        String targetId = event.getData("targetId");
-        Integer amount = event.getData("amount");
-
-        if (amount == null) amount = 1;
-        if (sourceType == null) {
-            log.warn("[回复体力事件] 缺少 sourceType，忽略");
-            return;
-        }
-        if (targetId == null) {
-            log.warn("[回复体力事件] 缺少 targetId，忽略");
-            return;
+        Source source = event.getData("source");
+        if (source == null) {
+            // 兼容旧版：从独立字符串构造，并尝试附加原始对象
+            String sourceType = event.getData("sourceType");
+            String sourceName = event.getData("sourceName");
+            if (sourceType != null) {
+                Object origin = null;
+                CardInstance card = event.getData("card");
+                if (card != null) origin = card;
+                source = new Source(sourceType, sourceName, origin);
+            }
         }
 
-        GamePlayer target = match.findPlayer(targetId);
+        GamePlayer target = event.getData("target");
         if (target == null) {
-            log.warn("[回复体力事件] 目标 {} 不存在，忽略", targetId);
-            return;
+            String targetId = event.getData("targetId");
+            if (targetId == null) {
+                log.warn("[回复体力事件] 缺少 target，忽略");
+                return;
+            }
+            target = match.findPlayer(targetId);
+            if (target == null) {
+                log.warn("[回复体力事件] 目标 {} 不存在，忽略", targetId);
+                return;
+            }
         }
 
+        Integer amount = event.getData("amount");
+        if (amount == null) amount = 1;
+
+        if (source == null) {
+            log.warn("[回复体力事件] 缺少 source，忽略");
+            return;
+        }
         if (amount <= 0) {
             log.warn("[回复体力事件] amount={}，无需回复", amount);
             return;
         }
 
         log.info("[回复体力事件] {}:{} 对 {} 回复 {} 点体力 (当前体力: {}/{})",
-                sourceType, sourceName, targetId, amount,
+                source.getType(), source.getName(), target.getPlayerId(), amount,
                 target.getCurrentHp(), target.getMaxHp());
 
         // ── 构造可修改的临时数据对象 ──
-        HookData data = new HookData(sourceType, sourceName, targetId, amount);
+        HookData data = new HookData(source, target, amount);
 
         // ── 1) 回复体力前（初始数据） ──
         data.publishAndSync(GameEventType.BEFORE_RECOVER_HP, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[回复体力事件] BEFORE 钩子已取消 — {} 的回复被取消", targetId);
+            log.info("[回复体力事件] BEFORE 钩子已取消 — {} 的回复被取消", target.getPlayerId());
             writeResult(event, data);
             return;
         }
@@ -162,7 +172,7 @@ public class RecoverHpEvent {
         // ── 2) 回复体力时（BEFORE 修改后的数据） ──
         data.publishAndSync(GameEventType.RECOVER_HP_ACTIVE, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[回复体力事件] ACTIVE 钩子已取消 — {} 的回复被取消", targetId);
+            log.info("[回复体力事件] ACTIVE 钩子已取消 — {} 的回复被取消", target.getPlayerId());
             writeResult(event, data);
             return;
         }
@@ -177,7 +187,7 @@ public class RecoverHpEvent {
         // 实际回复量不能超过最大体力上限
         int maxCanRecover = target.getMaxHp() - target.getCurrentHp();
         if (maxCanRecover <= 0) {
-            log.info("[回复体力事件] 目标 {} 体力已满，无需回复", targetId);
+            log.info("[回复体力事件] 目标 {} 体力已满，无需回复", target.getPlayerId());
             data.amount = 0;
             writeResult(event, data);
             return;
@@ -186,7 +196,7 @@ public class RecoverHpEvent {
         int actualAmount = Math.min(data.amount, maxCanRecover);
         target.setCurrentHp(target.getCurrentHp() + actualAmount);
         log.info("[回复体力事件] 对 {} 实际回复 {} 点体力 (当前体力: {}/{})",
-                targetId, actualAmount, target.getCurrentHp(), target.getMaxHp());
+                target.getPlayerId(), actualAmount, target.getCurrentHp(), target.getMaxHp());
 
         // ── 前端通信（预留） ──
         // TODO: 在此处推送回复体力结果到前端，包含以下信息：
@@ -228,16 +238,14 @@ public class RecoverHpEvent {
      * 临时数据容器 — 发布钩子后从事件中回读可能被修改的数据
      */
     private static class HookData {
-        final String sourceType;
-        final String sourceName;
-        final String targetId;
+        final Source source;
+        final GamePlayer target;
         int amount;
         boolean cancelled;
 
-        HookData(String sourceType, String sourceName, String targetId, int amount) {
-            this.sourceType = sourceType;
-            this.sourceName = sourceName;
-            this.targetId = targetId;
+        HookData(Source source, GamePlayer target, int amount) {
+            this.source = source;
+            this.target = target;
             this.amount = amount;
         }
 
@@ -250,11 +258,13 @@ public class RecoverHpEvent {
             GameEvent hookEvent = GameEvent.builder()
                     .type(hookType)
                     .sourceId(originalEvent.getSourceId())
-                    .targetId(targetId)
+                    .targetId(target.getPlayerId())
                     .build();
-            hookEvent.putData("sourceType", sourceType)
-                    .putData("sourceName", sourceName)
-                    .putData("targetId", targetId)
+            hookEvent.putData("source", source)
+                    .putData("sourceType", source.getType())
+                    .putData("sourceName", source.getName())
+                    .putData("target", target)
+                    .putData("targetId", target.getPlayerId())
                     .putData("amount", amount);
             eventBus.publish(hookEvent, match);
 
@@ -276,11 +286,13 @@ public class RecoverHpEvent {
             GameEvent hookEvent = GameEvent.builder()
                     .type(GameEventType.AFTER_RECOVER_HP)
                     .sourceId(originalEvent.getSourceId())
-                    .targetId(targetId)
+                    .targetId(target.getPlayerId())
                     .build();
-            hookEvent.putData("sourceType", sourceType)
-                    .putData("sourceName", sourceName)
-                    .putData("targetId", targetId)
+            hookEvent.putData("source", source)
+                    .putData("sourceType", source.getType())
+                    .putData("sourceName", source.getName())
+                    .putData("target", target)
+                    .putData("targetId", target.getPlayerId())
                     .putData("amount", amount)
                     .putData("cancelled", false);
             eventBus.publish(hookEvent, match);

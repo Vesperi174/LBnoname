@@ -95,16 +95,18 @@ public class LoseHpEvent {
      */
     private void onLoseHp(GameEvent event, GameMatch match) {
         // ── 读取调用方传入的参数 ──
-        String playerId = event.getData("playerId");
-        if (playerId == null) {
-            log.warn("[失去体力事件] 事件中无 playerId，忽略");
-            return;
-        }
-
-        GamePlayer target = match.findPlayer(playerId);
+        GamePlayer target = event.getData("target");
         if (target == null) {
-            log.warn("[失去体力事件] 玩家 {} 不存在，忽略", playerId);
-            return;
+            String playerId = event.getData("playerId");
+            if (playerId == null) {
+                log.warn("[失去体力事件] 事件中无 target，忽略");
+                return;
+            }
+            target = match.findPlayer(playerId);
+            if (target == null) {
+                log.warn("[失去体力事件] 玩家 {} 不存在，忽略", playerId);
+                return;
+            }
         }
 
         int amount = event.getDataOrDefault("amount", 1);
@@ -114,15 +116,15 @@ public class LoseHpEvent {
         }
 
         log.info("[失去体力事件] 玩家 {} 失去 {} 点体力 (当前体力: {}/{})",
-                playerId, amount, target.getCurrentHp(), target.getMaxHp());
+                target.getPlayerId(), amount, target.getCurrentHp(), target.getMaxHp());
 
         // ── 构造可修改的临时数据对象 ──
-        HookData data = new HookData(playerId, amount);
+        HookData data = new HookData(target, amount);
 
         // ── 1) 失去体力前（初始数据） ──
         data.publishAndSync(GameEventType.BEFORE_LOSE_HP, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[失去体力事件] BEFORE 钩子已取消 — {} 的失去体力被取消", playerId);
+            log.info("[失去体力事件] BEFORE 钩子已取消 — {} 的失去体力被取消", target.getPlayerId());
             writeResult(event, data);
             return;
         }
@@ -130,7 +132,7 @@ public class LoseHpEvent {
         // ── 2) 失去体力时（BEFORE 修改后的数据） ──
         data.publishAndSync(GameEventType.LOSE_HP_ACTIVE, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[失去体力事件] ACTIVE 钩子已取消 — {} 的失去体力被取消", playerId);
+            log.info("[失去体力事件] ACTIVE 钩子已取消 — {} 的失去体力被取消", target.getPlayerId());
             writeResult(event, data);
             return;
         }
@@ -146,7 +148,7 @@ public class LoseHpEvent {
         int actualAmount = Math.min(data.amount, target.getCurrentHp());
         target.setCurrentHp(target.getCurrentHp() - actualAmount);
         log.info("[失去体力事件] 玩家 {} 实际失去 {} 点体力 (剩余体力: {}/{})",
-                playerId, actualAmount, target.getCurrentHp(), target.getMaxHp());
+                target.getPlayerId(), actualAmount, target.getCurrentHp(), target.getMaxHp());
 
         // ── 前端通信（预留） ──
         // TODO: 在此处推送失去体力结果到前端，包含以下信息：
@@ -186,12 +188,12 @@ public class LoseHpEvent {
      * 临时数据容器 — 发布钩子后从事件中回读可能被修改的数据
      */
     private static class HookData {
-        final String playerId;
+        final GamePlayer target;
         int amount;
         boolean cancelled;
 
-        HookData(String playerId, int amount) {
-            this.playerId = playerId;
+        HookData(GamePlayer target, int amount) {
+            this.target = target;
             this.amount = amount;
         }
 
@@ -205,7 +207,8 @@ public class LoseHpEvent {
                     .type(hookType)
                     .sourceId(originalEvent.getSourceId())
                     .build();
-            hookEvent.putData("playerId", playerId)
+            hookEvent.putData("target", target)
+                    .putData("playerId", target.getPlayerId())
                     .putData("amount", amount);
             eventBus.publish(hookEvent, match);
 
@@ -228,7 +231,8 @@ public class LoseHpEvent {
                     .type(GameEventType.AFTER_LOSE_HP)
                     .sourceId(originalEvent.getSourceId())
                     .build();
-            hookEvent.putData("playerId", playerId)
+            hookEvent.putData("target", target)
+                    .putData("playerId", target.getPlayerId())
                     .putData("amount", amount)
                     .putData("cancelled", false);
             eventBus.publish(hookEvent, match);

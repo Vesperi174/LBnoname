@@ -97,7 +97,7 @@ public class DrawPhaseHandler {
                 .sourceId(playerId)
                 .build()
                 .putData("driver", DrawDriver.DRAW_PHASE)
-                .putData("playerId", playerId)
+                .putData("player", player)
                 .putData("count", DEFAULT_DRAW_COUNT);
 
         eventBus.publish(drawTrigger, match);

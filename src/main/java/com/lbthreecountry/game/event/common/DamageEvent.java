@@ -4,6 +4,7 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
+import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.websocket.WebSocketSessionManager;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -80,27 +81,46 @@ public class DamageEvent {
      */
     private void onDamageCause(GameEvent event, com.lbthreecountry.game.GameMatch match) {
         // ── 读取调用方传入的参数 ──
-        String sourceType = event.getData("sourceType");
-        String sourceName = event.getData("sourceName");
-        String targetId = event.getData("targetId");
+        Source source = event.getData("source");
+        if (source == null) {
+            // 兼容旧版：从独立字符串构造，并尝试附加原始对象
+            String sourceType = event.getData("sourceType");
+            String sourceName = event.getData("sourceName");
+            if (sourceType != null) {
+                Object origin = null;
+                CardInstance card = event.getData("card");
+                if (card != null) origin = card;
+                source = new Source(sourceType, sourceName, origin);
+            }
+        }
+
+        com.lbthreecountry.game.GamePlayer target = event.getData("target");
+        if (target == null) {
+            String targetId = event.getData("targetId");
+            if (targetId == null) {
+                log.warn("[造成伤害事件] 缺少 target，忽略");
+                return;
+            }
+            target = match.findPlayer(targetId);
+            if (target == null) {
+                log.warn("[造成伤害事件] 目标 {} 不存在，忽略", targetId);
+                return;
+            }
+        }
         Integer damage = event.getData("damage");
         String element = event.getData("element");
 
         if (damage == null) damage = 1;
-        if (sourceType == null) {
-            log.warn("[造成伤害事件] 缺少 sourceType，忽略");
-            return;
-        }
-        if (targetId == null) {
-            log.warn("[造成伤害事件] 缺少 targetId，忽略");
+        if (source == null) {
+            log.warn("[造成伤害事件] 缺少 source，忽略");
             return;
         }
 
-        log.debug("[造成伤害事件] sourceType={}, sourceName={}, targetId={}, damage={}, element={}",
-                sourceType, sourceName, targetId, damage, element);
+        log.debug("[造成伤害事件] source={}, target={}, damage={}, element={}",
+                source, target.getPlayerId(), damage, element);
 
         // ── 构造可修改的临时数据对象 ──
-        HookData data = new HookData(sourceType, sourceName, targetId, damage, element);
+        HookData data = new HookData(source, target, damage, element);
 
         // ── 1) 造成伤害前（初始数据） ──
         data.publishAndSync(GameEventType.BEFORE_DAMAGE, event, match, eventBus);
@@ -117,20 +137,19 @@ public class DamageEvent {
         }
 
         // ── 3) 实际造成伤害行为（ACTIVE 修改后的数据） ──
-        com.lbthreecountry.game.GamePlayer target = match.findPlayer(data.targetId);
         if (data.damage <= 0) {
             log.info("[造成伤害事件] 伤害量为 0，跳过扣血和 AFTER 钩子");
             return;
         }
         if (target == null || !target.isAlive()) {
-            log.warn("[造成伤害事件] 目标 {} 不存在或已死亡，跳过扣血和 AFTER 钩子", data.targetId);
+            log.warn("[造成伤害事件] 目标 {} 不存在或已死亡，跳过扣血和 AFTER 钩子", target.getPlayerId());
             return;
         }
 
         int actualDamage = Math.min(data.damage, target.getCurrentHp());
         target.setCurrentHp(target.getCurrentHp() - actualDamage);
         log.info("[造成伤害事件] 对 {} 造成 {} 点伤害 (剩余体力: {}/{})",
-                data.targetId, actualDamage, target.getCurrentHp(), target.getMaxHp());
+                target.getPlayerId(), actualDamage, target.getCurrentHp(), target.getMaxHp());
 
         // ── 前端通信（预留） ──
         // TODO: 在此处推送伤害结果到前端，包含以下信息：
@@ -157,18 +176,16 @@ public class DamageEvent {
      * 临时数据容器 — 发布钩子后从事件中回读可能被修改的数据
      */
     private static class HookData {
-        String sourceType;
-        String sourceName;
-        String targetId;
+        Source source;
+        com.lbthreecountry.game.GamePlayer target;
         int damage;
         String element;
         /** 钩子事件是否被监听器取消 */
         boolean cancelled;
 
-        HookData(String sourceType, String sourceName, String targetId, int damage, String element) {
-            this.sourceType = sourceType;
-            this.sourceName = sourceName;
-            this.targetId = targetId;
+        HookData(Source source, com.lbthreecountry.game.GamePlayer target, int damage, String element) {
+            this.source = source;
+            this.target = target;
             this.damage = damage;
             this.element = element;
         }
@@ -177,11 +194,13 @@ public class DamageEvent {
             GameEvent hookEvent = GameEvent.builder()
                     .type(hookType)
                     .sourceId(originalEvent.getSourceId())
-                    .targetId(targetId)
+                    .targetId(target.getPlayerId())
                     .build();
-            hookEvent.putData("sourceType", sourceType)
-                    .putData("sourceName", sourceName)
-                    .putData("targetId", targetId)
+            hookEvent.putData("source", source)
+                    .putData("sourceType", source.getType())
+                    .putData("sourceName", source.getName())
+                    .putData("target", target)
+                    .putData("targetId", target.getPlayerId())
                     .putData("damage", damage)
                     .putData("element", element);
             eventBus.publish(hookEvent, match);
@@ -193,9 +212,6 @@ public class DamageEvent {
             }
 
             // 回读监听器可能修改后的值
-            this.sourceType = hookEvent.getData("sourceType");
-            this.sourceName = hookEvent.getData("sourceName");
-            this.targetId = hookEvent.getData("targetId");
             Integer dmg = hookEvent.getData("damage");
             if (dmg != null) this.damage = dmg;
             this.element = hookEvent.getData("element");

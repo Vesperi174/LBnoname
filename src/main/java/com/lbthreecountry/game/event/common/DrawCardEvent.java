@@ -125,16 +125,18 @@ public class DrawCardEvent {
      */
     private void onDraw(GameEvent event, GameMatch match) {
         // ── 读取调用方传入的参数 ──
-        String playerId = event.getData("playerId");
-        if (playerId == null) {
-            log.warn("[摸牌事件] 事件中无 playerId，忽略");
-            return;
-        }
-
-        GamePlayer player = match.findPlayer(playerId);
+        GamePlayer player = event.getData("player");
         if (player == null) {
-            log.warn("[摸牌事件] 玩家 {} 不存在，忽略", playerId);
-            return;
+            String playerId = event.getData("playerId");
+            if (playerId == null) {
+                log.warn("[摸牌事件] 事件中无 player，忽略");
+                return;
+            }
+            player = match.findPlayer(playerId);
+            if (player == null) {
+                log.warn("[摸牌事件] 玩家 {} 不存在，忽略", playerId);
+                return;
+            }
         }
 
         int count = event.getDataOrDefault("count", 0);
@@ -148,15 +150,15 @@ public class DrawCardEvent {
             driver = DrawDriver.OTHER;
         }
 
-        log.info("[摸牌事件] {} 触发的摸牌 — 玩家 {} 摸 {} 张", driver, playerId, count);
+        log.info("[摸牌事件] {} 触发的摸牌 — 玩家 {} 摸 {} 张", driver, player.getPlayerId(), count);
 
         // ── 构造可修改的临时数据对象 ──
-        HookData data = new HookData(playerId, count, driver);
+        HookData data = new HookData(player, count, driver);
 
         // ── 1) 摸牌开始前（初始数据） ──
         data.publishAndSync(GameEventType.CARD_DRAW_BEFORE, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[摸牌事件] BEFORE 钩子已取消 — {} 的摸牌被取消", playerId);
+            log.info("[摸牌事件] BEFORE 钩子已取消 — {} 的摸牌被取消", player.getPlayerId());
             writeResult(event, data);
             return;
         }
@@ -164,7 +166,7 @@ public class DrawCardEvent {
         // ── 2) 摸牌开始时（BEFORE 修改后的数据） ──
         data.publishAndSync(GameEventType.CARD_DRAW_ACTIVE, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[摸牌事件] ACTIVE 钩子已取消 — {} 的摸牌被取消", playerId);
+            log.info("[摸牌事件] ACTIVE 钩子已取消 — {} 的摸牌被取消", player.getPlayerId());
             writeResult(event, data);
             return;
         }
@@ -182,7 +184,7 @@ public class DrawCardEvent {
                 .map(CardInstance::getInstanceId)
                 .toList();
 
-        log.info("[摸牌事件] {} 实际摸到 {} 张牌", playerId, data.actualCount);
+        log.info("[摸牌事件] {} 实际摸到 {} 张牌", player.getPlayerId(), data.actualCount);
 
         // ── 4) 摸牌结束后钩子（实际使用的数据） ──
         data.publishAfterOnly(event, match, eventBus);
@@ -237,15 +239,15 @@ public class DrawCardEvent {
      * 临时数据容器 — 发布钩子后从事件中回读可能被修改的数据
      */
     private static class HookData {
-        final String playerId;
+        final GamePlayer player;
         final DrawDriver driver;
         int count;
         int actualCount;
         List<Long> cardIds;
         boolean cancelled;
 
-        HookData(String playerId, int count, DrawDriver driver) {
-            this.playerId = playerId;
+        HookData(GamePlayer player, int count, DrawDriver driver) {
+            this.player = player;
             this.count = count;
             this.driver = driver;
             this.cardIds = List.of();
@@ -261,7 +263,8 @@ public class DrawCardEvent {
                     .type(hookType)
                     .sourceId(originalEvent.getSourceId())
                     .build();
-            hookEvent.putData("playerId", playerId)
+            hookEvent.putData("player", player)
+                    .putData("playerId", player.getPlayerId())
                     .putData("count", count)
                     .putData("driver", driver);
             eventBus.publish(hookEvent, match);
@@ -285,7 +288,8 @@ public class DrawCardEvent {
                     .type(GameEventType.CARD_DRAW_AFTER)
                     .sourceId(originalEvent.getSourceId())
                     .build();
-            hookEvent.putData("playerId", playerId)
+            hookEvent.putData("player", player)
+                    .putData("playerId", player.getPlayerId())
                     .putData("count", count)
                     .putData("driver", driver)
                     .putData("actualCount", actualCount)

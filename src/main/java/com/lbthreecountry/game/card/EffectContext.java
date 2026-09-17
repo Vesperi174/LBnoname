@@ -116,6 +116,7 @@ public class EffectContext {
                 .targetId(targetId)
                 .build();
         beforeEvent.putData("amount", amount)
+                .putData("target", target)
                 .putData("playerId", targetId)
                 .putData("playerName", target.getPlayerName());
         eventBus.publish(beforeEvent, match);
@@ -142,6 +143,7 @@ public class EffectContext {
                 .targetId(targetId)
                 .build();
         afterEvent.putData("amount", actualDamage)
+                .putData("target", target)
                 .putData("playerId", targetId)
                 .putData("playerName", target.getPlayerName());
         eventBus.publish(afterEvent, match);
@@ -207,6 +209,7 @@ public class EffectContext {
                 .sourceId(targetId)
                 .build();
         beforeEvent.putData("count", count)
+                .putData("player", target)
                 .putData("playerId", targetId)
                 .putData("playerName", target.getPlayerName());
         eventBus.publish(beforeEvent, match);
@@ -241,6 +244,7 @@ public class EffectContext {
                 .sourceId(targetId)
                 .build();
         afterEvent.putData("count", drawnCount)
+                .putData("player", target)
                 .putData("playerId", targetId)
                 .putData("playerName", target.getPlayerName());
         eventBus.publish(afterEvent, match);
@@ -294,7 +298,8 @@ public class EffectContext {
                 .targetId(player.getPlayerId())
                 .build();
         dyingEvent.putData("playerId", player.getPlayerId())
-                .putData("playerName", player.getPlayerName());
+                .putData("playerName", player.getPlayerName())
+                .putData("player", player);
         eventBus.publish(dyingEvent, match);
     }
 
