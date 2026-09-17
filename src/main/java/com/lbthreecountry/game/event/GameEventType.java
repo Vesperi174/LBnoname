@@ -315,6 +315,28 @@ public final class GameEventType {
     public static final String AFTER_LOSE_HP = "LOSE.HP.AFTER";
 
     // ================================================================
+    //  回复体力事件 — 完整生命周期
+    //
+    //  发布 RECOVER.HP 触发事件（需附带 sourceType/sourceName/targetId/amount 数据），
+    //  由 RecoverHpEvent 组件监听到后自动按以下顺序发布子钩子：
+    //    RECOVER.HP.BEFORE（回复体力前，可修改 amount / 可取消）
+    //    RECOVER.HP.ACTIVE（回复体力时，可修改 amount / 可取消）
+    //    RECOVER.HP.AFTER（回复体力后，仅通知）
+    // ================================================================
+
+    /** 回复体力触发事件 — 发布此事件即可触发回复体力生命周期（由 RecoverHpEvent @Component 监听） */
+    public static final String RECOVER_HP = "RECOVER.HP";
+
+    /** 回复体力前钩子 — 附带本次回复体力信息，可被其他事件监听、调用、修改 */
+    public static final String BEFORE_RECOVER_HP = "RECOVER.HP.BEFORE";
+
+    /** 回复体力时钩子 — 附带本次回复体力信息，可被其他事件监听、调用、修改 */
+    public static final String RECOVER_HP_ACTIVE = "RECOVER.HP.ACTIVE";
+
+    /** 回复体力后钩子 — 附带本次回复体力信息，仅通知 */
+    public static final String AFTER_RECOVER_HP = "RECOVER.HP.AFTER";
+
+    // ================================================================
     //  玩家状态
     // ================================================================
 
