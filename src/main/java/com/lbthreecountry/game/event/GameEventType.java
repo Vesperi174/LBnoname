@@ -144,6 +144,23 @@ public final class GameEventType {
     public static final String ATTACK_RANGE_MODIFY = "ATTACK_RANGE.MODIFY";
 
     // ================================================================
+    //  获取目标
+    // ================================================================
+
+    /**
+     * 获取目标 — 由 {@code GetTargetEvent} 在处理获取目标逻辑时发布
+     */
+    public static final String GET_TARGET = "TARGET.GET";
+
+    /**
+     * 即将成为目标 — 由 {@code GetTargetEvent} 在筛选出目标后，逐个目标发布
+     *
+     * <p>事件数据包含：initiatorId（发起者）、playerId（成为目标的玩家）、
+     * sourceType、sourceName。</p>
+     */
+    public static final String BECOME_TARGET = "TARGET.BECOME";
+
+    // ================================================================
     //  阶段钩子生成方法
     // ================================================================
 
