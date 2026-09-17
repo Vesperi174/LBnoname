@@ -1,4 +1,4 @@
-package com.lbthreecountry.game.state;
+package com.lbthreecountry.game.event.phase;
 
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
@@ -8,6 +8,7 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
+import com.lbthreecountry.game.state.PlayerTurnStateMachine;
 import com.lbthreecountry.model.enums.impl.GamePhase;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
