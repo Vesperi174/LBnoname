@@ -1,4 +1,4 @@
-package com.lbthreecountry.game.distance;
+package com.lbthreecountry.game.event.common;
 
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
@@ -8,7 +8,7 @@ import com.lbthreecountry.game.event.GameEventType;
 import org.springframework.stereotype.Component;
 
 /**
- * 距离管理器 — 计算两名玩家之间的最终距离
+ * 距离事件管理器 — 计算两名玩家之间的最终距离
  *
  * <p>职责：</p>
  * <ol>

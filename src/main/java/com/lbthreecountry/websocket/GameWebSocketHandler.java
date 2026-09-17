@@ -14,7 +14,7 @@ import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.game.event.common.DrawCardEvent;
 import com.lbthreecountry.game.state.RoundStateMachine;
 import com.lbthreecountry.game.hero.HeroManager;
-import com.lbthreecountry.game.distance.DistanceManager;
+import com.lbthreecountry.game.event.common.DistanceManager;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
 import com.lbthreecountry.model.hero.BaseHero;

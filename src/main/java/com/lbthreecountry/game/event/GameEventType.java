@@ -110,7 +110,7 @@ public final class GameEventType {
     // ================================================================
 
     /**
-     * 距离计算 — 由 DistanceManager 在计算两名玩家距离时发布
+     * 距离计算 — 由 {@code DistanceManager} 在计算两名玩家距离时发布
      *
      * <p>监听者可修改事件数据中的 {@code distance} 字段来影响最终距离值。
      * 事件数据格式：</p>
