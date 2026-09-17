@@ -59,7 +59,7 @@ public class DistanceManager {
      * @param match 当前对局
      * @param from  源玩家
      * @param to    目标玩家
-     * @return 最终距离（可能被技能、装备等监听器修改过）
+     * @return 最终距离（最低为 1，可能被技能、装备等监听器修改过）
      */
     public int getDistance(GameMatch match, GamePlayer from, GamePlayer to) {
         if (from == null || to == null) return Integer.MAX_VALUE;
@@ -80,8 +80,8 @@ public class DistanceManager {
 
         eventBus.publish(event, match);
 
-        // ── ③ 返回被监听器修改后的最终距离 ──
-        return (int) event.getData("distance");
+        // ── ③ 返回被监听器修改后的最终距离，最低为 1 ──
+        return Math.max(1, (int) event.getData("distance"));
     }
 
     /**
