@@ -4,6 +4,7 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
+import com.lbthreecountry.websocket.WebSocketSessionManager;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,9 +54,11 @@ public class DamageEvent {
     public static final String ELEMENT_THUNDER = "THUNDER";
 
     private final EventBus eventBus;
+    private final WebSocketSessionManager sessionManager;
 
-    public DamageEvent(EventBus eventBus) {
+    public DamageEvent(EventBus eventBus, WebSocketSessionManager sessionManager) {
         this.eventBus = eventBus;
+        this.sessionManager = sessionManager;
     }
 
     @PostConstruct
@@ -101,23 +104,50 @@ public class DamageEvent {
 
         // ── 1) 造成伤害前（初始数据） ──
         data.publishAndSync(GameEventType.BEFORE_DAMAGE, event, match, eventBus);
+        if (data.cancelled) {
+            log.info("[造成伤害事件] BEFORE 钩子已取消伤害，跳过");
+            return;
+        }
 
         // ── 2) 造成伤害时（BEFORE 修改后的数据） ──
         data.publishAndSync(GameEventType.DAMAGE_ACTIVE, event, match, eventBus);
+        if (data.cancelled) {
+            log.info("[造成伤害事件] ACTIVE 钩子已取消伤害，跳过");
+            return;
+        }
 
         // ── 3) 实际造成伤害行为（ACTIVE 修改后的数据） ──
         com.lbthreecountry.game.GamePlayer target = match.findPlayer(data.targetId);
-        if (target == null || !target.isAlive()) {
-            log.warn("[造成伤害事件] 目标 {} 不存在或已死亡，跳过扣血", data.targetId);
-        } else {
-            int actualDamage = Math.min(data.damage, target.getCurrentHp());
-            target.setCurrentHp(target.getCurrentHp() - actualDamage);
-            log.info("[造成伤害事件] 对 {} 造成 {} 点伤害 (剩余体力: {}/{})",
-                    data.targetId, actualDamage, target.getCurrentHp(), target.getMaxHp());
-
-            // 伤害后数据使用实际值
-            data.damage = actualDamage;
+        if (data.damage <= 0) {
+            log.info("[造成伤害事件] 伤害量为 0，跳过扣血和 AFTER 钩子");
+            return;
         }
+        if (target == null || !target.isAlive()) {
+            log.warn("[造成伤害事件] 目标 {} 不存在或已死亡，跳过扣血和 AFTER 钩子", data.targetId);
+            return;
+        }
+
+        int actualDamage = Math.min(data.damage, target.getCurrentHp());
+        target.setCurrentHp(target.getCurrentHp() - actualDamage);
+        log.info("[造成伤害事件] 对 {} 造成 {} 点伤害 (剩余体力: {}/{})",
+                data.targetId, actualDamage, target.getCurrentHp(), target.getMaxHp());
+
+        // ── 前端通信（预留） ──
+        // TODO: 在此处推送伤害结果到前端，包含以下信息：
+        //       - sourceId: 伤害来源玩家 ID
+        //       - targetId: 受击玩家 ID
+        //       - sourceType: 伤害来源类型（BASIC_CARD / STRATEGY_CARD / SKILL 等）
+        //       - sourceName: 伤害来源名称（sha / juedou / 技能名）
+        //       - damage: 实际伤害量
+        //       - element: 伤害属性
+        //       - remainingHp: 受击玩家剩余体力
+        //       - maxHp: 受击玩家最大体力
+        //       参考 CardManager.draw() 中的推送模式：
+        //       sessionManager.sendMessage(targetId, json);
+        //       sessionManager.broadcastToRoom(allPlayerIds, json, targetId);
+
+        // 伤害后数据使用实际值
+        data.damage = actualDamage;
 
         // ── 4) 造成伤害后（实际使用的数据） ──
         data.publishAndSync(GameEventType.AFTER_DAMAGE, event, match, eventBus);
@@ -132,6 +162,8 @@ public class DamageEvent {
         String targetId;
         int damage;
         String element;
+        /** 钩子事件是否被监听器取消 */
+        boolean cancelled;
 
         HookData(String sourceType, String sourceName, String targetId, int damage, String element) {
             this.sourceType = sourceType;
@@ -153,6 +185,12 @@ public class DamageEvent {
                     .putData("damage", damage)
                     .putData("element", element);
             eventBus.publish(hookEvent, match);
+
+            // 检查钩子事件是否被监听器取消
+            if (hookEvent.isCancelled()) {
+                this.cancelled = true;
+                return;  // 被取消，不再回读数据
+            }
 
             // 回读监听器可能修改后的值
             this.sourceType = hookEvent.getData("sourceType");
