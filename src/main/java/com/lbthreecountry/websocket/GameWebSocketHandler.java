@@ -12,8 +12,6 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.game.event.DrawCardEvent;
-import com.lbthreecountry.game.state.PendingDecisionManager;
-import com.lbthreecountry.game.state.PlayPhaseHandler;
 import com.lbthreecountry.game.state.RoundStateMachine;
 import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.game.distance.DistanceManager;
@@ -72,7 +70,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final EventBus eventBus;
     private final DistanceManager distanceManager;
     private final RoundStateMachine roundStateMachine;
-    private final PendingDecisionManager pendingDecisionManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 机器人自动推进调度器 */
@@ -233,7 +230,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "LIST_ONLINE_PLAYERS" -> broadcastOnlinePlayers();
             case "UPDATE_ROOM_SETTINGS" -> handleUpdateRoomSettings(session, playerSession, msg);
             case "PLAY_CARD"            -> handlePlayCard(session, playerSession, msg);
-            case "END_TURN"            -> handleEndTurn(playerSession);
             case "CHECK_CARDS"          -> handleCheckCards(session, playerSession);
             case "SELECT_HERO"          -> handleSelectHero(session, playerSession, msg);
             case "CLIENT_READY"         -> handleClientReady(playerSession);
@@ -912,9 +908,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         List<String> targetIds = (List<String>) msg.get("targetIds");
         if (targetIds == null) targetIds = List.of();
 
-        // ── 解析出牌阶段待处理的决策（如果 PlayPhaseHandler 正在等待） ──
-        pendingDecisionManager.resolveCardPlay(roomId, cardInstanceId, targetIds);
-
         try {
             GameMatch match = gameService.playCard(roomId, playerId, cardInstanceId, targetIds);
 
@@ -983,27 +976,6 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
-        }
-    }
-
-    // ──────────────────────────────────────────────
-    //  结束回合
-    // ──────────────────────────────────────────────
-
-    /**
-     * 处理前端 END_TURN 消息 — 结束当前出牌阶段
-     *
-     * <p>解析出牌阶段待处理的决策（{@link PendingDecisionManager#resolveEndTurn}），
-     * 使 {@link PlayPhaseHandler} 的出牌循环收到"结束回合"决策并退出。</p>
-     */
-    private void handleEndTurn(PlayerSession playerSession) {
-        String playerId = playerSession.getPlayer().getPlayerId();
-        GameRoom room = roomService.findRoomByPlayerId(playerId);
-        if (room == null) return;
-
-        boolean resolved = pendingDecisionManager.resolveEndTurn(room.getRoomId());
-        if (resolved) {
-            log.debug("[结束回合] {} 结束了出牌阶段", playerSession.getPlayer().getName());
         }
     }
 

@@ -162,25 +162,10 @@ public class CardPlayabilityChecker {
             }
         });
 
-        // ── 出牌阶段进行中：进入出牌阶段 → 重新检测当前玩家手牌状态 ──
-        eventBus.register(GameEventType.phaseActive(GamePhase.PLAY), EventPriority.EQUIP_CARD, (event, match) -> {
-            String playerId = event.getSourceId();
-            if (playerId == null) return;
-            GamePlayer player = match.findPlayer(playerId);
-            if (player == null) return;
-            log.info("[卡牌检测]玩家 {} 进入出牌阶段 → 重新检测手牌状态", player.getPlayerName());
-            checkAllHandCards(match, player);
-        });
-
-        // ── 选择出牌钩子：出牌循环每次迭代均触发 → 重新检测当前玩家手牌状态 ──
-        eventBus.register(GameEventType.CARD_SELECT_ACTIVE, EventPriority.EQUIP_CARD, (event, match) -> {
-            String playerId = event.getData("playerId");
-            if (playerId == null) return;
-            GamePlayer player = match.findPlayer(playerId);
-            if (player == null) return;
-            log.debug("[卡牌检测]玩家 {} 选择出牌 → 重新检测手牌状态", player.getPlayerName());
-            checkAllHandCards(match, player);
-        });
+        // ── TODO: 进入出牌阶段 → 重新检测所有卡牌 ──
+        // eventBus.register("PHASE.ACTIVE.PLAY", EventPriority.EQUIP_CARD, (event, match) -> {
+        //     // 重新计算当前玩家手牌状态并推送给前端
+        // });
 
         // ── TODO: 阶段切换 → 更新卡牌可点击状态 ──
         // eventBus.register("PHASE.CHANGE", EventPriority.EQUIP_CARD, (event, match) -> {
@@ -271,7 +256,7 @@ public class CardPlayabilityChecker {
     /**
      * 检测一张手牌的可用性
      *
-     * <p><b>当前阶段：</b>简化模式，所有卡牌返回 {@link CardActionStatus#PLAYABLE}。</p>
+     * <p><b>当前阶段：</b>简化模式，所有卡牌返回 {@link CardActionStatus#NOT_CLICKABLE}。</p>
      *
      * @param match  当前对局
      * @param player 卡牌持有者
@@ -280,7 +265,7 @@ public class CardPlayabilityChecker {
      */
     public CardCheckResult checkSingleCard(GameMatch match, GamePlayer player, CardInstance card) {
         // ================================================================
-        //  【模板阶段】所有卡牌返回 PLAYABLE
+        //  【模板阶段】所有卡牌返回 NOT_CLICKABLE
         //  后续通过事件钩子逐步接入精确判定：
         //
         //  1. 接入 PHASE 事件 → 非出牌阶段返回 NOT_CLICKABLE
@@ -290,7 +275,7 @@ public class CardPlayabilityChecker {
         //  5. 接入 PLAYER 事件 → 无合法目标返回 NOT_PLAYABLE
         //  6. 特殊牌规则逐一添加
         // ================================================================
-        return new CardCheckResult(CardActionStatus.PLAYABLE, "默认可用（检测逻辑未接入）");
+        return new CardCheckResult(CardActionStatus.NOT_CLICKABLE, "未接入检测逻辑，默认不可用");
     }
 
     // ================================================================
