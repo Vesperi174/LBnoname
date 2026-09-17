@@ -2,7 +2,8 @@ package com.lbthreecountry.game.state;
 
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
-import com.lbthreecountry.game.event.DrawCardEvent.DrawDriver;
+import com.lbthreecountry.game.event.common.DrawCardEvent;
+import com.lbthreecountry.game.event.common.DrawCardEvent.DrawDriver;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
@@ -19,7 +20,7 @@ import org.springframework.stereotype.Component;
  * <p>当 {@link PlayerTurnStateMachine} 进入 DRAW 阶段（State 4）时，
  * 会发布 {@code PHASE.ACTIVE.DRAW} 事件。本组件监听此事件后，
  * 发布 {@link GameEventType#CARD_DRAW CARD.DRAW} 触发事件，
- * 由 {@link com.lbthreecountry.game.event.DrawCardEvent DrawCardEvent}
+ * 由 {@link DrawCardEvent DrawCardEvent}
  * 执行完整的摸牌生命周期。</p>
  *
  * <h3>执行顺序</h3>
@@ -69,7 +70,7 @@ public class DrawPhaseHandler {
      * PHASE.ACTIVE.DRAW 事件处理 — 发布 CARD.DRAW 触发事件
      *
      * <p>从事件数据中提取当前玩家 ID，构造摸牌触发事件，
-     * 由 {@link com.lbthreecountry.game.event.DrawCardEvent DrawCardEvent}
+     * 由 {@link DrawCardEvent DrawCardEvent}
      * 监听到后执行摸牌生命周期。</p>
      */
     private void onDrawPhase(GameEvent event, GameMatch match) {

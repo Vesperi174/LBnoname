@@ -4,6 +4,8 @@ import com.lbthreecountry.model.hero.BaseHero;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -12,40 +14,53 @@ import java.util.stream.Collectors;
 /**
  * 武将管理器 — 管理所有可用武将的注册、查询和随机分配
  *
- * <p>在 {@link PostConstruct 初始化} 阶段通过反射加载所有武将类，
- * 提供获取随机武将和武将信息的能力。</p>
+ * <p>在 {@link PostConstruct 初始化} 阶段通过自动扫描武将包路径，
+ * 反射加载所有武将类。新增武将只需在对应包下添加类文件即可。</p>
  */
 @Component
 public class HeroManager {
 
     private static final Logger log = LoggerFactory.getLogger(HeroManager.class);
 
-    /** 所有武将类的全限定名 */
-    private static final String[] HERO_CLASSES = {
-            "com.lbthreecountry.character.LBLOL.hero.LOL_EZ",
-            "com.lbthreecountry.character.LBLOL.hero.LOL_VN",
-            "com.lbthreecountry.character.LBLOL.hero.LOL_zhaoxin",
-            "com.lbthreecountry.character.LBLOL.hero.LOL_ytks",
-            "com.lbthreecountry.character.LBLOL.hero.LOL_sailasi",
-            "com.lbthreecountry.character.LBLOL.hero.LOL_bulande",
-            "com.lbthreecountry.character.LBLOL.hero.LOL_feiaona"
-    };
+    /** 武将包路径（自动扫描该包下所有继承 BaseHero 的类） */
+    private static final String HERO_PACKAGE = "com.lbthreecountry.character.LBLOL.hero";
+    private static final String HERO_RESOURCE_PATTERN = "classpath*:" + HERO_PACKAGE.replace('.', '/') + "/*.class";
 
     /** heroId → BaseHero 映射 */
     private final Map<String, BaseHero> heroMap = new LinkedHashMap<>();
 
     @PostConstruct
     public void init() {
-        for (String className : HERO_CLASSES) {
-            try {
-                Class<?> clazz = Class.forName(className);
-                BaseHero hero = (BaseHero) clazz.getDeclaredConstructor().newInstance();
-                heroMap.put(hero.getHeroId(), hero);
-                log.debug("[武将] 加载: {} ({})", hero.getHeroName(), hero.getHeroId());
-            } catch (Exception e) {
-                log.warn("[武将] 加载失败: {} - {}", className, e.getMessage());
+        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+
+        try {
+            Resource[] resources = resolver.getResources(HERO_RESOURCE_PATTERN);
+
+            for (Resource resource : resources) {
+                // 从文件路径提取类名，如 "/com/lbthreecountry/character/LBLOL/hero/LOL_EZ.class" → "LOL_EZ"
+                String filename = resource.getFilename();
+                if (filename == null || !filename.endsWith(".class")) continue;
+                // 排除内部类（带 $ 的 class 文件）
+                if (filename.contains("$")) continue;
+
+                String className = HERO_PACKAGE + "." + filename.replace(".class", "");
+
+                try {
+                    Class<?> clazz = Class.forName(className);
+                    // 只加载 BaseHero 的子类
+                    if (!BaseHero.class.isAssignableFrom(clazz)) continue;
+
+                    BaseHero hero = (BaseHero) clazz.getDeclaredConstructor().newInstance();
+                    heroMap.put(hero.getHeroId(), hero);
+                    log.debug("[武将] 加载: {} ({})", hero.getHeroName(), hero.getHeroId());
+                } catch (Exception e) {
+                    log.warn("[武将] 加载失败: {} - {}", className, e.getMessage());
+                }
             }
+        } catch (Exception e) {
+            log.error("[武将] 扫描包路径失败: {}", HERO_PACKAGE, e);
         }
+
         log.info("[武将] 共加载 {} 个武将", heroMap.size());
     }
 
