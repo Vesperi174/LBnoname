@@ -182,7 +182,7 @@ public class CardPlayabilityChecker {
         //     // 重新检测手牌状态
         // });
 
-        log.info("[卡牌检测] 事件钩子已注册（已接入: CARD.DRAW.CHECK + BATTLE.START | 模板阶段默认 NOT_CLICKABLE）");
+        log.info("[卡牌检测] 事件钩子已注册（已接入: CARD.DRAW.CHECK + BATTLE.START | 模板阶段默认 NOT_SELECTABLE）");
     }
 
     // ================================================================
@@ -264,14 +264,14 @@ public class CardPlayabilityChecker {
      */
     public CardCheckResult checkSingleCard(GameMatch match, GamePlayer player, CardInstance card) {
         // ================================================================
-        //  【模板阶段】所有卡牌返回 NOT_CLICKABLE
+        //  【模板阶段】所有卡牌返回 NOT_SELECTABLE
         //  后续通过事件钩子逐步接入精确判定：
         //
-        //  1. 接入 PHASE 事件 → 非出牌阶段返回 NOT_CLICKABLE
-        //  2. 接入 TURN 事件 → 非当前回合玩家返回 NOT_CLICKABLE
-        //  3. 接入 CARD.PLAYED 事件 → 已出杀的卡牌返回 NOT_PLAYABLE
-        //  4. 接入 EQUIPMENT 事件 → 已有同类型装备返回 NOT_PLAYABLE
-        //  5. 接入 PLAYER 事件 → 无合法目标返回 NOT_PLAYABLE
+        //  1. 接入 PHASE 事件 → 非出牌阶段返回 NOT_SELECTABLE
+        //  2. 接入 TURN 事件 → 非当前回合玩家返回 NOT_SELECTABLE
+        //  3. 接入 CARD.PLAYED 事件 → 已出杀的卡牌返回 NOT_SELECTABLE
+        //  4. 接入 EQUIPMENT 事件 → 已有同类型装备返回 NOT_SELECTABLE
+        //  5. 接入 PLAYER 事件 → 无合法目标返回 NOT_SELECTABLE
         //  6. 特殊牌规则逐一添加
         // ================================================================
         return new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "未接入检测逻辑，默认不可用");
@@ -283,22 +283,22 @@ public class CardPlayabilityChecker {
 
     // ── 全局前置检测模板 ──
     // private CardActionStatus checkGlobalClickable(GameMatch match, GamePlayer player) {
-    //     if (match.getStatus() != GameStatus.PLAYING)     return NOT_CLICKABLE;
-    //     if (player.getStatus() != PlayerStatus.ALIVE)    return NOT_CLICKABLE;
-    //     if (!isCurrentTurnPlayer(match, player))         return NOT_CLICKABLE;
-    //     if (match.getCurrentPhase() != GamePhase.PLAY)   return NOT_CLICKABLE;
+    //     if (match.getStatus() != GameStatus.PLAYING)     return NOT_SELECTABLE;
+    //     if (player.getStatus() != PlayerStatus.ALIVE)    return NOT_SELECTABLE;
+    //     if (!isCurrentTurnPlayer(match, player))         return NOT_SELECTABLE;
+    //     if (match.getCurrentPhase() != GamePhase.PLAY)   return NOT_SELECTABLE;
     //     return PLAYABLE;
     // }
 
     // ── 卡牌级检测模板 ──
     // private CardCheckResult checkCardPlayability(GameMatch match, GamePlayer player, CardInstance card) {
     //     CardDef def = cardManager.getDef(card.getDefId());
-    //     if (def == null || def.getRules() == null)       return NOT_PLAYABLE("卡牌规则未定义");
-    //     if (!checkPhaseMatch(def))                       return NOT_PLAYABLE("仅可在出牌阶段使用");
-    //     if (!checkPerTurnLimit(match, player, card))     return NOT_PLAYABLE("本回合已达使用次数上限");
-    //     if (isEquipment(def) && !checkEquipmentSlot(...)) return NOT_PLAYABLE("已有同类型装备");
-    //     if (needsTargets(def) && !hasValidTargets(...))   return NOT_PLAYABLE("无合法目标");
-    //     if (!checkSpecialRules(card, player))            return NOT_PLAYABLE("特殊规则不满足");
+    //     if (def == null || def.getRules() == null)       return NOT_SELECTABLE("卡牌规则未定义");
+    //     if (!checkPhaseMatch(def))                       return NOT_SELECTABLE("仅可在出牌阶段使用");
+    //     if (!checkPerTurnLimit(match, player, card))     return NOT_SELECTABLE("本回合已达使用次数上限");
+    //     if (isEquipment(def) && !checkEquipmentSlot(...)) return NOT_SELECTABLE("已有同类型装备");
+    //     if (needsTargets(def) && !hasValidTargets(...))   return NOT_SELECTABLE("无合法目标");
+    //     if (!checkSpecialRules(card, player))            return NOT_SELECTABLE("特殊规则不满足");
     //     return PLAYABLE;
     // }
 
@@ -309,7 +309,7 @@ public class CardPlayabilityChecker {
     /**
      * 卡牌检测结果
      *
-     * <p>包含卡牌的动作状态和不可用原因（仅 NOT_PLAYABLE 时有原因文字）。</p>
+     * <p>包含卡牌的动作状态和不可用原因（仅 NOT_SELECTABLE 时有原因文字）。</p>
      */
     public static class CardCheckResult {
 
@@ -326,7 +326,7 @@ public class CardPlayabilityChecker {
             return status;
         }
 
-        /** 不可用原因（仅 NOT_PLAYABLE 时有效，其余为 null） */
+        /** 不可用原因（仅 NOT_SELECTABLE 时有效，其余为 null） */
         public String getReason() {
             return reason;
         }
