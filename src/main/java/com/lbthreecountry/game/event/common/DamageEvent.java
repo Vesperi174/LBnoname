@@ -1,5 +1,6 @@
 package com.lbthreecountry.game.event.common;
 
+import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
@@ -14,44 +15,49 @@ import org.springframework.stereotype.Component;
 /**
  * 造成伤害事件 — 监听 {@code DAMAGE_CAUSE} 触发钩子，执行造成伤害生命周期
  *
- * <h3>事件数据格式</h3>
+ * <h3>触发事件数据字段</h3>
  * <pre>
- * ┌──────────────┬──────────┬──────────────────────────────────────────┐
- * │ 字段          │ 类型      │ 说明                                     │
- * ├──────────────┼──────────┼──────────────────────────────────────────┤
- * │ sourceType   │ String   │ 伤害来源类型（必填）                      │
- * │              │          │  BASIC_CARD / STRATEGY_CARD /            │
- * │              │          │  EQUIPMENT_CARD / SKILL / PLAYER         │
- * │ sourceName   │ String   │ 伤害来源具体名称（如 sha / juedou / 技能名）│
- * │ targetId     │ String   │ 受到伤害的玩家 ID（必填）                  │
- * │ damage       │ int      │ 伤害点数（默认 1）                        │
- * │ element      │ String   │ 伤害属性：null(无属性) / FIRE / THUNDER   │
- * └──────────────┴──────────┴──────────────────────────────────────────┘
+ * ┌──────────────┬──────────────────────┬──────────────────────────────┐
+ * │ 字段          │ 类型                  │ 说明                           │
+ * ├──────────────┼──────────────────────┼──────────────────────────────┤
+ * │ source       │ GamePlayer / null    │ 伤害来源玩家（谁造成的伤害）    │
+ * │ sourceCard   │ CardInstance / String / null │ 伤害来源（CardInstance 牌 / String 技能标识 / null）│
+ * │ target       │ GamePlayer           │ 受到伤害的玩家（必填）          │
+ * │ damage       │ int                  │ 伤害点数（默认 1）              │
+ * │ element      │ String               │ 伤害属性：null / FIRE / THUNDER│
+ * └──────────────┴──────────────────────┴──────────────────────────────┘
  * </pre>
+ *
+ * <h3>使用示例</h3>
+ * <pre>{@code
+ * // 使用【杀】造成 1 点无属性伤害
+ * eventBus.publish(GameEvent.builder()
+ *     .type(GameEventType.DAMAGE_CAUSE)
+ *     .sourceId(player.getPlayerId())
+ *     .targetId(target.getPlayerId())
+ *     .build()
+ *     .putData("source", player)
+ *     .putData("sourceCard", card)    // 传入牌实例
+ *     .putData("target", target)
+ *     .putData("damage", 1), match);
+ *
+ * // 技能造成伤害（无来源牌）
+ * eventBus.publish(GameEvent.builder()
+ *     .type(GameEventType.DAMAGE_CAUSE)
+ *     .sourceId(sourceId)
+ *     .targetId(targetId)
+ *     .build()
+ *     .putData("source", player)
+ *     .putData("target", target)
+ *     .putData("damage", 2), match);
+ * }</pre>
  */
 @Component
 public class DamageEvent {
 
     private static final Logger log = LoggerFactory.getLogger(DamageEvent.class);
 
-    // ================================================================
-    //  伤害来源类型常量
-    // ================================================================
-    public static final String SOURCE_BASIC_CARD = "BASIC_CARD";
-    public static final String SOURCE_STRATEGY_CARD = "STRATEGY_CARD";
-    public static final String SOURCE_EQUIPMENT_CARD = "EQUIPMENT_CARD";
-    public static final String SOURCE_SKILL = "SKILL";
-    /** 玩家直接造成的伤害（非卡牌/技能） */
-    public static final String SOURCE_PLAYER = "PLAYER";
-
-    // ================================================================
-    //  伤害属性常量
-    // ================================================================
-    /** 无属性伤害（物理） */
-    public static final String ELEMENT_NONE = null;
-    /** 火焰伤害 */
     public static final String ELEMENT_FIRE = "FIRE";
-    /** 雷电伤害 */
     public static final String ELEMENT_THUNDER = "THUNDER";
 
     private final EventBus eventBus;
@@ -81,46 +87,25 @@ public class DamageEvent {
      */
     private void onDamageCause(GameEvent event, com.lbthreecountry.game.GameMatch match) {
         // ── 读取调用方传入的参数 ──
-        Source source = event.getData("source");
-        if (source == null) {
-            // 兼容旧版：从独立字符串构造，并尝试附加原始对象
-            String sourceType = event.getData("sourceType");
-            String sourceName = event.getData("sourceName");
-            if (sourceType != null) {
-                Object origin = null;
-                CardInstance card = event.getData("card");
-                if (card != null) origin = card;
-                source = new Source(sourceType, sourceName, origin);
-            }
-        }
+        GamePlayer source = event.getData("source");
+        Object sourceCard = event.getData("sourceCard");
+        GamePlayer target = event.getData("target");
 
-        com.lbthreecountry.game.GamePlayer target = event.getData("target");
         if (target == null) {
-            String targetId = event.getData("targetId");
-            if (targetId == null) {
-                log.warn("[造成伤害事件] 缺少 target，忽略");
-                return;
-            }
-            target = match.findPlayer(targetId);
-            if (target == null) {
-                log.warn("[造成伤害事件] 目标 {} 不存在，忽略", targetId);
-                return;
-            }
-        }
-        Integer damage = event.getData("damage");
-        String element = event.getData("element");
-
-        if (damage == null) damage = 1;
-        if (source == null) {
-            log.warn("[造成伤害事件] 缺少 source，忽略");
+            log.warn("[造成伤害事件] 缺少 target，忽略");
             return;
         }
 
-        log.debug("[造成伤害事件] source={}, target={}, damage={}, element={}",
-                source, target.getPlayerId(), damage, element);
+        Integer damage = event.getDataOrDefault("damage", 1);
+        String element = event.getData("element");
+
+        log.debug("[造成伤害事件] source={}, sourceCard={}, target={}, damage={}, element={}",
+                source != null ? source.getPlayerId() : null,
+                sourceCard != null ? sourceCard.getDefId() : null,
+                target.getPlayerId(), damage, element);
 
         // ── 构造可修改的临时数据对象 ──
-        HookData data = new HookData(source, target, damage, element);
+        HookData data = new HookData(source, sourceCard, target, damage, element);
 
         // ── 1) 造成伤害前（初始数据） ──
         data.publishAndSync(GameEventType.BEFORE_DAMAGE, event, match, eventBus);
@@ -152,18 +137,7 @@ public class DamageEvent {
                 target.getPlayerId(), actualDamage, target.getCurrentHp(), target.getMaxHp());
 
         // ── 前端通信（预留） ──
-        // TODO: 在此处推送伤害结果到前端，包含以下信息：
-        //       - sourceId: 伤害来源玩家 ID
-        //       - targetId: 受击玩家 ID
-        //       - sourceType: 伤害来源类型（BASIC_CARD / STRATEGY_CARD / SKILL 等）
-        //       - sourceName: 伤害来源名称（sha / juedou / 技能名）
-        //       - damage: 实际伤害量
-        //       - element: 伤害属性
-        //       - remainingHp: 受击玩家剩余体力
-        //       - maxHp: 受击玩家最大体力
-        //       参考 CardManager.draw() 中的推送模式：
-        //       sessionManager.sendMessage(targetId, json);
-        //       sessionManager.broadcastToRoom(allPlayerIds, json, targetId);
+        // TODO: 在此处推送伤害结果到前端
 
         // 伤害后数据使用实际值
         data.damage = actualDamage;
@@ -176,45 +150,53 @@ public class DamageEvent {
      * 临时数据容器 — 发布钩子后从事件中回读可能被修改的数据
      */
     private static class HookData {
-        Source source;
-        com.lbthreecountry.game.GamePlayer target;
+        GamePlayer source;
+        Object sourceCard;
+        GamePlayer target;
         int damage;
         String element;
-        /** 钩子事件是否被监听器取消 */
         boolean cancelled;
 
-        HookData(Source source, com.lbthreecountry.game.GamePlayer target, int damage, String element) {
+        HookData(GamePlayer source, Object sourceCard, GamePlayer target, int damage, String element) {
             this.source = source;
+            this.sourceCard = sourceCard;
             this.target = target;
             this.damage = damage;
             this.element = element;
         }
 
-        void publishAndSync(String hookType, GameEvent originalEvent, com.lbthreecountry.game.GameMatch match, EventBus eventBus) {
+        void publishAndSync(String hookType, GameEvent originalEvent,
+                            com.lbthreecountry.game.GameMatch match, EventBus eventBus) {
             GameEvent hookEvent = GameEvent.builder()
                     .type(hookType)
                     .sourceId(originalEvent.getSourceId())
                     .targetId(target.getPlayerId())
                     .build();
             hookEvent.putData("source", source)
-                    .putData("sourceType", source.getType())
-                    .putData("sourceName", source.getName())
+                    .putData("sourceCard", sourceCard)
                     .putData("target", target)
                     .putData("targetId", target.getPlayerId())
                     .putData("damage", damage)
                     .putData("element", element);
             eventBus.publish(hookEvent, match);
 
-            // 检查钩子事件是否被监听器取消
             if (hookEvent.isCancelled()) {
                 this.cancelled = true;
-                return;  // 被取消，不再回读数据
+                return;
             }
 
             // 回读监听器可能修改后的值
+            GamePlayer newSource = hookEvent.getData("source");
+            if (newSource != null) this.source = newSource;
+
+            Object newSourceCard = hookEvent.getData("sourceCard");
+            if (newSourceCard != null) this.sourceCard = newSourceCard;
+
             Integer dmg = hookEvent.getData("damage");
             if (dmg != null) this.damage = dmg;
-            this.element = hookEvent.getData("element");
+
+            String newElement = hookEvent.getData("element");
+            if (newElement != null) this.element = newElement;
         }
     }
 }
