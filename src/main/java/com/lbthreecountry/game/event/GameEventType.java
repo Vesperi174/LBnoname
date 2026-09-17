@@ -161,6 +161,15 @@ public final class GameEventType {
     public static final String BECOME_TARGET = "TARGET.BECOME";
 
     // ================================================================
+    //  伤害
+    // ================================================================
+
+    /**
+     * 造成伤害 — 由 {@code DamageEvent} 在处理造成伤害逻辑时发布
+     */
+    public static final String DAMAGE_CAUSE = "DAMAGE.CAUSE";
+
+    // ================================================================
     //  阶段钩子生成方法
     // ================================================================
 
@@ -254,6 +263,9 @@ public final class GameEventType {
     /** 造成伤害前 */
     public static final String BEFORE_DAMAGE = "DAMAGE.BEFORE";
 
+    /** 造成伤害时 */
+    public static final String DAMAGE_ACTIVE = "DAMAGE.ACTIVE";
+
     /** 造成伤害后 */
     public static final String AFTER_DAMAGE = "DAMAGE.AFTER";
 
@@ -266,4 +278,24 @@ public final class GameEventType {
 
     /** 玩家死亡 */
     public static final String PLAYER_DEAD = "PLAYER.DEAD";
+
+    // ================================================================
+    //  取消事件
+    // ================================================================
+
+    /**
+     * 取消动作 — 由 {@code CancelEvent} 在处理取消逻辑时发布
+     *
+     * <p>监听此事件可执行取消前/后的逻辑。</p>
+     */
+    public static final String CANCEL_ACTION = "CANCEL.ACTION";
+
+    /** 取消动作前钩子 — 监听器可阻止取消行为 */
+    public static final String CANCEL_BEFORE = "CANCEL.BEFORE";
+
+    /** 取消进行中 — 执行取消逻辑 */
+    public static final String CANCEL_ACTIVE = "CANCEL.ACTIVE";
+
+    /** 取消动作后钩子 — 取消完成后通知 */
+    public static final String CANCEL_AFTER = "CANCEL.AFTER";
 }

@@ -1,0 +1,166 @@
+package com.lbthreecountry.game.event.common;
+
+import com.lbthreecountry.game.event.EventBus;
+import com.lbthreecountry.game.event.EventPriority;
+import com.lbthreecountry.game.event.GameEvent;
+import com.lbthreecountry.game.event.GameEventType;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+/**
+ * 造成伤害事件 — 监听 {@code DAMAGE_CAUSE} 触发钩子，执行造成伤害生命周期
+ *
+ * <h3>事件数据格式</h3>
+ * <pre>
+ * ┌──────────────┬──────────┬──────────────────────────────────────────┐
+ * │ 字段          │ 类型      │ 说明                                     │
+ * ├──────────────┼──────────┼──────────────────────────────────────────┤
+ * │ sourceType   │ String   │ 伤害来源类型（必填）                      │
+ * │              │          │  BASIC_CARD / STRATEGY_CARD /            │
+ * │              │          │  EQUIPMENT_CARD / SKILL / PLAYER         │
+ * │ sourceName   │ String   │ 伤害来源具体名称（如 sha / juedou / 技能名）│
+ * │ targetId     │ String   │ 受到伤害的玩家 ID（必填）                  │
+ * │ damage       │ int      │ 伤害点数（默认 1）                        │
+ * │ element      │ String   │ 伤害属性：null(无属性) / FIRE / THUNDER   │
+ * └──────────────┴──────────┴──────────────────────────────────────────┘
+ * </pre>
+ */
+@Component
+public class DamageEvent {
+
+    private static final Logger log = LoggerFactory.getLogger(DamageEvent.class);
+
+    // ================================================================
+    //  伤害来源类型常量
+    // ================================================================
+    public static final String SOURCE_BASIC_CARD = "BASIC_CARD";
+    public static final String SOURCE_STRATEGY_CARD = "STRATEGY_CARD";
+    public static final String SOURCE_EQUIPMENT_CARD = "EQUIPMENT_CARD";
+    public static final String SOURCE_SKILL = "SKILL";
+    /** 玩家直接造成的伤害（非卡牌/技能） */
+    public static final String SOURCE_PLAYER = "PLAYER";
+
+    // ================================================================
+    //  伤害属性常量
+    // ================================================================
+    /** 无属性伤害（物理） */
+    public static final String ELEMENT_NONE = null;
+    /** 火焰伤害 */
+    public static final String ELEMENT_FIRE = "FIRE";
+    /** 雷电伤害 */
+    public static final String ELEMENT_THUNDER = "THUNDER";
+
+    private final EventBus eventBus;
+
+    public DamageEvent(EventBus eventBus) {
+        this.eventBus = eventBus;
+    }
+
+    @PostConstruct
+    public void init() {
+        eventBus.register(GameEventType.DAMAGE_CAUSE, EventPriority.ENGINE, this::onDamageCause);
+        log.info("[造成伤害事件] 已注册 DAMAGE_CAUSE 监听器 (ENGINE 优先级)");
+    }
+
+    /**
+     * {@code DAMAGE_CAUSE} 事件回调
+     *
+     * <p>从事件数据中读取伤害参数，依次执行以下流程：</p>
+     * <ol>
+     *   <li>{@code DAMAGE.BEFORE} — 造成伤害前（初始数据，监听器可修改）</li>
+     *   <li>{@code DAMAGE.ACTIVE} — 造成伤害时（BEFORE 修改后的数据，监听器可修改）</li>
+     *   <li>实际扣血 — 使用 ACTIVE 修改后的数据执行扣减体力</li>
+     *   <li>{@code DAMAGE.AFTER} — 造成伤害后（实际使用的数据，仅通知）</li>
+     * </ol>
+     */
+    private void onDamageCause(GameEvent event, com.lbthreecountry.game.GameMatch match) {
+        // ── 读取调用方传入的参数 ──
+        String sourceType = event.getData("sourceType");
+        String sourceName = event.getData("sourceName");
+        String targetId = event.getData("targetId");
+        Integer damage = event.getData("damage");
+        String element = event.getData("element");
+
+        if (damage == null) damage = 1;
+        if (sourceType == null) {
+            log.warn("[造成伤害事件] 缺少 sourceType，忽略");
+            return;
+        }
+        if (targetId == null) {
+            log.warn("[造成伤害事件] 缺少 targetId，忽略");
+            return;
+        }
+
+        log.debug("[造成伤害事件] sourceType={}, sourceName={}, targetId={}, damage={}, element={}",
+                sourceType, sourceName, targetId, damage, element);
+
+        // ── 构造可修改的临时数据对象 ──
+        HookData data = new HookData(sourceType, sourceName, targetId, damage, element);
+
+        // ── 1) 造成伤害前（初始数据） ──
+        data.publishAndSync(GameEventType.BEFORE_DAMAGE, event, match, eventBus);
+
+        // ── 2) 造成伤害时（BEFORE 修改后的数据） ──
+        data.publishAndSync(GameEventType.DAMAGE_ACTIVE, event, match, eventBus);
+
+        // ── 3) 实际造成伤害行为（ACTIVE 修改后的数据） ──
+        com.lbthreecountry.game.GamePlayer target = match.findPlayer(data.targetId);
+        if (target == null || !target.isAlive()) {
+            log.warn("[造成伤害事件] 目标 {} 不存在或已死亡，跳过扣血", data.targetId);
+        } else {
+            int actualDamage = Math.min(data.damage, target.getCurrentHp());
+            target.setCurrentHp(target.getCurrentHp() - actualDamage);
+            log.info("[造成伤害事件] 对 {} 造成 {} 点伤害 (剩余体力: {}/{})",
+                    data.targetId, actualDamage, target.getCurrentHp(), target.getMaxHp());
+
+            // 伤害后数据使用实际值
+            data.damage = actualDamage;
+        }
+
+        // ── 4) 造成伤害后（实际使用的数据） ──
+        data.publishAndSync(GameEventType.AFTER_DAMAGE, event, match, eventBus);
+    }
+
+    /**
+     * 临时数据容器 — 发布钩子后从事件中回读可能被修改的数据
+     */
+    private static class HookData {
+        String sourceType;
+        String sourceName;
+        String targetId;
+        int damage;
+        String element;
+
+        HookData(String sourceType, String sourceName, String targetId, int damage, String element) {
+            this.sourceType = sourceType;
+            this.sourceName = sourceName;
+            this.targetId = targetId;
+            this.damage = damage;
+            this.element = element;
+        }
+
+        void publishAndSync(String hookType, GameEvent originalEvent, com.lbthreecountry.game.GameMatch match, EventBus eventBus) {
+            GameEvent hookEvent = GameEvent.builder()
+                    .type(hookType)
+                    .sourceId(originalEvent.getSourceId())
+                    .targetId(targetId)
+                    .build();
+            hookEvent.putData("sourceType", sourceType)
+                    .putData("sourceName", sourceName)
+                    .putData("targetId", targetId)
+                    .putData("damage", damage)
+                    .putData("element", element);
+            eventBus.publish(hookEvent, match);
+
+            // 回读监听器可能修改后的值
+            this.sourceType = hookEvent.getData("sourceType");
+            this.sourceName = hookEvent.getData("sourceName");
+            this.targetId = hookEvent.getData("targetId");
+            Integer dmg = hookEvent.getData("damage");
+            if (dmg != null) this.damage = dmg;
+            this.element = hookEvent.getData("element");
+        }
+    }
+}
