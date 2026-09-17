@@ -70,8 +70,8 @@ public class AttackRangeEvent {
         // 抛出修正钩子，监听器可修改 modifyEvent 中的 attackRange
         eventBus.publish(modifyEvent, match);
 
-        // 读取修正后的最终攻击距离，写回原事件供调用方读取
-        attackRange = modifyEvent.getData("attackRange");
+        // 读取修正后的最终攻击距离，最低为 0，写回原事件供调用方读取
+        attackRange = Math.max(0, (int) modifyEvent.getData("attackRange"));
         event.putData("attackRange", attackRange);
 
         log.debug("[攻击距离事件] 玩家 {} 的攻击距离为 {}", playerId, attackRange);
