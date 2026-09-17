@@ -293,6 +293,28 @@ public final class GameEventType {
     public static final String AFTER_DAMAGE = "DAMAGE.AFTER";
 
     // ================================================================
+    //  失去体力事件 — 完整生命周期
+    //
+    //  发布 LOSE.HP 触发事件（需附带 playerId/amount 数据），
+    //  由 LoseHpEvent 组件监听到后自动按以下顺序发布子钩子：
+    //    LOSE.HP.BEFORE（失去体力前，可修改 amount / 可取消）
+    //    LOSE.HP.ACTIVE（失去体力时，可修改 amount / 可取消）
+    //    LOSE.HP.AFTER（失去体力后，仅通知）
+    // ================================================================
+
+    /** 失去体力触发事件 — 发布此事件即可触发失去体力生命周期（由 LoseHpEvent @Component 监听） */
+    public static final String LOSE_HP = "LOSE.HP";
+
+    /** 失去体力前钩子 — 附带本次失去体力信息，可被其他事件监听、调用、修改 */
+    public static final String BEFORE_LOSE_HP = "LOSE.HP.BEFORE";
+
+    /** 失去体力时钩子 — 附带本次失去体力信息，可被其他事件监听、调用、修改 */
+    public static final String LOSE_HP_ACTIVE = "LOSE.HP.ACTIVE";
+
+    /** 失去体力后钩子 — 附带本次失去体力信息，仅通知 */
+    public static final String AFTER_LOSE_HP = "LOSE.HP.AFTER";
+
+    // ================================================================
     //  玩家状态
     // ================================================================
 
