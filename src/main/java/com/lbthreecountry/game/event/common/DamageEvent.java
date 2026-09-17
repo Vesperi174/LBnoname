@@ -101,7 +101,7 @@ public class DamageEvent {
 
         log.debug("[造成伤害事件] source={}, sourceCard={}, target={}, damage={}, element={}",
                 source != null ? source.getPlayerId() : null,
-                sourceCard != null ? sourceCard.getDefId() : null,
+                sourceCard instanceof CardInstance c ? c.getDefId() : sourceCard,
                 target.getPlayerId(), damage, element);
 
         // ── 构造可修改的临时数据对象 ──
@@ -126,15 +126,15 @@ public class DamageEvent {
             log.info("[造成伤害事件] 伤害量为 0，跳过扣血和 AFTER 钩子");
             return;
         }
-        if (target == null || !target.isAlive()) {
-            log.warn("[造成伤害事件] 目标 {} 不存在或已死亡，跳过扣血和 AFTER 钩子", target.getPlayerId());
+        if (data.target == null || !data.target.isAlive()) {
+            log.warn("[造成伤害事件] 目标 {} 不存在或已死亡，跳过扣血和 AFTER 钩子", data.target != null ? data.target.getPlayerId() : "null");
             return;
         }
 
-        int actualDamage = Math.min(data.damage, target.getCurrentHp());
-        target.setCurrentHp(target.getCurrentHp() - actualDamage);
+        int actualDamage = Math.min(data.damage, data.target.getCurrentHp());
+        data.target.setCurrentHp(data.target.getCurrentHp() - actualDamage);
         log.info("[造成伤害事件] 对 {} 造成 {} 点伤害 (剩余体力: {}/{})",
-                target.getPlayerId(), actualDamage, target.getCurrentHp(), target.getMaxHp());
+                data.target.getPlayerId(), actualDamage, data.target.getCurrentHp(), data.target.getMaxHp());
 
         // ── 前端通信（预留） ──
         // TODO: 在此处推送伤害结果到前端
