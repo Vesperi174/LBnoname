@@ -255,16 +255,16 @@ public class CardPlayabilityChecker {
     /**
      * 检测一张手牌的可用性
      *
-     * <p><b>当前阶段：</b>简化模式，所有卡牌返回 {@link CardActionStatus#NOT_SELECTABLE}。</p>
+     * <p><b>当前阶段：</b>测试模式，"杀" 返回 PLAYABLE，"闪" 返回 NOT_SELECTABLE。</p>
      *
      * @param match  当前对局
      * @param player 卡牌持有者
      * @param card   要检测的卡牌实例
-     * @return 检测结果（目前始终为 PLAYABLE）
+     * @return 检测结果
      */
     public CardCheckResult checkSingleCard(GameMatch match, GamePlayer player, CardInstance card) {
         // ================================================================
-        //  【模板阶段】所有卡牌返回 NOT_SELECTABLE
+        //  【测试阶段】"杀" 可用，"闪" 不可用
         //  后续通过事件钩子逐步接入精确判定：
         //
         //  1. 接入 PHASE 事件 → 非出牌阶段返回 NOT_SELECTABLE
@@ -274,6 +274,13 @@ public class CardPlayabilityChecker {
         //  5. 接入 PLAYER 事件 → 无合法目标返回 NOT_SELECTABLE
         //  6. 特殊牌规则逐一添加
         // ================================================================
+        String defId = card.getDefId();
+        if ("sha".equals(defId)) {
+            return new CardCheckResult(CardActionStatus.PLAYABLE, null);
+        }
+        if ("shan".equals(defId)) {
+            return new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "测试：闪不可用");
+        }
         return new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "未接入检测逻辑，默认不可用");
     }
 
