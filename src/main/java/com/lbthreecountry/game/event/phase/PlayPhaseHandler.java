@@ -69,6 +69,24 @@ public class PlayPhaseHandler {
         int round = match.getCurrentRound();
         log.info("[出牌阶段处理器] 第 {} 轮·玩家 {} 出牌阶段开始", round, playerId);
 
+        // ── 示例：调用交互钩子，让前端弹出 ACTION_DECISION ──
+        // eventBus.publish(
+        //     GameEvent.builder()
+        //         .type(GameEventType.INTERACTION_REQUEST)
+        //         .sourceId(playerId)
+        //         .build()
+        //         .putData("playerId", playerId)
+        //         .putData("description", "出牌阶段，请选择一张卡牌")
+        //         .putData("actions", List.of(
+        //             Map.of("text", "确定", "value", "confirm", "type", "default"),
+        //             Map.of("text", "回合结束", "value", "end_turn", "type", "primary")
+        //         ))
+        //         .putData("handSelectable", true)
+        //         .putData("handSelectMode", "single")
+        //         .putData("targetSelectable", false)
+        //     match
+        // );
+
         // TODO: 出牌阶段初始化逻辑
         // - 重置本回合"杀"的使用次数
         // - 重新检测手牌可用性并推送前端

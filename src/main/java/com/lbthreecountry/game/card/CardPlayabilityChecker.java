@@ -29,9 +29,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <h3>卡牌状态（对应前端渲染样式）</h3>
  * <ul>
- *   <li>{@link CardActionStatus#PLAYABLE PLAYABLE} — 高亮，可点击使用</li>
- *   <li>{@link CardActionStatus#NOT_PLAYABLE NOT_PLAYABLE} — 灰显，附带不可用原因</li>
- *   <li>{@link CardActionStatus#NOT_CLICKABLE NOT_CLICKABLE} — 完全锁定</li>
+ *   <li>{@link CardActionStatus#PLAYABLE PLAYABLE} — 亮（正常渲染），可点击选择</li>
+ *   <li>{@link CardActionStatus#NOT_SELECTABLE NOT_SELECTABLE} — 暗（30% 黑色半透明遮罩），不可点击</li>
  * </ul>
  *
  * <h3>未来事件监听规划（将逐步添加）</h3>
@@ -103,7 +102,7 @@ public class CardPlayabilityChecker {
                 .findFirst()
                 .orElse(null);
         if (card == null) {
-            return new CardCheckResult(CardActionStatus.NOT_CLICKABLE, "卡牌不存在");
+            return new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "卡牌不存在");
         }
         return checkSingleCard(match, player, card);
     }
@@ -149,7 +148,7 @@ public class CardPlayabilityChecker {
             GamePlayer player = match.findPlayer(playerId);
             if (player != null) {
                 Map<Long, CardCheckResult> results = checkAllHandCards(match, player);
-                log.info("[卡牌检测]玩家 {} 手牌检测完成，{} 张牌（默认全部 NOT_CLICKABLE）",
+                log.info("[卡牌检测]玩家 {} 手牌检测完成，{} 张牌（默认全部 NOT_SELECTABLE）",
                         playerId, results.size());
             }
         });
@@ -195,7 +194,7 @@ public class CardPlayabilityChecker {
      *
      * <p><b>依次遍历所有手牌 → 检测每张 → 构造 HAND_STATUS 消息 → 推送给玩家</b></p>
      *
-     * <p><b>当前阶段：</b>简化模式，所有卡牌返回 {@link CardActionStatus#NOT_CLICKABLE}。
+     * <p><b>当前阶段：</b>简化模式，所有卡牌返回 {@link CardActionStatus#NOT_SELECTABLE}。
      * 后续事件钩子接入后将逐步实现精确检测。</p>
      *
      * @param match  当前对局
@@ -256,7 +255,7 @@ public class CardPlayabilityChecker {
     /**
      * 检测一张手牌的可用性
      *
-     * <p><b>当前阶段：</b>简化模式，所有卡牌返回 {@link CardActionStatus#NOT_CLICKABLE}。</p>
+     * <p><b>当前阶段：</b>简化模式，所有卡牌返回 {@link CardActionStatus#NOT_SELECTABLE}。</p>
      *
      * @param match  当前对局
      * @param player 卡牌持有者
@@ -275,7 +274,7 @@ public class CardPlayabilityChecker {
         //  5. 接入 PLAYER 事件 → 无合法目标返回 NOT_PLAYABLE
         //  6. 特殊牌规则逐一添加
         // ================================================================
-        return new CardCheckResult(CardActionStatus.NOT_CLICKABLE, "未接入检测逻辑，默认不可用");
+        return new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "未接入检测逻辑，默认不可用");
     }
 
     // ================================================================

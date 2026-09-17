@@ -6,23 +6,25 @@ import com.lbthreecountry.model.enums.interfaces.BaseEnum;
 import com.lbthreecountry.model.enums.utils.EnumUtils;
 
 /**
- * 卡牌动作状态 — 告诉前端此牌可否点击和使用
+ * 卡牌动作状态 — 告诉前端此牌可否选择
  *
- * <p>每张手牌携带此状态，前端据此渲染：</p>
+ * <p>每张卡牌在 {@code MY_HAND} 或 {@code CHECK_CARDS} 响应中携带此状态，前端据此渲染：</p>
  * <ul>
- *   <li>{@link #PLAYABLE PLAYABLE}(1) — 亮，正常渲染，此牌可以出/可以选</li>
- *   <li>{@link #NOT_SELECTABLE NOT_SELECTABLE}(2) — 暗（30% 黑色半透明遮罩），此牌不可选</li>
+ *   <li>{@link #PLAYABLE PLAYABLE} — 亮（正常渲染），可点击选择</li>
+ *   <li>{@link #NOT_SELECTABLE NOT_SELECTABLE} — 暗（30% 黑色半透明遮罩），不可点击</li>
  * </ul>
  */
 public enum CardActionStatus implements BaseEnum {
 
     /**
-     * 可以出/可以选 — 亮（正常渲染）
+     * ✅ 这张牌可以出/可以选
+     * <p>前端效果：亮（正常渲染），可点击</p>
      */
-    PLAYABLE(1, "可出/可选"),
+    PLAYABLE(1, "可选"),
 
     /**
-     * 不可以 — 暗（30% 黑色半透明遮罩）
+     * ❌ 这张牌不可选
+     * <p>前端效果：暗（30% 黑色半透明遮罩），不可点击</p>
      */
     NOT_SELECTABLE(2, "不可选");
 
