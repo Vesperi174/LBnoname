@@ -8,32 +8,23 @@ import com.lbthreecountry.model.enums.utils.EnumUtils;
 /**
  * 卡牌动作状态 — 告诉前端此牌可否点击和使用
  *
- * <p>每张卡牌在 {@code MY_HAND} 或 {@code CHECK_CARDS} 响应中携带此状态，前端据此渲染：</p>
+ * <p>每张手牌携带此状态，前端据此渲染：</p>
  * <ul>
- *   <li>{@link #PLAYABLE PLAYABLE} — 高亮显示，可点击使用（绿色/金色边框）</li>
- *   <li>{@link #NOT_PLAYABLE NOT_PLAYABLE} — 灰显，可点击但不可用（鼠标悬停显示原因）</li>
- *   <li>{@link #NOT_CLICKABLE NOT_CLICKABLE} — 完全不可点击（透明/锁定图标）</li>
+ *   <li>{@link #PLAYABLE PLAYABLE}(1) — 亮，正常渲染，此牌可以出/可以选</li>
+ *   <li>{@link #NOT_SELECTABLE NOT_SELECTABLE}(2) — 暗（30% 黑色半透明遮罩），此牌不可选</li>
  * </ul>
  */
 public enum CardActionStatus implements BaseEnum {
 
     /**
-     * ✅ 可点击，可用
-     * <p>当前玩家、当前阶段、未超过使用次数限制、有合法目标</p>
+     * 可以出/可以选 — 亮（正常渲染）
      */
-    PLAYABLE(1, "可点击，可用"),
+    PLAYABLE(1, "可出/可选"),
 
     /**
-     * ⚠️ 可点击，但当前不可用
-     * <p>例如：本回合已出杀、无合法目标、超出距离限制</p>
+     * 不可以 — 暗（30% 黑色半透明遮罩）
      */
-    NOT_PLAYABLE(2, "可点击，不可用"),
-
-    /**
-     * 🔒 不可点击
-     * <p>例如：不是当前回合、不是出牌阶段、不是自己的手牌、游戏未开始</p>
-     */
-    NOT_CLICKABLE(3, "不可点击");
+    NOT_SELECTABLE(2, "不可选");
 
     private final Integer code;
     private final String description;

@@ -404,4 +404,14 @@ public final class GameEventType {
 
     /** 取消动作后钩子 — 取消完成后通知 */
     public static final String CANCEL_AFTER = "CANCEL.AFTER";
+
+    // ================================================================
+    //  交互请求事件
+    //
+    //  发布 INTERACTION.REQUEST 触发一次前端交互（由 InteractionManager 监听），
+    //    event 数据需包含交互类型、目标玩家、交互参数等信息。
+    // ================================================================
+
+    /** 交互请求 — 发布此事件启动一次前端交互（由 InteractionManager @Component 监听） */
+    public static final String INTERACTION_REQUEST = "INTERACTION.REQUEST";
 }
