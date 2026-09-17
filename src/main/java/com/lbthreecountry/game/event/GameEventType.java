@@ -253,7 +253,30 @@ public final class GameEventType {
     /** 战斗开始 — 初始手牌分发完毕、全玩家状态就绪后触发 */
     public static final String BATTLE_START = "BATTLE.START";
 
-    /** 弃牌 */
+    // ================================================================
+    //  弃牌事件 — 完整生命周期
+    //
+    //  发布 CARD.DISCARD 触发事件（需附带 playerId/count 数据），
+    //  由 DiscardEvent 组件监听到后自动按以下顺序发布子钩子：
+    //    CARD.DISCARD.BEFORE（弃牌开始前，可修改 count / 可取消）
+    //    CARD.DISCARD.ACTIVE（弃牌进行中，可修改 count / 可取消）
+    //    CARD.DISCARD.AFTER（弃牌结束后，仅通知）
+    // ================================================================
+
+    /** 弃牌触发事件 — 发布此事件即可触发弃牌生命周期（由 DiscardEvent @Component 监听） */
+    public static final String CARD_DISCARD = "CARD.DISCARD";
+
+    /** 弃牌开始前钩子 — 附带本次弃牌信息，可被其他事件监听、调用、修改 */
+    public static final String CARD_DISCARD_BEFORE = "CARD.DISCARD.BEFORE";
+
+    /** 弃牌进行中钩子 — 附带本次弃牌信息，可被其他事件监听、调用、修改 */
+    public static final String CARD_DISCARD_ACTIVE = "CARD.DISCARD.ACTIVE";
+
+    /** 弃牌结束后钩子 — 附带本次弃牌信息，仅通知 */
+    public static final String CARD_DISCARD_AFTER = "CARD.DISCARD.AFTER";
+
+    /** 弃牌（旧版） */
+    @Deprecated
     public static final String CARD_DISCARDED = "CARD.DISCARDED";
 
     // ================================================================
