@@ -126,6 +126,24 @@ public final class GameEventType {
     public static final String DISTANCE_CALC = "DISTANCE.CALC";
 
     // ================================================================
+    //  攻击距离
+    // ================================================================
+
+    /**
+     * 获取攻击距离 — 由 {@code AttackRangeEvent} 在计算玩家攻击距离时发布
+     *
+     * <p>监听者可修改事件数据中的 {@code attackRange} 字段来影响最终攻击距离值。</p>
+     */
+    public static final String GET_ATTACK_RANGE = "ATTACK_RANGE.GET";
+
+    /**
+     * 攻击距离修正 — 由 {@code AttackRangeEvent} 在 {@code GET_ATTACK_RANGE} 回调中发布
+     *
+     * <p>装备、技能等监听器可监听此钩子，修改事件数据中的 {@code attackRange} 来修正攻击距离。</p>
+     */
+    public static final String ATTACK_RANGE_MODIFY = "ATTACK_RANGE.MODIFY";
+
+    // ================================================================
     //  阶段钩子生成方法
     // ================================================================
 
