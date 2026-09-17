@@ -215,6 +215,9 @@ public final class GameEventType {
     /** 打出时钩子 — 附带本次打出信息，可修改或取消 */
     public static final String CARD_PLAY_ACTIVE = "CARD.PLAY.ACTIVE";
 
+    /** 打出执行 — PlayCardEvent 在 ACTIVE 之后发布的执行钩子，监听器响应此钩子完成实际打出行为（如移入弃牌堆） */
+    public static final String CARD_PLAY_EXECUTE = "CARD.PLAY.EXECUTE";
+
     /** 打出后钩子 — 附带本次打出信息，仅通知 */
     public static final String CARD_PLAY_AFTER = "CARD.PLAY.AFTER";
 
