@@ -215,9 +215,6 @@ public final class GameEventType {
     /** 打出时钩子 — 附带本次打出信息，可修改或取消 */
     public static final String CARD_PLAY_ACTIVE = "CARD.PLAY.ACTIVE";
 
-    /** 打出执行 — PlayCardEvent 在 ACTIVE 之后发布的执行钩子，监听器响应此钩子完成实际打出行为（如移入弃牌堆） */
-    public static final String CARD_PLAY_EXECUTE = "CARD.PLAY.EXECUTE";
-
     /** 打出后钩子 — 附带本次打出信息，仅通知 */
     public static final String CARD_PLAY_AFTER = "CARD.PLAY.AFTER";
 
@@ -290,6 +287,24 @@ public final class GameEventType {
     /** 弃牌（旧版） */
     @Deprecated
     public static final String CARD_DISCARDED = "CARD.DISCARDED";
+
+    // ================================================================
+    //  移牌事件 — 完整生命周期
+    //
+    //  发布 CARD.MOVE 触发事件（需附带 cards/destination 数据），
+    //  由 MoveCardEvent 组件监听到后自动按以下顺序发布子钩子：
+    //    CARD.MOVE.BEFORE（移牌前，可修改数据 / 可取消）
+    //    CARD.MOVE.AFTER（移牌后，可修改数据）
+    // ================================================================
+
+    /** 移牌触发事件 — 发布此事件将牌移入指定区域（由 MoveCardEvent @Component 监听） */
+    public static final String CARD_MOVE = "CARD.MOVE";
+
+    /** 移牌前钩子 — 附带本次移牌信息，可修改或取消 */
+    public static final String CARD_MOVE_BEFORE = "CARD.MOVE.BEFORE";
+
+    /** 移牌后钩子 — 附带本次移牌信息，可修改 */
+    public static final String CARD_MOVE_AFTER = "CARD.MOVE.AFTER";
 
     // ================================================================
     //  伤害事件

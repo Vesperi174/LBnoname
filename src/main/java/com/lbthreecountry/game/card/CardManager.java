@@ -192,6 +192,84 @@ public class CardManager {
     }
 
     /**
+     * 通用移牌 — 将卡牌移入指定区域
+     *
+     * <p>支持的目标区域：</p>
+     * <ul>
+     *   <li>{@code DISCARD_PILE} — 弃牌堆</li>
+     *   <li>{@code HAND} — 目标玩家的手牌</li>
+     *   <li>{@code EQUIPMENT} — 目标玩家的装备区</li>
+     *   <li>{@code JUDGEMENT} — 目标玩家的判定区</li>
+     *   <li>{@code DRAW_PILE} — 摸牌堆（牌堆顶）</li>
+     *   <li>{@code REMOVED} — 移出游戏</li>
+     * </ul>
+     *
+     * @param match        当前对局
+     * @param card         要移动的卡牌
+     * @param destination  目标区域（CardStatus 枚举名）
+     * @param targetPlayer 目标玩家（HAND / EQUIPMENT / JUDGEMENT 时需要）
+     */
+    public void moveToZone(GameMatch match, CardInstance card, String destination, GamePlayer targetPlayer) {
+        // 从当前所在区域移除
+        removeFromCurrentZone(match, card);
+
+        switch (destination) {
+            case "DISCARD_PILE" -> {
+                card.setOwnerId(null);
+                card.setStatus(CardStatus.DISCARD_PILE);
+                match.getDiscardPile().add(card);
+            }
+            case "HAND" -> {
+                if (targetPlayer == null) {
+                    log.warn("[CardManager] moveToZone HAND 时 targetPlayer 为 null");
+                    return;
+                }
+                card.setOwnerId(targetPlayer.getPlayerId());
+                card.setStatus(CardStatus.HAND);
+                targetPlayer.getHandCards().add(card);
+            }
+            case "EQUIPMENT" -> {
+                if (targetPlayer == null) {
+                    log.warn("[CardManager] moveToZone EQUIPMENT 时 targetPlayer 为 null");
+                    return;
+                }
+                card.setOwnerId(targetPlayer.getPlayerId());
+                card.setStatus(CardStatus.EQUIPMENT);
+                targetPlayer.getEquipCards().add(card);
+            }
+            case "JUDGEMENT" -> {
+                if (targetPlayer == null) {
+                    log.warn("[CardManager] moveToZone JUDGEMENT 时 targetPlayer 为 null");
+                    return;
+                }
+                card.setOwnerId(targetPlayer.getPlayerId());
+                card.setStatus(CardStatus.JUDGEMENT);
+                targetPlayer.getJudgeArea().add(card);
+            }
+            case "DRAW_PILE" -> {
+                card.setOwnerId(null);
+                card.setStatus(CardStatus.DRAW_PILE);
+                match.getDrawPile().add(card);
+            }
+            case "REMOVED" -> {
+                card.setOwnerId(null);
+                card.setStatus(CardStatus.REMOVED);
+                // REMOVED 状态的牌不放在任何牌堆列表中
+            }
+            default -> log.warn("[CardManager] moveToZone 未知目标区域: {}", destination);
+        }
+    }
+
+    /**
+     * 批量通用移牌
+     */
+    public void moveAllToZone(GameMatch match, List<CardInstance> cards, String destination, GamePlayer targetPlayer) {
+        for (CardInstance card : cards) {
+            moveToZone(match, card, destination, targetPlayer);
+        }
+    }
+
+    /**
      * 洗牌
      */
     public void shuffle(GameMatch match) {

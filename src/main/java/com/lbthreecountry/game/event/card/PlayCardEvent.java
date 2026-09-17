@@ -22,7 +22,7 @@ import java.util.List;
  * CARD.PLAY (触发钩子)
  *   ├── CARD.PLAY.BEFORE  (打出前，可修改 / 可取消)
  *   ├── CARD.PLAY.ACTIVE  (打出时，可修改 / 可取消)
- *   ├── CARD.PLAY.EXECUTE  (打出执行，监听器完成实际移牌行为)
+ *   ├── CARD.MOVE         (执行移牌，由 MoveCardEvent 处理完整移牌生命周期)
  *   └── CARD.PLAY.AFTER   (打出后钩子，仅通知)
  * </pre>
  *
@@ -72,8 +72,8 @@ public class PlayCardEvent {
 
     private static final Logger log = LoggerFactory.getLogger(PlayCardEvent.class);
 
-    /** 默认去向 — 弃牌堆 */
-    public static final String DEST_DISCARD = "DISCARD";
+    /** 默认去向 — 弃牌堆（与 MoveCardEvent 的 DISCARD_PILE 一致） */
+    public static final String DEST_DISCARD = "DISCARD_PILE";
 
     // ================================================================
     //  依赖
@@ -102,7 +102,7 @@ public class PlayCardEvent {
      * <ol>
      *   <li>{@code CARD.PLAY.BEFORE} — 打出前（初始数据，监听器可修改 {@code cards} 或取消）</li>
      *   <li>{@code CARD.PLAY.ACTIVE} — 打出时（BEFORE 修改后的数据，监听器可修改 {@code cards} 或取消）</li>
-     *   <li>{@code CARD.PLAY.EXECUTE} — 打出执行，监听器响应此钩子完成实际移牌行为</li>
+     *   <li>{@code CARD.MOVE} — 执行移牌（发布 CARD.MOVE，由 MoveCardEvent 处理完整移牌生命周期）</li>
      *   <li>{@code CARD.PLAY.AFTER} — 打出后钩子（实际使用的数据，仅通知）</li>
      * </ol>
      */
@@ -257,23 +257,21 @@ public class PlayCardEvent {
         }
 
         /**
-         * 发布 {@code CARD.PLAY.EXECUTE} 执行钩子
-         * <p>监听器响应此钩子完成实际移牌行为（如移入弃牌堆），
+         * 发布 {@code CARD.MOVE} 移牌事件
+         * <p>委托 MoveCardEvent 处理完整的移牌生命周期（BEFORE → 移牌 → AFTER），
          * 处理完毕后回读 {@code actualCount}。</p>
          */
         void publishExecute(GameEvent originalEvent, GameMatch match, EventBus eventBus) {
             GameEvent hookEvent = GameEvent.builder()
-                    .type(GameEventType.CARD_PLAY_EXECUTE)
+                    .type(GameEventType.CARD_MOVE)
                     .sourceId(originalEvent.getSourceId())
-                    .build();
-            hookEvent.putData("player", player)
-                    .putData("playerId", player.getPlayerId())
+                    .build()
+                    .putData("player", player)
                     .putData("cards", cards)
-                    .putData("cardIds", cardIds)
                     .putData("destination", destination);
             eventBus.publish(hookEvent, match);
 
-            // 回读 actualCount（监听器写入的实际处理张数）
+            // 回读 actualCount（MoveCardEvent 写入的实际处理张数）
             Integer execCount = hookEvent.getData("actualCount");
             if (execCount != null) this.actualCount = execCount;
         }
