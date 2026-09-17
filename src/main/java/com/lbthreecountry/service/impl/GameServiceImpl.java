@@ -459,7 +459,7 @@ public class GameServiceImpl implements GameService {
 
             // 10. 发布事件
             GameEvent playEvent = GameEvent.builder()
-                    .type(GameEventType.CARD_PLAYED)
+                    .type(GameEventType.CARD_PLAY)
                     .sourceId(playerId)
                     .build();
             playEvent.putData("roomId", roomId);

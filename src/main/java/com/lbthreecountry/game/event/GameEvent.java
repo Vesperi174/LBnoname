@@ -20,7 +20,7 @@ import java.util.Objects;
  * <pre>{@code
  * // 玩家 A 使用杀
  * GameEvent event = GameEvent.builder()
- *     .type("CARD_PLAYED")
+ *     .type("CARD.PLAY")
  *     .sourceId("player_A")
  *     .putData("cardName", "杀")
  *     .putData("targetId", "player_B")

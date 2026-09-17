@@ -13,7 +13,7 @@ import com.lbthreecountry.model.enums.impl.GamePhase;
  * 模块.具体事件  —  例如：
  *   GAME.START    游戏开始
  *   PHASE.CHANGE  阶段切换
- *   CARD.PLAYED   出牌
+ *   CARD.PLAY   打出牌
  * </pre>
  *
  * <h3>阶段事件钩子系统</h3>
@@ -206,8 +206,17 @@ public final class GameEventType {
     //  卡牌事件
     // ================================================================
 
-    /** 玩家出牌 */
-    public static final String CARD_PLAYED = "CARD.PLAYED";
+    /** 玩家打出牌触发事件 — 由 PlayCardEvent 监听，触发打出牌生命周期 */
+    public static final String CARD_PLAY = "CARD.PLAY";
+
+    /** 打出前钩子 — 附带本次打出信息，可修改或取消 */
+    public static final String CARD_PLAY_BEFORE = "CARD.PLAY.BEFORE";
+
+    /** 打出时钩子 — 附带本次打出信息，可修改或取消 */
+    public static final String CARD_PLAY_ACTIVE = "CARD.PLAY.ACTIVE";
+
+    /** 打出后钩子 — 附带本次打出信息，仅通知 */
+    public static final String CARD_PLAY_AFTER = "CARD.PLAY.AFTER";
 
     // ================================================================
     //  摸牌事件 — 完整生命周期
