@@ -57,6 +57,9 @@ public class PlayPhaseHandler {
     private final WebSocketSessionManager sessionManager;
     private final RoomService roomService;
 
+    /** 防止循环内重入发布 PHASE.ACTIVE.PLAY 导致递归 */
+    private final ThreadLocal<Boolean> inPlayLoop = ThreadLocal.withInitial(() -> false);
+
     public PlayPhaseHandler(EventBus eventBus,
                             InteractionMessageStack interactionStack,
                             WebSocketSessionManager sessionManager,
@@ -94,14 +97,100 @@ public class PlayPhaseHandler {
             return;
         }
 
+        // ── 重入保护：循环内重新发布 PHASE.ACTIVE.PLAY 时跳过 ──
+        if (inPlayLoop.get()) {
+            log.debug("[出牌阶段处理器] 循环内重入钩子，跳过（仅用于触发卡牌检测等）");
+            return;
+        }
+
         int round = match.getCurrentRound();
         log.info("[出牌阶段处理器] 第 {} 轮·玩家 {} 出牌阶段开始 (线程: {})",
                 round, playerId, Thread.currentThread().getName());
 
-        // ── 1. 读取房间设定的出手时间，构造 ACTION_DECISION 消息 ──
+        // ── 读取房间设定的出手时间 ──
         int turnTime = getTurnTime(match.getRoomId());
-        int backendTimeout = turnTime + 5; // 后端比前端多 5s 兜底
 
+        // ── 判断是否为 Bot 玩家 ──
+        GamePlayer player = match.findPlayer(playerId);
+        if (player != null && player.isBot()) {
+            log.info("[出牌阶段处理器] 🤖 玩家 {} 是 Bot，自动跳过出牌阶段", playerId);
+            Map<String, Object> dummyMsg = buildDecisionMessage(turnTime);
+            interactionStack.push(match.getRoomId(), playerId, dummyMsg, sessionManager);
+            return;
+        }
+
+        // ── 真人玩家出牌循环 ──
+        int backendTimeout = turnTime + 5;
+        int playCount = 0;
+        List<String> allPlayerIds = match.getPlayers().stream()
+                .map(GamePlayer::getPlayerId)
+                .collect(Collectors.toList());
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        inPlayLoop.set(true);
+        try {
+            while (true) {
+                // ── 重新发布 PHASE.ACTIVE.PLAY 钩子 → 触发卡牌可用性检测等 ──
+                GameEvent hookEvent = new GameEvent();
+                hookEvent.setType(GameEventType.phaseActive(GamePhase.PLAY));
+                hookEvent.setSourceId(playerId);
+                eventBus.publish(hookEvent, match);
+
+                // ── 构造 ACTION_DECISION 消息（每次重新构造，反映最新的手牌状态） ──
+                Map<String, Object> message = buildDecisionMessage(turnTime);
+
+                // ── 广播给其他玩家：当前玩家正在决策中 ──
+                Map<String, Object> thinkingMsg = new LinkedHashMap<>();
+                thinkingMsg.put("type", "PLAYER_THINKING");
+                thinkingMsg.put("playerId", playerId);
+                thinkingMsg.put("timeout", turnTime);
+                thinkingMsg.put("description", "出牌阶段思考中");
+                try {
+                    sessionManager.broadcastToRoom(
+                            allPlayerIds,
+                            objectMapper.writeValueAsString(thinkingMsg),
+                            playerId
+                    );
+                } catch (Exception e) {
+                    log.warn("[出牌阶段处理器] 广播 PLAYER_THINKING 失败", e);
+                }
+                log.info("[出牌阶段处理器] ⏳ 等待玩家 {} 出牌决策... (第 {} 次, 前端超时={}s, 后端兜底={}s)",
+                        playerId, ++playCount, turnTime, backendTimeout);
+                Map<String, Object> response = interactionStack.pushAndAwait(
+                        match.getRoomId(), playerId, message, sessionManager, backendTimeout
+                );
+
+                String action = response != null ? (String) response.get("action") : "timeout";
+                log.info("[出牌阶段处理器] 玩家 {} 出牌决策完成: action={}", playerId, action);
+
+                // ── 根据响应跳出循环或执行出牌 ──
+                if ("end_turn".equals(action) || "timeout".equals(action)
+                        || "TIMEOUT".equals(action) || "interrupted".equals(action)) {
+                    log.info("[出牌阶段处理器] 玩家 {} {}，出牌阶段结束（共出牌 {} 次）",
+                            playerId,
+                            "interrupted".equals(action) ? "中断" : "TIMEOUT".equals(action) ? "超时" : "回合结束",
+                            playCount - 1);
+                    break;
+                }
+
+                // "confirm" → 执行出牌（TODO: 后续完善）
+                log.info("[出牌阶段处理器] 玩家 {} 执行出牌 action={}, selectedIds={} (出牌逻辑待实现)",
+                        playerId, action, response.get("selectedIds"));
+
+                // TODO: 出牌后刷新手牌可用性并重新检测
+            }
+        } finally {
+            inPlayLoop.set(false);
+        }
+
+        // 循环结束 → 状态机自动推进到 DISCARD
+        log.info("[出牌阶段处理器] 出牌循环结束，状态机进入弃牌阶段");
+    }
+
+    /**
+     * 构造 ACTION_DECISION 消息
+     */
+    private Map<String, Object> buildDecisionMessage(int turnTime) {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("type", "ACTION_DECISION");
         message.put("timeout", turnTime);
@@ -113,68 +202,7 @@ public class PlayPhaseHandler {
         message.put("handSelectable", true);
         message.put("handSelectMode", "single");
         message.put("targetSelectable", false);
-
-        // ── 2. 判断是否为 Bot 玩家 ──
-        GamePlayer player = match.findPlayer(playerId);
-        if (player != null && player.isBot()) {
-            // Bot 玩家：不阻塞等待，自动回复"回合结束"
-            log.info("[出牌阶段处理器] 🤖 玩家 {} 是 Bot，自动跳过出牌阶段", playerId);
-            // 只入栈但不阻塞，让 Bot 自动推进的逻辑处理
-            interactionStack.push(match.getRoomId(), playerId, message, sessionManager);
-            return;
-        }
-
-        // ── 3. 真人玩家出牌循环 ──
-        // 每次出牌后重新发送 ACTION_DECISION 让玩家继续出牌，
-        // 直到玩家点击"回合结束"或超时跳出循环。
-        // 同时向其他玩家广播 PLAYER_THINKING，让他们看到当前玩家的倒计时。
-        int playCount = 0;
-        List<String> allPlayerIds = match.getPlayers().stream()
-                .map(GamePlayer::getPlayerId)
-                .collect(Collectors.toList());
-        ObjectMapper objectMapper = new ObjectMapper();
-
-        while (true) {
-            // ── 3a. 广播给其他玩家：当前玩家正在决策中 ──
-            Map<String, Object> thinkingMsg = new LinkedHashMap<>();
-            thinkingMsg.put("type", "PLAYER_THINKING");
-            thinkingMsg.put("playerId", playerId);
-            thinkingMsg.put("timeout", turnTime);
-            thinkingMsg.put("description", "出牌阶段思考中");
-            try {
-                sessionManager.broadcastToRoom(
-                        allPlayerIds,
-                        objectMapper.writeValueAsString(thinkingMsg),
-                        playerId // 排除当前玩家自己
-                );
-            } catch (Exception e) {
-                log.warn("[出牌阶段处理器] 广播 PLAYER_THINKING 失败", e);
-            }
-            log.info("[出牌阶段处理器] ⏳ 等待玩家 {} 出牌决策... (第 {} 次, 前端超时={}s, 后端兜底={}s)",
-                    playerId, ++playCount, turnTime, backendTimeout);
-            Map<String, Object> response = interactionStack.pushAndAwait(
-                    match.getRoomId(), playerId, message, sessionManager, backendTimeout
-            );
-
-            String action = response != null ? (String) response.get("action") : "timeout";
-            log.info("[出牌阶段处理器] 玩家 {} 出牌决策完成: action={}", playerId, action);
-
-            // ── 4. 根据响应跳出循环或执行出牌 ──
-            if ("end_turn".equals(action) || "timeout".equals(action) || "TIMEOUT".equals(action)) {
-                log.info("[出牌阶段处理器] 玩家 {} {}，出牌阶段结束（共出牌 {} 次）",
-                        playerId, "TIMEOUT".equals(action) ? "超时" : "回合结束", playCount - 1);
-                break;
-            }
-
-            // "confirm" / "play_slash" → 执行出牌（TODO: 后续完善）
-            log.info("[出牌阶段处理器] 玩家 {} 执行出牌 action={}, selectedIds={} (出牌逻辑待实现)",
-                    playerId, action, response.get("selectedIds"));
-
-            // TODO: 出牌后刷新手牌可用性并重新检测
-        }
-
-        // 循环结束 → 状态机自动推进到 DISCARD
-        log.info("[出牌阶段处理器] 出牌循环结束，状态机进入弃牌阶段");
+        return message;
     }
 
     // ================================================================

@@ -198,6 +198,7 @@ public class PlayerTurnStateMachine {
         GamePlayer firstPlayer = players.get(firstIdx);
         state.setCurrentPlayerId(firstPlayer.getPlayerId());
         state.setCurrentPlayerIndex(firstIdx);
+        match.setCurrentPlayerIndex(firstIdx);
         state.setFirstPlayerIndex(firstIdx);
 
         log.info("[玩家回合状态机]  第 {} 轮·玩家回合序列开始 — 首位玩家: {} (座位号: {})",
@@ -290,6 +291,9 @@ public class PlayerTurnStateMachine {
         log.info("[玩家回合状态机] — State {} 第 {} 轮·玩家 {} {}",
                 state.getPhase().ordinal(), round, playerId, phase.getDescription());
 
+        // ── 0️⃣ 同步对局当前阶段（事件监听器可通过 match.getCurrentPhase() 获取）──
+        match.setCurrentPhase(phase);
+
         // ── ① PHASE.BEFORE.<Phase>（开始前）──
         GameEvent beforeEvent = buildPhaseEvent(GameEventType.phaseBefore(phase), match, state, phase);
         eventBus.publish(beforeEvent, match);
@@ -362,6 +366,7 @@ public class PlayerTurnStateMachine {
             // 下一玩家继续
             state.setCurrentPlayerIndex(nextIdx);
             state.setCurrentPlayerId(nextPlayer.getPlayerId());
+            match.setCurrentPlayerIndex(nextIdx);
 
             log.info("[玩家回合状态机]  第 {} 轮·轮到下一玩家: {} (座位号: {})",
                     round, nextPlayer.getPlayerId(), nextPlayer.getGameSeat());

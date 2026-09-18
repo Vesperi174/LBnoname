@@ -7,6 +7,7 @@ import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.model.card.def.CardDef;
 import com.lbthreecountry.model.enums.impl.CardActionStatus;
 import com.lbthreecountry.model.enums.impl.GamePhase;
 import com.lbthreecountry.websocket.WebSocketSessionManager;
@@ -161,15 +162,16 @@ public class CardPlayabilityChecker {
             }
         });
 
-        // ── TODO: 进入出牌阶段 → 重新检测所有卡牌 ──
-        // eventBus.register("PHASE.ACTIVE.PLAY", EventPriority.EQUIP_CARD, (event, match) -> {
-        //     // 重新计算当前玩家手牌状态并推送给前端
-        // });
+        // ── 进入出牌阶段 → 重新检测当前玩家手牌 ──
+        eventBus.register(GameEventType.phaseActive(GamePhase.PLAY), EventPriority.EQUIP_CARD, (event, match) -> {
+            GamePlayer current = match.currentPlayer();
+            if (current != null) {
+                log.info("[卡牌检测]玩家 {} 进入出牌阶段 → 重新检测手牌状态", current.getPlayerId());
+                checkAllHandCards(match, current);
+            }
+        });
 
-        // ── TODO: 阶段切换 → 更新卡牌可点击状态 ──
-        // eventBus.register("PHASE.CHANGE", EventPriority.EQUIP_CARD, (event, match) -> {
-        //     // 不是出牌阶段 → 所有卡牌不可点击
-        // });
+        // ── TODO: 阶段切换 → 非出牌阶段时推送全暗状态（当前 checkSingleCard 已自动处理） ──
 
         // ── TODO: 卡牌被使用 → 更新次数限制（如"杀"已使用） ──
         // eventBus.register("CARD.PLAYED", EventPriority.EQUIP_CARD, (event, match) -> {
@@ -255,33 +257,127 @@ public class CardPlayabilityChecker {
     /**
      * 检测一张手牌的可用性
      *
-     * <p><b>当前阶段：</b>测试模式，"杀" 返回 PLAYABLE，"闪" 返回 NOT_SELECTABLE。</p>
-     *
-     * @param match  当前对局
-     * @param player 卡牌持有者
-     * @param card   要检测的卡牌实例
-     * @return 检测结果
+     * <p>执行流程：</p>
+     * <ol>
+     *   <li>非出牌阶段 → 直接返回 NOT_SELECTABLE</li>
+     *   <li>抛出钩子收集数据：不限次数、已使用次数、可使用次数、是否满血</li>
+     *   <li>逐项判定：是否自己回合、是否可在出牌阶段使用、是否可主动使用、次数是否用尽、桃满血不可用</li>
+     *   <li>抛出 {@code CARD.PLAYABILITY.MODIFY} 修正钩子</li>
+     *   <li>返回被修改后的最终结果</li>
+     * </ol>
      */
     public CardCheckResult checkSingleCard(GameMatch match, GamePlayer player, CardInstance card) {
-        // ================================================================
-        //  【测试阶段】"杀" 可用，"闪" 不可用
-        //  后续通过事件钩子逐步接入精确判定：
-        //
-        //  1. 接入 PHASE 事件 → 非出牌阶段返回 NOT_SELECTABLE
-        //  2. 接入 TURN 事件 → 非当前回合玩家返回 NOT_SELECTABLE
-        //  3. 接入 CARD.PLAYED 事件 → 已出杀的卡牌返回 NOT_SELECTABLE
-        //  4. 接入 EQUIPMENT 事件 → 已有同类型装备返回 NOT_SELECTABLE
-        //  5. 接入 PLAYER 事件 → 无合法目标返回 NOT_SELECTABLE
-        //  6. 特殊牌规则逐一添加
-        // ================================================================
-        String defId = card.getDefId();
-        if ("sha".equals(defId)) {
+        // ════════════════════════════════════════════════════════════
+        //  抛出钩子收集数据
+        // ════════════════════════════════════════════════════════════
+
+        // 1. 获取是否不限次数
+        GameEvent unlimitedEvent = GameEvent.builder()
+                .type(GameEventType.CARD_UNLIMITED_CHECK)
+                .sourceId(player.getPlayerId())
+                .build()
+                .putData("player", player)
+                .putData("card", card);
+        eventBus.publish(unlimitedEvent, match);
+        boolean unlimited = unlimitedEvent.getDataOrDefault("unlimited", false);
+
+        // 2. 获取已使用次数
+        GameEvent usedCountEvent = GameEvent.builder()
+                .type(GameEventType.CARD_USED_COUNT)
+                .sourceId(player.getPlayerId())
+                .build()
+                .putData("player", player)
+                .putData("card", card);
+        eventBus.publish(usedCountEvent, match);
+        int usedCount = usedCountEvent.getDataOrDefault("usedCount", 0);
+
+        // 3. 获取可使用次数
+        GameEvent availableCountEvent = GameEvent.builder()
+                .type(GameEventType.CARD_AVAILABLE_COUNT)
+                .sourceId(player.getPlayerId())
+                .build()
+                .putData("player", player)
+                .putData("card", card);
+        eventBus.publish(availableCountEvent, match);
+        int availableCount = availableCountEvent.getDataOrDefault("availableCount", 0);
+
+        // 4. 获取玩家是否满血
+        GameEvent fullHpEvent = GameEvent.builder()
+                .type(GameEventType.PLAYER_FULL_HP_CHECK)
+                .sourceId(player.getPlayerId())
+                .build()
+                .putData("player", player);
+        eventBus.publish(fullHpEvent, match);
+        boolean fullHp = fullHpEvent.getDataOrDefault("fullHp", false);
+
+        // ════════════════════════════════════════════════════════════
+        //  逐项检测
+        // ════════════════════════════════════════════════════════════
+
+        boolean tag = true;
+        String unavailableReason = null;
+
+        // ── 获取卡牌定义 ──
+        CardDef def = cardManager.getDef(card.getDefId());
+
+        // ── 是否可在出牌阶段使用？（playablePhase = PLAY 或 ANY 才可；null 表示不限制） ──
+        if (tag && def != null && def.getRules() != null) {
+            String phase = def.getRules().getPlayablePhase();
+            if (phase != null && !"PLAY".equals(phase) && !"ANY".equals(phase)) {
+                tag = false;
+                unavailableReason = "不可在出牌阶段使用";
+            }
+        }
+
+        // ── 是否可主动使用？ ──
+        if (tag && def != null && def.getRules() != null) {
+            if (Boolean.FALSE.equals(def.getRules().getCanActiveUse())) {
+                tag = false;
+                unavailableReason = "不可主动使用";
+            }
+        }
+
+        // ── 有限次 → 已使用次数是否大于等于可使用次数？ ──
+        if (tag && !unlimited) {
+            if (usedCount >= availableCount) {
+                tag = false;
+                unavailableReason = "本回合使用次数已用尽";
+            }
+        }
+
+        // ── 桃 → 满血不能使用 ──
+        if (tag && "tao".equals(card.getDefId()) && fullHp) {
+            tag = false;
+            unavailableReason = "当前为满血，无需使用桃";
+        }
+
+        // ════════════════════════════════════════════════════════════
+        //  抛出修正钩子，监听器可修改 tag
+        // ════════════════════════════════════════════════════════════
+
+        GameEvent modifyEvent = GameEvent.builder()
+                .type(GameEventType.CARD_PLAYABILITY_MODIFY)
+                .sourceId(player.getPlayerId())
+                .build();
+        modifyEvent.putData("player", player);
+        modifyEvent.putData("card", card);
+        modifyEvent.putData("tag", tag);
+        eventBus.publish(modifyEvent, match);
+        tag = modifyEvent.getDataOrDefault("tag", false);
+
+        // ════════════════════════════════════════════════════════════
+        //  返回最终结果
+        // ════════════════════════════════════════════════════════════
+
+        String defName = def != null ? def.getName() : card.getDefId();
+        if (tag) {
+            log.info("[卡牌检测] 玩家 {} 的【{}】(instanceId={}) → PLAYABLE",
+                    player.getPlayerName(), defName, card.getInstanceId());
             return new CardCheckResult(CardActionStatus.PLAYABLE, null);
         }
-        if ("shan".equals(defId)) {
-            return new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "测试：闪不可用");
-        }
-        return new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "未接入检测逻辑，默认不可用");
+        log.info("[卡牌检测] 玩家 {} 的【{}】(instanceId={}) → NOT_SELECTABLE · 原因: {}",
+                player.getPlayerName(), defName, card.getInstanceId(), unavailableReason);
+        return new CardCheckResult(CardActionStatus.NOT_SELECTABLE, unavailableReason);
     }
 
     // ================================================================

@@ -319,6 +319,62 @@ public final class GameEventType {
     public static final String CARD_USE_EFFECT = "CARD.USE_EFFECT";
 
     // ================================================================
+    //  不限次数检查事件
+    //
+    //  发布 CARD.UNLIMITED_CHECK 触发检查（需附带 playerId/cardDefId 数据），
+    //  由 CardUnlimitedCheckEvent 组件监听到后处理，监听器可通过修改 unlimited 字段
+    //  来影响最终结果。
+    //
+    //    playerId  — 检查的玩家 ID
+    //    cardDefId — 卡牌定义 ID（检查哪张牌）
+    //    unlimited — boolean，是否不限次数（默认 false，监听器可修改为 true）
+    // ================================================================
+
+    /** 获取卡牌是否不限次数 — 发布此事件触发不限次数检查（由 CardUnlimitedCheckEvent @Component 监听） */
+    public static final String CARD_UNLIMITED_CHECK = "CARD.UNLIMITED_CHECK";
+
+    /** 不限次数修正钩子 — 监听器可修改 unlimited 字段 */
+    public static final String CARD_UNLIMITED_MODIFY = "CARD.UNLIMITED.MODIFY";
+
+    // ================================================================
+    //  已使用次数事件
+    //
+    //  发布 CARD.USED_COUNT 触发检查（需附带 player/card 数据），
+    //  由 CardUsedCountEvent 组件监听到后自动按以下流程执行：
+    //    CARD.USED_COUNT        — 触发检查回调
+    //      └─ CARD.USED_COUNT.MODIFY  — 修正钩子，监听器可修改 usedCount
+    //    数据字段：
+    //      player    — GamePlayer，要检查的玩家
+    //      card      — CardInstance，要检查的卡牌实例
+    //      usedCount — int，已使用次数（默认从 CardInstance 获取，监听器可修改）
+    // ================================================================
+
+    /** 获取卡牌已使用次数 — 发布此事件触发查询（由 CardUsedCountEvent @Component 监听） */
+    public static final String CARD_USED_COUNT = "CARD.USED_COUNT";
+
+    /** 已使用次数修正钩子 — 监听器可修改 usedCount 字段 */
+    public static final String CARD_USED_COUNT_MODIFY = "CARD.USED_COUNT.MODIFY";
+
+    // ================================================================
+    //  可使用次数事件
+    //
+    //  发布 CARD.AVAILABLE_COUNT 触发检查（需附带 player/card 数据），
+    //  由 CardAvailableCountEvent 组件监听到后自动按以下流程执行：
+    //    CARD.AVAILABLE_COUNT        — 触发检查回调
+    //      └─ CARD.AVAILABLE_COUNT.MODIFY  — 修正钩子，监听器可修改 availableCount
+    //    数据字段：
+    //      player         — GamePlayer，要检查的玩家
+    //      card           — CardInstance，要检查的卡牌实例
+    //      availableCount — int，可使用次数（默认从 CardRules 推算，监听器可修改）
+    // ================================================================
+
+    /** 获取卡牌可使用次数 — 发布此事件触发查询（由 CardAvailableCountEvent @Component 监听） */
+    public static final String CARD_AVAILABLE_COUNT = "CARD.AVAILABLE_COUNT";
+
+    /** 可使用次数修正钩子 — 监听器可修改 availableCount 字段 */
+    public static final String CARD_AVAILABLE_COUNT_MODIFY = "CARD.AVAILABLE_COUNT.MODIFY";
+
+    // ================================================================
     //  伤害事件
     // ================================================================
 
@@ -384,6 +440,38 @@ public final class GameEventType {
 
     /** 玩家死亡 */
     public static final String PLAYER_DEAD = "PLAYER.DEAD";
+
+    // ================================================================
+    //  满血检查事件
+    //
+    //  发布 PLAYER.FULL_HP_CHECK 触发检查（需附带 player 数据），
+    //  由 PlayerFullHpEvent 组件监听到后自动按以下流程执行：
+    //    PLAYER.FULL_HP_CHECK     — 触发检查回调
+    //      └─ PLAYER.FULL_HP.MODIFY    — 修正钩子，监听器可修改 fullHp
+    //    数据字段：
+    //      player — GamePlayer，要检查的玩家
+    //      fullHp — boolean，是否满血（默认由 currentHp >= maxHp 判断，监听器可修改）
+    // ================================================================
+
+    /** 判断玩家是否满血 — 发布此事件触发检查（由 PlayerFullHpEvent @Component 监听） */
+    public static final String PLAYER_FULL_HP_CHECK = "PLAYER.FULL_HP_CHECK";
+
+    /** 满血修正钩子 — 监听器可修改 fullHp 字段 */
+    public static final String PLAYER_FULL_HP_MODIFY = "PLAYER.FULL_HP.MODIFY";
+
+    // ================================================================
+    //  卡牌可用性检测
+    //
+    //  由 CardPlayabilityChecker 在检测单张卡牌是否可用后抛出。
+    //  监听此钩子的监听器可修改 tag（boolean）来影响最终的可用性判定。
+    //    数据字段：
+    //      player — GamePlayer，玩家
+    //      card   — CardInstance，要检测的卡牌
+    //      tag    — boolean，检测结果（监听器可修改）
+    // ================================================================
+
+    /** 卡牌可用性检测修正钩子 — 监听器可修改 tag 字段 */
+    public static final String CARD_PLAYABILITY_MODIFY = "CARD.PLAYABILITY.MODIFY";
 
     // ================================================================
     //  取消事件
