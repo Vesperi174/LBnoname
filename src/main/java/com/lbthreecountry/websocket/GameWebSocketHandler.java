@@ -15,6 +15,7 @@ import com.lbthreecountry.game.event.common.DrawCardEvent;
 import com.lbthreecountry.game.state.RoundStateMachine;
 import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.game.event.common.DistanceManager;
+import com.lbthreecountry.game.interaction.InteractionMessageStack;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
 import com.lbthreecountry.model.hero.BaseHero;
@@ -29,6 +30,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,6 +69,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     private final CardPlayabilityChecker cardPlayabilityChecker;
     private final EventBus eventBus;
     private final DistanceManager distanceManager;
+    private final InteractionMessageStack interactionStack;
     private final RoundStateMachine roundStateMachine;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -231,8 +234,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "CHECK_CARDS"          -> handleCheckCards(session, playerSession);
             case "SELECT_HERO"          -> handleSelectHero(session, playerSession, msg);
             case "CLIENT_READY"         -> handleClientReady(playerSession);
-            case "NEXT_PHASE"           -> handleNextPhase(session, playerSession);
-            case "VIEW_DISTANCE"        -> handleViewDistance(session, playerSession, msg);
+            case "NEXT_PHASE"                    -> handleNextPhase(session, playerSession);
+            case "VIEW_DISTANCE"                 -> handleViewDistance(session, playerSession, msg);
+            case "ACTION_DECISION_RESPONSE"      -> handleActionDecisionResponse(playerSession, msg);
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -691,7 +695,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         // ── 战斗开始事件钩子 + 前端广播 ──
         // 先广播 BATTLE_START 给前端，让前端做好战斗准备
-        // 再发布 BATTLE_START 事件（第 1 轮在 EventLoop 上同步处理，事件钩子中的广播对前端可见）
+        // 再把 BATTLE_START 事件发布搬到 botScheduler 上执行
+        // 让整个状态机链条在游戏线程上跑，到了 PLAY 阶段可以安全地 pushAndAwait()
         broadcastToRoom(room, Map.of("type", "BATTLE_START"), null);
 
         GameEvent battleStartEvent = GameEvent.builder()
@@ -699,18 +704,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 .sourceId("system")
                 .build();
         battleStartEvent.putData("roomId", roomId);
-        eventBus.publish(battleStartEvent, matchWithHands);
 
-        // ── 游戏主循环：异步驱动后续轮次 ──
-        // BATTLE_START 处理完毕后第 1 轮已完成（enterFinished 设置了 roundFinished=true）
-        // 注意：不要在 EventLoop 线程上重置 roundFinished！
-        // 由 asyncGameLoop 在 botScheduler 线程中读取标记并重置，避免竞态条件
-        if (matchWithHands.isRoundFinished()) {
-            log.info("[游戏主循环] 🌀 第 1 轮完成 → 异步调度后续轮次");
-            asyncGameLoop(matchWithHands);
-        }
+        GameMatch finalMatch = matchWithHands;
+        botScheduler.submit(() -> {
+            log.info("[战斗开始] BATTLE_START 事件在 botScheduler 上发布");
+            eventBus.publish(battleStartEvent, finalMatch);
 
-        log.info("[战斗开始] BATTLE_START 事件已发布并广播");
+            // 第 1 轮已同步跑完（在 botScheduler 上）
+            if (finalMatch.isRoundFinished()) {
+                asyncGameLoop(finalMatch);
+            }
+        });
+
+        log.info("[战斗开始] BATTLE_START 已广播到前端，事件已提交到 botScheduler");
     }
 
     // ================================================================
@@ -972,6 +978,14 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 )));
             }
 
+            // ── 交互消息栈弹栈 ──
+            // 用前端传来的消息体 (msg) 完成 pending future，唤醒阻塞的线程
+            int depthAfter = interactionStack.getDepth(roomId, playerId);
+            if (depthAfter > 0) {
+                interactionStack.resolve(roomId, playerId, msg, sessionManager);
+                log.debug("[消息栈] 出牌后弹栈，当前栈深={}", interactionStack.getDepth(roomId, playerId));
+            }
+
         } catch (IllegalStateException e) {
             sendJson(session, Map.of("type", "ERROR", "message", e.getMessage()));
         }
@@ -1114,6 +1128,56 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
     // ──────────────────────────────────────────────
     //  机器人接管
     // ──────────────────────────────────────────────
+
+    /**
+     * 处理前端 ACTION_DECISION_RESPONSE — 唤醒消息栈中阻塞的线程
+     *
+     * <p>当玩家在前端做出出牌决策后，前端发送此消息。</p>
+     *
+     * <h3>消息格式</h3>
+     * <pre>{@code
+     * {
+     *   type: "ACTION_DECISION_RESPONSE",
+     *   value: "play_slash",          // 玩家点击的按钮 value
+     *   selectedIds: ["1002", "pid3"] // 手牌 instanceId + 目标 playerId
+     * }
+     * }</pre>
+     */
+    @SuppressWarnings("unchecked")
+    private void handleActionDecisionResponse(PlayerSession playerSession, Map<String, Object> msg) {
+        String playerId = playerSession.getPlayer().getPlayerId();
+
+        // 从 playerRoomMap 查找 roomId
+        GameRoom room = roomService.findRoomByPlayerId(playerId);
+        if (room == null) {
+            log.warn("[ACTION_DECISION_RESPONSE] 玩家 {} 不在任何房间中", playerId);
+            return;
+        }
+
+        String roomId = room.getRoomId();
+
+        // 解析前端响应数据
+        String value = (String) msg.get("value");
+        List<String> selectedIds = (List<String>) msg.get("selectedIds");
+
+        // 构造响应体传给 resolve()，阻塞的 pushAndAwait() 会收到这个 Map
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("type", "ACTION_DECISION_RESPONSE");
+        response.put("action", value != null ? value : "confirm");
+        if (selectedIds != null) {
+            response.put("selectedIds", selectedIds);
+        }
+
+        // 弹栈：完成 future，唤醒 botScheduler 上阻塞的线程
+        int depthBefore = interactionStack.getDepth(roomId, playerId);
+        if (depthBefore > 0) {
+            interactionStack.resolve(roomId, playerId, response, sessionManager);
+            log.info("[ACTION_DECISION_RESPONSE] 玩家 {} 决策: action={}, 已弹栈唤醒 (栈深={})",
+                    playerId, value, depthBefore - 1);
+        } else {
+            log.warn("[ACTION_DECISION_RESPONSE] 玩家 {} 无待处理的消息栈条目", playerId);
+        }
+    }
 
     /**
      * 将玩家转为机器人接管
@@ -1271,6 +1335,10 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         gameService.removeMatch(roomId);
         roomService.removeRoom(roomId);
         botAdvancing.remove(roomId);
+
+        // 清理消息栈：唤醒所有阻塞线程 + 清除条目
+        interactionStack.clearRoom(roomId);
+        log.debug("[消息栈] 消息栈已清理 [roomId={}]", roomId);
 
         // 通知所有在线玩家房间列表已更新
         broadcastRoomList();
@@ -1524,6 +1592,7 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         }
 
         String roomId = room.getRoomId();
+        String playerId = playerSession.getPlayer().getPlayerId();
 
         try {
             GameMatch match = gameService.getMatch(roomId);
@@ -1568,6 +1637,16 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
                 match = gameService.nextTurn(roomId);
                 broadcastToRoom(room, buildTurnStartMessage(match, 0), null);
                 autoAdvanceToPlay(roomId, room);
+            }
+
+            // ── 交互消息栈弹栈 ──
+            // 阶段推进完成后，用默认响应完成 pending future
+            int depthAfter = interactionStack.getDepth(roomId, playerId);
+            if (depthAfter > 0) {
+                interactionStack.resolve(roomId, playerId,
+                        Map.of("type", "NEXT_PHASE", "action", "next_phase"),
+                        sessionManager);
+                log.debug("[消息栈] 阶段推进后弹栈，当前栈深={}", interactionStack.getDepth(roomId, playerId));
             }
 
         } catch (IllegalStateException e) {

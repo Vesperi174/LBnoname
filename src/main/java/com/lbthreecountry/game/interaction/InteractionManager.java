@@ -62,12 +62,15 @@ public class InteractionManager {
     private final EventBus eventBus;
     private final WebSocketSessionManager sessionManager;
     private final RoomService roomService;
+    private final InteractionMessageStack interactionStack;
     private final ObjectMapper objectMapper;
 
-    public InteractionManager(EventBus eventBus, WebSocketSessionManager sessionManager, RoomService roomService) {
+    public InteractionManager(EventBus eventBus, WebSocketSessionManager sessionManager,
+                              RoomService roomService, InteractionMessageStack interactionStack) {
         this.eventBus = eventBus;
         this.sessionManager = sessionManager;
         this.roomService = roomService;
+        this.interactionStack = interactionStack;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -164,13 +167,23 @@ public class InteractionManager {
             }
         }
 
-        // ── 4. 发送到前端 ──
-        try {
-            String json = objectMapper.writeValueAsString(message);
-            sessionManager.sendMessage(playerId, json);
-            log.debug("[交互管理器] ACTION_DECISION → {} (timeout={}s)", playerId, timeout);
-        } catch (Exception e) {
-            log.error("[交互管理器] 发送 ACTION_DECISION 给 {} 失败", playerId, e);
+        // ── 4. 通过消息栈发送到前端 ──
+        // 消息栈会确保只有栈顶消息是活跃的，新消息自动覆盖旧消息
+        String roomId = match != null ? match.getRoomId() : null;
+        if (roomId != null) {
+            interactionStack.push(roomId, playerId, message, sessionManager);
+            log.debug("[交互管理器] ACTION_DECISION → {} (timeout={}s) [已压入消息栈, 栈深={}]",
+                    playerId, timeout, interactionStack.getDepth(roomId, playerId));
+        } else {
+            // 兜底：没有 roomId 时直接发送
+            try {
+                String json = objectMapper.writeValueAsString(message);
+                sessionManager.sendMessage(playerId, json);
+                log.debug("[交互管理器] ACTION_DECISION → {} (timeout={}s) [无 roomId，直接发送]",
+                        playerId, timeout);
+            } catch (Exception e) {
+                log.error("[交互管理器] 发送 ACTION_DECISION 给 {} 失败", playerId, e);
+            }
         }
     }
 
