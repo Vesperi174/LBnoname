@@ -133,8 +133,17 @@ public class InteractionMessageStack {
             log.warn("[消息栈] 等待超时 {} → {} ({}s)", roomId, playerId, timeoutSeconds);
             removeEntry(roomId, playerId, entry);
             return Map.of("type", "TIMEOUT", "action", "timeout");
+        } catch (java.util.concurrent.CancellationException e) {
+            log.info("[消息栈] 等待被取消 {} → {} (房间/对局已销毁)", roomId, playerId);
+            removeEntry(roomId, playerId, entry);
+            return Map.of("type", "CANCELLED", "action", "interrupted");
+        } catch (InterruptedException e) {
+            log.warn("[消息栈] 等待被中断 {} → {}", roomId, playerId);
+            removeEntry(roomId, playerId, entry);
+            Thread.currentThread().interrupt();
+            return Map.of("type", "ERROR", "action", "interrupted");
         } catch (Exception e) {
-            log.error("[消息栈] 等待被中断 {} → {}", roomId, playerId, e);
+            log.error("[消息栈] 等待异常 {} → {}", roomId, playerId, e);
             removeEntry(roomId, playerId, entry);
             return Map.of("type", "ERROR", "action", "interrupted");
         }

@@ -307,6 +307,38 @@ public final class GameEventType {
     public static final String CARD_MOVE_AFTER = "CARD.MOVE.AFTER";
 
     // ================================================================
+    //  使用牌事件 — 完整生命周期
+    //
+    //  发布 CARD.USE 触发事件（需附带 useplayer/targetplayer/card 数据），
+    //  由 CardUseEffectEvent 组件监听到后自动按以下顺序发布子钩子：
+    //    CARD.USE.BEFORE   — 使用牌前（可修改 / 可取消）
+    //    CARD.USE.ACTIVE   — 使用牌时（可修改 / 可取消）
+    //    CARD.USE.EFFECT   — 执行牌效果
+    //    CARD.USE.AFTER    — 使用牌后（仅通知）
+    //    CARD.MOVE         — 移入弃牌堆（由 MoveCardEvent 处理）
+    //
+    //    数据字段：
+    //      useplayer    — 使用牌的玩家
+    //      targetplayer — 目标玩家
+    //      card         — 使用的卡牌
+    // ================================================================
+
+    /** 使用牌触发事件 — 发布此事件触发使用牌生命周期（由 CardUseEffectEvent @Component 监听） */
+    public static final String CARD_USE = "CARD.USE";
+
+    /** 使用牌前钩子 — 附带本次使用牌信息，可修改或取消 */
+    public static final String CARD_USE_BEFORE = "CARD.USE.BEFORE";
+
+    /** 使用牌时钩子 — 附带本次使用牌信息，可修改或取消 */
+    public static final String CARD_USE_ACTIVE = "CARD.USE.ACTIVE";
+
+    /** 执行牌效果钩子 — 附带本次使用牌信息，执行卡牌效果 */
+    public static final String CARD_USE_EFFECT_HOOK = "CARD.USE.EFFECT";
+
+    /** 使用牌后钩子 — 附带本次使用牌信息，仅通知 */
+    public static final String CARD_USE_AFTER = "CARD.USE.AFTER";
+
+    // ================================================================
     //  执行牌效果事件
     //
     //  发布 CARD.USE_EFFECT 触发指定卡牌的效果。

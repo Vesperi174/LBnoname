@@ -220,6 +220,9 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
+        // 打印收到消息
+        log.info("[收到消息] type={}, payload={}", type, message.getPayload());
+
         switch (type) {
             case "HEARTBEAT"     -> handleHeartbeat(session);
             case "CREATE_ROOM"   -> handleCreateRoom(session, playerSession, msg);
@@ -1162,14 +1165,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
 
         // 解析前端响应数据
         String value = (String) msg.get("value");
-        List<String> selectedIds = (List<String>) msg.get("selectedIds");
+        List<String> selectedCardIds = (List<String>) msg.get("selectedCardIds");
+        List<String> selectedPlayerIds = (List<String>) msg.get("selectedPlayerIds");
 
         // 构造响应体传给 resolve()，阻塞的 pushAndAwait() 会收到这个 Map
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("type", "ACTION_DECISION_RESPONSE");
         response.put("action", value != null ? value : "confirm");
-        if (selectedIds != null) {
-            response.put("selectedIds", selectedIds);
+        response.put("value", value);
+        if (selectedCardIds != null) {
+            response.put("selectedCardIds", selectedCardIds);
+        }
+        if (selectedPlayerIds != null) {
+            response.put("selectedPlayerIds", selectedPlayerIds);
         }
 
         // 弹栈：完成 future，唤醒 botScheduler 上阻塞的线程

@@ -166,6 +166,10 @@ public class CardLibrary {
                 .name(jsonDef.getName())
                 .description(jsonDef.getDescription())
                 .copies(jsonDef.getCopies())
+                .damage(jsonDef.getDamage())
+                .singleTarget(jsonDef.getSingleTarget())
+                .areaTarget(jsonDef.getAreaTarget())
+                .delayed(jsonDef.getDelayed())
                 // CardRegistry 数据（行为属性）
                 .type(registeredDef.getType())
                 .subType(registeredDef.getSubType())
