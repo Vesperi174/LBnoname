@@ -14,7 +14,8 @@ public enum CardStatus implements BaseEnum {
     EQUIPMENT(3, "装备区"),     // 装备区
     JUDGEMENT(4, "判定区"),     // 判定区
     DISCARD_PILE(5, "弃牌堆"),  // 弃牌堆
-    REMOVED(6, "移出游戏");        // 移出游戏
+    REMOVED(6, "移出游戏"),        // 移出游戏
+    TABLE_CENTER(7, "牌桌中央");    // 牌桌中央（如五谷丰登翻开的牌、判定牌等）
 
     private final Integer code;
     private final String description;
