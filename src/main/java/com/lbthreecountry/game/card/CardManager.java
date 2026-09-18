@@ -165,6 +165,8 @@ public class CardManager {
         checkEvent.putData("playerId", player.getPlayerId());
         checkEvent.putData("playerName", player.getPlayerName());
         checkEvent.putData("drawnCount", drawn.size());
+        checkEvent.putData("drawnInstanceIds",
+                drawn.stream().map(CardInstance::getInstanceId).toList());
         eventBus.publish(checkEvent, match);
 
         return drawn;
@@ -210,6 +212,7 @@ public class CardManager {
      * @param targetPlayer 目标玩家（HAND / EQUIPMENT / JUDGEMENT 时需要）
      */
     public void moveToZone(GameMatch match, CardInstance card, String destination, GamePlayer targetPlayer) {
+        CardStatus fromStatus = card.getStatus();
         // 从当前所在区域移除
         removeFromCurrentZone(match, card);
 
@@ -251,6 +254,11 @@ public class CardManager {
                 card.setStatus(CardStatus.DRAW_PILE);
                 match.getDrawPile().add(card);
             }
+            case "TABLE_CENTER" -> {
+                card.setOwnerId(null);
+                card.setStatus(CardStatus.TABLE_CENTER);
+                // TABLE_CENTER 状态的牌暂存在 match 的临时区（不归属于任何玩家）
+            }
             case "REMOVED" -> {
                 card.setOwnerId(null);
                 card.setStatus(CardStatus.REMOVED);
@@ -258,6 +266,9 @@ public class CardManager {
             }
             default -> log.warn("[CardManager] moveToZone 未知目标区域: {}", destination);
         }
+
+        log.info("[移牌] card={}({}) {} → {}",
+                card.getDefId(), card.getInstanceId(), fromStatus.name(), destination);
     }
 
     /**

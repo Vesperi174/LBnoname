@@ -1,6 +1,5 @@
 package com.lbthreecountry.game.event.common;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.event.EventBus;
@@ -8,16 +7,12 @@ import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
-import com.lbthreecountry.websocket.WebSocketSessionManager;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * 使用牌事件 — 监听 {@code CARD.USE} 触发钩子，执行使用牌生命周期
@@ -31,7 +26,8 @@ import java.util.stream.Collectors;
  *   ├── CARD.USE.ACTIVE   (使用牌时，可修改 / 可取消)
  *   ├── CARD.USE.EFFECT   (执行牌效果，由具体卡牌监听)
  *   ├── CARD.USE.AFTER    (使用牌后，仅通知)
- *   └── CARD.MOVE         (移入弃牌堆，由 MoveCardEvent 处理完整移牌生命周期)
+ *   ├── CARD.MOVE         (移入牌桌中央，由 MoveCardEvent 处理移牌 + 通知前端)
+ *   └── CARD.MOVE         (移入弃牌堆，由 MoveCardEvent 处理移牌 + 通知前端)
  * </pre>
  *
  * <h3>触发事件数据字段</h3>
@@ -71,19 +67,17 @@ public class CardUseEffectEvent {
 
     /** 默认去向 — 弃牌堆（与 MoveCardEvent 一致） */
     private static final String DEST_DISCARD = "DISCARD_PILE";
+    /** 牌桌中央（卡牌使用时的显示区域） */
+    private static final String DEST_TABLE_CENTER = "TABLE_CENTER";
 
     // ================================================================
     //  依赖
     // ================================================================
 
     private final EventBus eventBus;
-    private final WebSocketSessionManager sessionManager;
-    private final ObjectMapper objectMapper;
 
-    public CardUseEffectEvent(EventBus eventBus, WebSocketSessionManager sessionManager) {
+    public CardUseEffectEvent(EventBus eventBus) {
         this.eventBus = eventBus;
-        this.sessionManager = sessionManager;
-        this.objectMapper = new ObjectMapper();
     }
 
     @PostConstruct
@@ -138,8 +132,8 @@ public class CardUseEffectEvent {
             writeResult(event, data);
             return;
         }
-        // ── 2.1) 通知前端：卡牌已在牌桌中央（使用牌时确认动画） ──
-        broadcastCardFlyToTable(match, data.useplayer, data.card, "HAND", "TABLE_CENTER");
+        // ── 2.1) 将牌从手牌区移到牌桌中央（同步后端数据 + 通知前端） ──
+        data.publishMoveToTable(event, match, eventBus);
 
         // ── 3) 执行牌效果（ACTIVE 修改后的数据） ──
         data.publishEffect(event, match, eventBus);
@@ -152,50 +146,6 @@ public class CardUseEffectEvent {
 
         // ── 写入结果到触发事件 ──
         writeResult(event, data);
-    }
-
-    // ================================================================
-    //  前端通信
-    // ================================================================
-
-    /**
-     * 广播"卡牌移动"动画消息到前端
-     *
-     * <p>通知所有玩家，某张卡牌从指定区域飞入另一区域（如从手牌区到牌桌中央），
-     * 前端收到后可播放卡牌飞行动画。</p>
-     *
-     * @param match  当前对局
-     * @param player 使用卡牌的玩家
-     * @param card   使用的卡牌实例
-     * @param from   来源区域（如 "HAND"）
-     * @param to     目标区域（如 "TABLE_CENTER"）
-     */
-    private void broadcastCardFlyToTable(GameMatch match, GamePlayer player, CardInstance card,
-                                          String from, String to) {
-        try {
-            List<String> allPlayerIds = match.getPlayers().stream()
-                    .map(GamePlayer::getPlayerId)
-                    .collect(Collectors.toList());
-
-            Map<String, Object> msg = new LinkedHashMap<>();
-            msg.put("type", "CARD_MOVE");
-            msg.put("playerId", player.getPlayerId());
-            msg.put("playerName", player.getPlayerName());
-            msg.put("cardInstanceId", card.getInstanceId());
-            msg.put("cardDefId", card.getDefId());
-            msg.put("suit", card.getSuit());
-            msg.put("suitName", card.getSuit().getDescription());
-            msg.put("point", card.getPoint());
-            msg.put("from", from);
-            msg.put("to", to);
-
-            String json = objectMapper.writeValueAsString(msg);
-            sessionManager.broadcastToRoom(allPlayerIds, json, null);
-            log.debug("[使用牌事件] 广播 CARD_MOVE → {} 的 [{}] ({} → {})",
-                    player.getPlayerId(), card.getDefId(), from, to);
-        } catch (Exception e) {
-            log.warn("[使用牌事件] 广播 CARD_MOVE 失败", e);
-        }
     }
 
     // ================================================================
@@ -286,6 +236,23 @@ public class CardUseEffectEvent {
                     .putData("targetplayer", targetplayer)
                     .putData("card", card)
                     .putData("cancelled", false);
+            eventBus.publish(hookEvent, match);
+        }
+
+        /**
+         * 发布 {@code CARD.MOVE} 移牌事件 — 将牌移入牌桌中央
+         *
+         * <p>在 ACTIVE 钩子通过后调用，将卡牌从当前区域（手牌）移到牌桌中央，
+         * 同步后端数据并通知前端播放卡牌飞入动画。</p>
+         */
+        void publishMoveToTable(GameEvent originalEvent, GameMatch match, EventBus eventBus) {
+            GameEvent hookEvent = GameEvent.builder()
+                    .type(GameEventType.CARD_MOVE)
+                    .sourceId(originalEvent.getSourceId())
+                    .build()
+                    .putData("player", useplayer)
+                    .putData("cards", List.of(card))
+                    .putData("destination", DEST_TABLE_CENTER);
             eventBus.publish(hookEvent, match);
         }
 

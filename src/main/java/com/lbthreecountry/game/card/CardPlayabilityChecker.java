@@ -141,24 +141,40 @@ public class CardPlayabilityChecker {
 
     @PostConstruct
     public void registerHooks() {
-        // ── 摸牌后检测：CardManager.draw() 摸完牌后触发 ──
+        // ── 摸牌后：仅新摸到的牌不可选，已有牌保持原状态 ──
         eventBus.register(GameEventType.CARD_DRAW_CHECK, EventPriority.EQUIP_CARD, (event, match) -> {
             String playerId = event.getData("playerId");
-            log.info("[卡牌检测]玩家 {} 摸了牌 → 重新检测手牌状态并推送 HAND_STATUS", playerId);
+            log.info("[卡牌检测]玩家 {} 摸了牌 → 新牌强制 NOT_SELECTABLE", playerId);
 
             GamePlayer player = match.findPlayer(playerId);
-            if (player != null) {
-                Map<Long, CardCheckResult> results = checkAllHandCards(match, player);
-                log.info("[卡牌检测]玩家 {} 手牌检测完成，{} 张牌（默认全部 NOT_SELECTABLE）",
-                        playerId, results.size());
+            if (player == null) return;
+
+            // 取出新摸牌的 instanceId 列表
+            List<Long> drawnIds = event.getData("drawnInstanceIds");
+            if (drawnIds == null || drawnIds.isEmpty()) return;
+
+            // 从缓存中获取已有结果，没有则全部重新检测
+            String key = cacheKey(match, player);
+            Map<Long, CardCheckResult> results = resultsCache.get(key);
+            if (results == null) {
+                // 无缓存 → 所有牌全量检测
+                results = checkAllHandCards(match, player);
+                return;
             }
+
+            // 只覆盖新摸的牌为 NOT_SELECTABLE，已缓存的保留不变
+            for (Long id : drawnIds) {
+                results.put(id, new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "刚摸到的牌不可使用"));
+            }
+            resultsCache.put(key, results);
+            pushHandStatus(match, player, results);
         });
 
-        // ── 战斗开始：初始手牌分发完毕，重新检测所有玩家手牌状态 ──
+        // ── 战斗开始：初始手牌分发完毕，所有卡牌强制不可点击 ──
         eventBus.register(GameEventType.BATTLE_START, EventPriority.EQUIP_CARD, (event, match) -> {
-            log.info("[卡牌检测]战斗开始，重新检测所有玩家手牌状态");
+            log.info("[卡牌检测]战斗开始，所有玩家手牌强制不可点击");
             for (GamePlayer gp : match.getPlayers()) {
-                checkAllHandCards(match, gp);
+                forceAllNotSelectable(match, gp);
             }
         });
 
@@ -184,7 +200,7 @@ public class CardPlayabilityChecker {
         //     // 重新检测手牌状态
         // });
 
-        log.info("[卡牌检测] 事件钩子已注册（已接入: CARD.DRAW.CHECK + BATTLE.START | 模板阶段默认 NOT_SELECTABLE）");
+        log.info("[卡牌检测] 事件钩子已注册（已接入: CARD.DRAW.CHECK + BATTLE.START 均强制不可点击）");
     }
 
     // ================================================================
@@ -252,6 +268,22 @@ public class CardPlayabilityChecker {
 
         log.info("[卡牌检测] 📤 已推送 HAND_STATUS 给玩家 {} ({} 张牌, 阶段: {}, isMyTurn: {})",
                 player.getPlayerName(), cardStatusList.size(), match.getCurrentPhase(), isMyTurn);
+    }
+
+    /**
+     * 强制玩家所有手牌为不可点击状态，并推送 HAND_STATUS 给前端
+     *
+     * @param match  当前对局
+     * @param player 目标玩家
+     */
+    private void forceAllNotSelectable(GameMatch match, GamePlayer player) {
+        Map<Long, CardCheckResult> results = new LinkedHashMap<>();
+        for (CardInstance card : player.getHandCards()) {
+            results.put(card.getInstanceId(),
+                    new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "非出牌阶段不可使用"));
+        }
+        resultsCache.put(cacheKey(match, player), results);
+        pushHandStatus(match, player, results);
     }
 
     /**

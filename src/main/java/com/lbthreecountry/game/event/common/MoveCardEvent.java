@@ -1,5 +1,6 @@
 package com.lbthreecountry.game.event.common;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.card.CardManager;
@@ -8,13 +9,18 @@ import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.model.enums.impl.CardStatus;
+import com.lbthreecountry.websocket.WebSocketSessionManager;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 移牌事件 — 监听 {@code CARD.MOVE}，触发 {@code CARD.MOVE.BEFORE → 移牌 → CARD.MOVE.AFTER} 生命周期
@@ -69,10 +75,14 @@ public class MoveCardEvent {
 
     private final EventBus eventBus;
     private final CardManager cardManager;
+    private final WebSocketSessionManager sessionManager;
+    private final ObjectMapper objectMapper;
 
-    public MoveCardEvent(EventBus eventBus, CardManager cardManager) {
+    public MoveCardEvent(EventBus eventBus, CardManager cardManager, WebSocketSessionManager sessionManager) {
         this.eventBus = eventBus;
         this.cardManager = cardManager;
+        this.sessionManager = sessionManager;
+        this.objectMapper = new ObjectMapper();
     }
 
     @PostConstruct
@@ -119,14 +129,65 @@ public class MoveCardEvent {
         }
 
         // ── 3. 执行移牌 ──
+        // 在移牌前记录每张卡的原始区域（用于前端动画）
+        List<CardStatus> fromStatuses = data.cards.stream()
+                .map(CardInstance::getStatus)
+                .toList();
         cardManager.moveAllToZone(match, data.cards, data.destination, data.player);
         data.actualCount = data.cards.size();
+
+        // ── 3.1) 通知前端：卡牌移动动画 ──
+        broadcastCardMove(match, data.player, data.cards, fromStatuses, data.destination);
 
         // ── 4. AFTER 钩子：可修改数据 ──
         data.publishAfter(event, match, eventBus);
 
         // ── 5. 写回结果 ──
         writeResult(event, data);
+    }
+
+    // ================================================================
+    //  前端通信
+    // ================================================================
+
+    /**
+     * 广播卡牌移动动画消息到前端
+     *
+     * <p>通知所有玩家，卡牌从原始区域移动到目标区域。</p>
+     */
+    private void broadcastCardMove(GameMatch match, GamePlayer player,
+                                    List<CardInstance> cards, List<CardStatus> fromStatuses,
+                                    String destination) {
+        try {
+            List<String> allPlayerIds = match.getPlayers().stream()
+                    .map(GamePlayer::getPlayerId)
+                    .collect(Collectors.toList());
+
+            for (int i = 0; i < cards.size(); i++) {
+                CardInstance card = cards.get(i);
+                String from = fromStatuses.get(i).name();
+
+                Map<String, Object> msg = new LinkedHashMap<>();
+                msg.put("type", "CARD_MOVE");
+                msg.put("playerId", player != null ? player.getPlayerId() : null);
+                msg.put("playerName", player != null ? player.getPlayerName() : null);
+                msg.put("cardInstanceId", card.getInstanceId());
+                msg.put("cardDefId", card.getDefId());
+                msg.put("suit", card.getSuit().getCode());
+                msg.put("suitName", card.getSuit().getDescription());
+                msg.put("point", card.getPoint());
+                msg.put("from", from);
+                msg.put("to", destination);
+
+                String json = objectMapper.writeValueAsString(msg);
+                sessionManager.broadcastToRoom(allPlayerIds, json, null);
+            }
+
+            log.debug("[移牌事件] 广播 CARD_MOVE → {} 张牌 ({} → {})",
+                    cards.size(), fromStatuses.get(0).name(), destination);
+        } catch (Exception e) {
+            log.warn("[移牌事件] 广播 CARD_MOVE 失败", e);
+        }
     }
 
     // ================================================================

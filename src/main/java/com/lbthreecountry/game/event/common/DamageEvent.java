@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * 造成伤害事件 — 监听 {@code DAMAGE_CAUSE} 触发钩子，执行造成伤害生命周期
  *
@@ -136,14 +138,51 @@ public class DamageEvent {
         log.info("[造成伤害事件] 对 {} 造成 {} 点伤害 (剩余体力: {}/{})",
                 data.target.getPlayerId(), actualDamage, data.target.getCurrentHp(), data.target.getMaxHp());
 
-        // ── 前端通信（预留） ──
-        // TODO: 在此处推送伤害结果到前端
+        // ── 前端通信：广播伤害结果 ──
+        broadcastDamage(match, data.source, data.target, actualDamage);
 
         // 伤害后数据使用实际值
         data.damage = actualDamage;
 
         // ── 4) 造成伤害后（实际使用的数据） ──
         data.publishAndSync(GameEventType.AFTER_DAMAGE, event, match, eventBus);
+    }
+
+    // ================================================================
+    //  前端通信
+    // ================================================================
+
+    /**
+     * 广播伤害结果到前端
+     *
+     * <p>通知所有玩家，谁对谁造成了多少点伤害，以及目标当前剩余体力。</p>
+     */
+    private void broadcastDamage(com.lbthreecountry.game.GameMatch match,
+                                  GamePlayer source, GamePlayer target, int damage) {
+        try {
+            List<String> allPlayerIds = match.getPlayers().stream()
+                    .map(com.lbthreecountry.game.GamePlayer::getPlayerId)
+                    .collect(java.util.stream.Collectors.toList());
+
+            java.util.Map<String, Object> msg = new java.util.LinkedHashMap<>();
+            msg.put("type", "HIT");
+            msg.put("sourceId", source != null ? source.getPlayerId() : null);
+            msg.put("sourceName", source != null ? source.getPlayerName() : null);
+            msg.put("targetId", target.getPlayerId());
+            msg.put("targetName", target.getPlayerName());
+            msg.put("damage", damage);
+            msg.put("remainingHp", target.getCurrentHp());
+            msg.put("maxHp", target.getMaxHp());
+            msg.put("alive", target.isAlive());
+
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(msg);
+            sessionManager.broadcastToRoom(allPlayerIds, json, null);
+            log.debug("[造成伤害事件] 广播 HIT → {} 对 {} 造成 {} 点伤害",
+                    source != null ? source.getPlayerId() : "系统",
+                    target.getPlayerId(), damage);
+        } catch (Exception e) {
+            log.warn("[造成伤害事件] 广播 HIT 失败", e);
+        }
     }
 
     /**
