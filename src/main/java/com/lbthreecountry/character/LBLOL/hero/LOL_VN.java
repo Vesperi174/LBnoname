@@ -13,8 +13,8 @@ public class LOL_VN extends BaseHero {
                 "薇恩",
                 "暗夜猎手", // heroTitle
                 KingdomType.DMA,     // kingdom
-                4,                   // maxHp
-                4,                   // startHp
+                3,                   // maxHp
+                3,                   // startHp
                 Gender.FEMALE,                // gender
                 "",  // description
                 List.of(
