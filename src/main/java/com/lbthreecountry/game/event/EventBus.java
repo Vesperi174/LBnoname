@@ -5,7 +5,6 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.ContextRefreshedEvent;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -127,7 +126,7 @@ public class EventBus {
     /**
      * 启动完成后统一输出所有已注册的监听器
      */
-    @EventListener(ContextRefreshedEvent.class)
+    @org.springframework.context.event.EventListener(ContextRefreshedEvent.class)
     public void logAllRegistrations() {
         // 按事件类型分组
         Map<String, List<Integer>> grouped = new LinkedHashMap<>();
@@ -144,7 +143,6 @@ public class EventBus {
                         if (p == EventPriority.SKILL) return "SKILL";
                         if (p == EventPriority.EQUIP_CARD) return "EQUIP_CARD";
                         if (p == EventPriority.ENGINE) return "ENGINE";
-                        if (p == EventPriority.MONITOR) return "MONITOR";
                         return String.valueOf(p);
                     })
                     .collect(java.util.stream.Collectors.joining(", "));
