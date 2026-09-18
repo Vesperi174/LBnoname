@@ -6,7 +6,23 @@
     {
       "id": "sha",
       "name": "杀",
+      "type": "BASIC",
+      "subType": "SHA",
       "description": "出牌阶段对一名角色使用，目标需打出一张闪，否则受到1点伤害",
+      "damage": 1,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": 1,
+        "unlimitedInPlayPhase": false,
+        "canActiveUse": true,
+        "filterType": "ENEMY",
+        "targetCount": 1,
+        "targetType": "ENEMY",
+        "rangeLimit": -1
+      },
       "copies": [
         { "suit": "SPADES",   "point": 7 },
         { "suit": "SPADES",   "point": 8 },
@@ -43,7 +59,23 @@
     {
       "id": "shan",
       "name": "闪",
+      "type": "BASIC",
+      "subType": "SHAN",
       "description": "响应杀时使用，抵消一次杀的效果",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "RESPOND",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": false,
+        "filterType": null,
+        "targetCount": 0,
+        "targetType": "ANY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "DIAMONDS", "point": 2 },
         { "suit": "DIAMONDS", "point": 3 },
@@ -65,7 +97,23 @@
     {
       "id": "tao",
       "name": "桃",
+      "type": "BASIC",
+      "subType": "TAO",
       "description": "出牌阶段对自己使用，回复1点体力；角色濒死时可用",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "DIAMONDS", "point": 12 },
         { "suit": "HEARTS",   "point": 3 },
@@ -80,7 +128,23 @@
     {
       "id": "juedou",
       "name": "决斗",
+      "type": "STRATEGY",
+      "subType": "JUEDOU",
       "description": "对一名角色使用，由目标开始交替打出杀，先不出者受到1点伤害",
+      "damage": 1,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ENEMY",
+        "targetCount": 1,
+        "targetType": "ENEMY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "SPADES",   "point": 1 },
         { "suit": "CLUBS",    "point": 1 },
@@ -90,7 +154,23 @@
     {
       "id": "nanman",
       "name": "南蛮入侵",
+      "type": "STRATEGY",
+      "subType": "NANMAN",
       "description": "对所有其他角色使用，需依次打出杀，否则受到1点伤害",
+      "damage": 1,
+      "singleTarget": false,
+      "areaTarget": true,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ALL_OTHERS",
+        "targetCount": 0,
+        "targetType": "ANY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "SPADES",   "point": 7 },
         { "suit": "CLUBS",    "point": 7 },
@@ -100,7 +180,23 @@
     {
       "id": "wanjian",
       "name": "万箭齐发",
+      "type": "STRATEGY",
+      "subType": "WANJIAN",
       "description": "对所有其他角色使用，需依次打出闪，否则受到1点伤害",
+      "damage": 1,
+      "singleTarget": false,
+      "areaTarget": true,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ALL_OTHERS",
+        "targetCount": 0,
+        "targetType": "ANY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "HEARTS", "point": 1 }
       ]
@@ -108,7 +204,23 @@
     {
       "id": "taoyuan",
       "name": "桃园结义",
+      "type": "STRATEGY",
+      "subType": "TAOYUAN",
       "description": "所有角色回复至满体力",
+      "damage": null,
+      "singleTarget": false,
+      "areaTarget": true,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ALL_OTHERS",
+        "targetCount": 0,
+        "targetType": "ANY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "HEARTS", "point": 1 }
       ]
@@ -116,7 +228,23 @@
     {
       "id": "wuzhong",
       "name": "无中生有",
+      "type": "STRATEGY",
+      "subType": "WUZHONG",
       "description": "摸两张牌",
+      "damage": null,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "HEARTS",   "point": 7 },
         { "suit": "HEARTS",   "point": 8 },
@@ -127,7 +255,23 @@
     {
       "id": "shunshou",
       "name": "顺手牵羊",
+      "type": "STRATEGY",
+      "subType": "SHUNSHOU",
       "description": "对距离1以内的一名角色使用，获得其一张牌",
+      "damage": null,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ENEMY",
+        "targetCount": 1,
+        "targetType": "ENEMY",
+        "rangeLimit": 1
+      },
       "copies": [
         { "suit": "SPADES",   "point": 3 },
         { "suit": "SPADES",   "point": 4 },
@@ -139,7 +283,23 @@
     {
       "id": "guohe",
       "name": "过河拆桥",
+      "type": "STRATEGY",
+      "subType": "GUOHE",
       "description": "对一名角色使用，弃置其一张牌",
+      "damage": null,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ENEMY",
+        "targetCount": 1,
+        "targetType": "ENEMY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "SPADES",   "point": 3 },
         { "suit": "SPADES",   "point": 4 },
@@ -151,7 +311,23 @@
     {
       "id": "wuxie",
       "name": "无懈可击",
+      "type": "STRATEGY",
+      "subType": "WUXIE",
       "description": "抵消一张锦囊牌对一名角色的效果",
+      "damage": null,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "RESPOND",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": false,
+        "filterType": null,
+        "targetCount": 0,
+        "targetType": "ANY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "SPADES",   "point": 11 },
         { "suit": "CLUBS",    "point": 12 },
@@ -161,7 +337,23 @@
     {
       "id": "jiedao",
       "name": "借刀杀人",
+      "type": "STRATEGY",
+      "subType": "JIEDAO",
       "description": "对一名有武器的角色使用，令其选择：攻击另一角色，或交出武器",
+      "damage": null,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ENEMY",
+        "targetCount": 1,
+        "targetType": "ENEMY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "CLUBS",   "point": 13 },
         { "suit": "CLUBS",    "point": 12 }
@@ -170,7 +362,23 @@
     {
       "id": "wugu",
       "name": "五谷丰登",
+      "type": "STRATEGY",
+      "subType": "WUGU",
       "description": "亮出牌堆顶存活人数张牌，每人选择获得其中一张",
+      "damage": null,
+      "singleTarget": false,
+      "areaTarget": true,
+      "delayed": false,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ALL",
+        "targetCount": 0,
+        "targetType": "ANY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "HEARTS", "point": 3 },
         { "suit": "HEARTS", "point": 4 }
@@ -179,7 +387,23 @@
     {
       "id": "lebu",
       "name": "乐不思蜀",
+      "type": "STRATEGY",
+      "subType": "LEBU",
       "description": "对一名角色使用，其判定结果不为红桃则跳过出牌阶段",
+      "damage": null,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": true,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "ENEMY",
+        "targetCount": 1,
+        "targetType": "ENEMY",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "SPADES",   "point": 6 },
         { "suit": "CLUBS",    "point": 6 },
@@ -189,7 +413,24 @@
     {
       "id": "shandian",
       "name": "闪电",
+      "type": "STRATEGY",
+      "subType": "SHANDIAN",
+      "attribute": "THUNDER",
       "description": "置于判定区，判定结果为黑桃2~9则受到3点雷伤",
+      "damage": 3,
+      "singleTarget": true,
+      "areaTarget": false,
+      "delayed": true,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0
+      },
       "copies": [
         { "suit": "SPADES", "point": 1 }
       ]
@@ -197,7 +438,25 @@
     {
       "id": "qinglong",
       "name": "青龙偃月刀",
+      "type": "EQUIPMENT",
+      "subType": "QINGLONG",
       "description": "攻击范围3，杀被闪避后可立即追刀",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "WEAPON",
+        "attackRange": 3
+      },
       "copies": [
         { "suit": "SPADES", "point": 3 }
       ]
@@ -205,7 +464,25 @@
     {
       "id": "zhangba",
       "name": "丈八蛇矛",
+      "type": "EQUIPMENT",
+      "subType": "ZHANGBA",
       "description": "攻击范围3，可用两张牌当杀使用",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "WEAPON",
+        "attackRange": 3
+      },
       "copies": [
         { "suit": "SPADES", "point": 12 }
       ]
@@ -213,7 +490,25 @@
     {
       "id": "fangtian",
       "name": "方天画戟",
+      "type": "EQUIPMENT",
+      "subType": "FANGTIAN",
       "description": "攻击范围4，最后一张手牌杀可指定至多三名目标",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "WEAPON",
+        "attackRange": 4
+      },
       "copies": [
         { "suit": "DIAMONDS", "point": 12 }
       ]
@@ -221,7 +516,24 @@
     {
       "id": "bagua",
       "name": "八卦阵",
+      "type": "EQUIPMENT",
+      "subType": "BAGUA",
       "description": "需要出闪时可进行判定，红色视为出闪",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "ARMOR"
+      },
       "copies": [
         { "suit": "SPADES", "point": 2 },
         { "suit": "CLUBS",  "point": 2 }
@@ -230,7 +542,25 @@
     {
       "id": "zhuge",
       "name": "诸葛连弩",
+      "type": "EQUIPMENT",
+      "subType": "ZHUGE",
       "description": "攻击范围1，可连续使用任意张杀",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "WEAPON",
+        "attackRange": 1
+      },
       "copies": [
         { "suit": "DIAMONDS", "point": 1 },
         { "suit": "CLUBS",    "point": 1 }
@@ -239,7 +569,25 @@
     {
       "id": "guanshi",
       "name": "贯石斧",
+      "type": "EQUIPMENT",
+      "subType": "GUANSHI",
       "description": "攻击范围3，可弃2发动强杀",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "WEAPON",
+        "attackRange": 3
+      },
       "copies": [
         { "suit": "DIAMONDS", "point": 3 }
       ]
@@ -247,7 +595,25 @@
     {
       "id": "qinggang",
       "name": "青釭剑",
+      "type": "EQUIPMENT",
+      "subType": "QINGGANG",
       "description": "攻击范围2，无视其防具",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "WEAPON",
+        "attackRange": 2
+      },
       "copies": [
         { "suit": "SPADES", "point": 6 }
       ]
@@ -255,7 +621,25 @@
     {
       "id": "cixiong",
       "name": "雌雄双股剑",
+      "type": "EQUIPMENT",
+      "subType": "CIXIONG",
       "description": "攻击范围2，异性增强",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "WEAPON",
+        "attackRange": 2
+      },
       "copies": [
         { "suit": "SPADES", "point": 2 }
       ]
@@ -263,7 +647,24 @@
     {
       "id": "chitu",
       "name": "赤兔",
+      "type": "EQUIPMENT",
+      "subType": "CHITU",
       "description": "-1马，计算距离时减1",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "MOUNT_MINUS"
+      },
       "copies": [
         { "suit": "HEARTS", "point": 5 }
       ]
@@ -271,7 +672,24 @@
     {
       "id": "dawan",
       "name": "大宛",
+      "type": "EQUIPMENT",
+      "subType": "DAWAN",
       "description": "-1马，计算距离时减1",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "MOUNT_MINUS"
+      },
       "copies": [
         { "suit": "SPADES", "point": 13 }
       ]
@@ -279,7 +697,24 @@
     {
       "id": "dilu",
       "name": "的卢",
+      "type": "EQUIPMENT",
+      "subType": "DILU",
       "description": "+1马，计算距离时加1",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "MOUNT_PLUS"
+      },
       "copies": [
         { "suit": "CLUBS", "point": 5 }
       ]
@@ -287,9 +722,76 @@
     {
       "id": "zixin",
       "name": "紫骍",
-      "description": "+1马，计算距离时加1",
+      "type": "EQUIPMENT",
+      "subType": "ZIXIN",
+      "description": "-1马，计算距离时减1",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "MOUNT_MINUS"
+      },
       "copies": [
         { "suit": "HEARTS", "point": 13 }
+      ]
+    },
+    {
+      "id": "jueying",
+      "name": "绝影",
+      "type": "EQUIPMENT",
+      "subType": "JUEYING",
+      "description": "+1马，计算距离时加1",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "MOUNT_PLUS"
+      },
+      "copies": [
+        { "suit": "SPADES", "point": 5 }
+      ]
+    },
+    {
+      "id": "zhuahuang",
+      "name": "爪黄飞电",
+      "type": "EQUIPMENT",
+      "subType": "ZHUAHUANG",
+      "description": "+1马，计算距离时加1",
+      "damage": null,
+      "singleTarget": null,
+      "areaTarget": null,
+      "delayed": null,
+      "rules": {
+        "playablePhase": "PLAY",
+        "maxUseCount": null,
+        "unlimitedInPlayPhase": true,
+        "canActiveUse": true,
+        "filterType": "SELF",
+        "targetCount": 1,
+        "targetType": "SELF",
+        "rangeLimit": 0,
+        "equipSlot": "MOUNT_PLUS"
+      },
+      "copies": [
+        { "suit": "HEARTS", "point": 5 }
       ]
     }
   ]

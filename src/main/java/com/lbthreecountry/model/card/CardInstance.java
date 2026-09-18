@@ -52,6 +52,11 @@ public class CardInstance {
     private String ownerId;
 
     /**
+     * 本回合已使用次数（运行时状态，每回合重置）
+     */
+    private int usedCount;
+
+    /**
      * 获取卡牌名称（通过 defId 查找定义）
      * 注意：此方法需要在有 CardLibrary 的上下文中使用，
      * 纯数据场景下返回 defId 作为标识。
@@ -124,7 +129,8 @@ public class CardInstance {
                  "lebu", "shandian" -> CardType.STRATEGY;
             case "qinglong", "zhangba", "fangtian", "renwang", "bagua",
                  "zhuge", "guanshi", "qinggang", "cixiong",
-                 "chitu", "dawan", "dilu", "zixin" -> CardType.EQUIPMENT;
+                 "chitu", "dawan", "dilu", "zixin",
+                 "jueying", "zhuahuang" -> CardType.EQUIPMENT;
             default -> null;
         };
     }

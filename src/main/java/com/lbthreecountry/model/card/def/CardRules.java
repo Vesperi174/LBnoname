@@ -49,4 +49,23 @@ public class CardRules {
     /** 攻击范围（仅武器牌使用） */
     @Builder.Default
     private int attackRange = 1;
+
+    // ================================================================
+    //  新增字段（JSON 配置驱动）
+    // ================================================================
+
+    /** 可使用次数，null=不限次数（覆盖 maxPerTurn 逻辑） */
+    @Builder.Default
+    private Integer maxUseCount = null;
+
+    /** 出牌阶段是否不限次数（默认 true） */
+    @Builder.Default
+    private Boolean unlimitedInPlayPhase = true;
+
+    /** 是否可主动使用（默认 true） */
+    @Builder.Default
+    private Boolean canActiveUse = true;
+
+    /** 目标筛选类型，null=无目标（如桃园结义无目标） */
+    private String filterType;
 }

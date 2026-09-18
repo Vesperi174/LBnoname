@@ -31,7 +31,16 @@ public enum CardSubType implements BaseEnum {
     FANGTIAN(303, "方天画戟"),
     RENWANG(304, "仁王盾"),
     BAGUA(305, "八卦阵"),
-    // ... 更多装备
+    ZHUGE(306, "诸葛连弩"),
+    GUANSHI(307, "贯石斧"),
+    QINGGANG(308, "青釭剑"),
+    CIXIONG(309, "雌雄双股剑"),
+    CHITU(310, "赤兔"),
+    DAWAN(311, "大宛"),
+    DILU(312, "的卢"),
+    ZIXIN(313, "紫骍"),
+    JUEYING(314, "绝影"),
+    ZHUAHUANG(315, "爪黄飞电"),
     ;
 
     private final Integer code;
