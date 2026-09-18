@@ -88,7 +88,7 @@ public class PlayCardEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CARD_PLAY, EventPriority.ENGINE, this::onPlayCard);
-        log.info("[打出牌事件] 已注册 CARD.PLAY 监听器 (ENGINE 优先级)");
+        
     }
 
     // ================================================================

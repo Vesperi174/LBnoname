@@ -95,7 +95,7 @@ public class RecoverHpEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.RECOVER_HP, EventPriority.ENGINE, this::onRecoverHp);
-        log.info("[回复体力事件] 已注册 RECOVER.HP 监听器 (ENGINE 优先级)");
+        
     }
 
     // ================================================================

@@ -157,7 +157,7 @@ public class PlayerTurnStateMachine {
     public void init() {
         // 监听 ROUND.TURN_START 事件（由 RoundStateMachine 在进入 PLAYER_TURN 状态时发布）
         eventBus.register(GameEventType.ROUND_TURN_START, EventPriority.ENGINE, this::onRoundTurnStart);
-        log.info("[玩家回合状态机] 已注册 ROUND.TURN_START 监听器");
+        
     }
 
     @PreDestroy

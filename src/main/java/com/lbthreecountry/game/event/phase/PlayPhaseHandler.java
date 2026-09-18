@@ -77,7 +77,6 @@ public class PlayPhaseHandler {
                 EventPriority.ENGINE,
                 this::onPlayPhase
         );
-        log.info("[出牌阶段处理器] 已注册 PHASE.ACTIVE.PLAY 监听器 (ENGINE 优先级)");
     }
 
     // ================================================================

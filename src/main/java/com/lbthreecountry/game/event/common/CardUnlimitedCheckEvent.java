@@ -80,7 +80,7 @@ public class CardUnlimitedCheckEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CARD_UNLIMITED_CHECK, EventPriority.ENGINE, this::onCheck);
-        log.info("[不限次数事件] 已注册 CARD.UNLIMITED_CHECK 监听器 (ENGINE 优先级)");
+        
     }
 
     // ================================================================

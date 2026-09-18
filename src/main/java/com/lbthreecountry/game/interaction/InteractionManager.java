@@ -77,7 +77,7 @@ public class InteractionManager {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.INTERACTION_REQUEST, EventPriority.ENGINE, this::onInteractionRequest);
-        log.info("[交互管理器] 已注册 INTERACTION.REQUEST 监听器 (ENGINE 优先级)");
+        
     }
 
     /**

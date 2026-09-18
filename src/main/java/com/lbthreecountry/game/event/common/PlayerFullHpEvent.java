@@ -73,7 +73,7 @@ public class PlayerFullHpEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.PLAYER_FULL_HP_CHECK, EventPriority.ENGINE, this::onCheck);
-        log.info("[满血检查事件] 已注册 PLAYER.FULL_HP_CHECK 监听器 (ENGINE 优先级)");
+        
     }
 
     // ================================================================

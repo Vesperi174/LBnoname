@@ -78,7 +78,7 @@ public class MoveCardEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CARD_MOVE, EventPriority.ENGINE, this::onMove);
-        log.info("[移牌事件] 已注册 CARD.MOVE 监听器 (ENGINE 优先级)");
+        
     }
 
     /**

@@ -14,6 +14,7 @@ import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
+import com.lbthreecountry.model.hero.BaseHero;
 import com.lbthreecountry.model.enums.impl.GamePhase;
 import com.lbthreecountry.model.enums.impl.GameStatus;
 import com.lbthreecountry.model.enums.impl.PlayerStatus;
@@ -597,9 +598,26 @@ public class GameServiceImpl implements GameService {
 
             player.setHeroId(heroId);
 
-            log.info("[武将选择] {} {} 选择了武将 [{}]",
+            // ── 根据武将设置体力 ──
+            BaseHero hero = heroManager.getHero(heroId);
+            if (hero != null) {
+                int baseMaxHp = hero.getMaxHp();
+                int baseStartHp = hero.getStartHp();
+
+                // 主公：体力上限和起始体力 +1
+                if (player.getRole() == RoleType.LORD) {
+                    baseMaxHp += 1;
+                    baseStartHp += 1;
+                }
+
+                player.setMaxHp(baseMaxHp);
+                player.setCurrentHp(baseStartHp);
+            }
+
+            log.info("[武将选择] {} {} 选择了武将 [{}] (体力:{}/{}hp)",
                     player.getRole() == RoleType.LORD ? "主公" : "玩家",
-                    player.getPlayerName(), heroId);
+                    player.getPlayerName(), heroId,
+                    player.getCurrentHp(), player.getMaxHp());
 
             return match;
         } finally {

@@ -76,7 +76,7 @@ public class SkillManager {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.BATTLE_START, EventPriority.FRAMEWORK, this::onBattleStart);
-        log.info("[技能管理器] 已注册 BATTLE_START 监听器 (FRAMEWORK 优先级)");
+        
     }
 
     // ================================================================

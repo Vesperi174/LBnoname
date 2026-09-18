@@ -72,7 +72,7 @@ public class RoundController {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.ROUND_ROLL, EventPriority.FRAMEWORK, this::onRoundRoll);
-        log.info("[轮次控制器] 已注册 ROUND_ROLL 监听器 (FRAMEWORK 优先级)");
+        
     }
 
     // ================================================================

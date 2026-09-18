@@ -60,7 +60,6 @@ public class DrawPhaseHandler {
                 EventPriority.ENGINE,
                 this::onDrawPhase
         );
-        log.info("[摸牌阶段处理器] 已注册 PHASE.ACTIVE.DRAW 监听器 (ENGINE 优先级) — 将触发 CARD.DRAW 事件");
     }
 
     // ================================================================

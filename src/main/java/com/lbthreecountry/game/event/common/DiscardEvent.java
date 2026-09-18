@@ -77,7 +77,7 @@ public class DiscardEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CARD_DISCARD, EventPriority.ENGINE, this::onDiscard);
-        log.info("[弃牌事件] 已注册 CARD.DISCARD 监听器 (ENGINE 优先级)");
+        
     }
 
     // ================================================================

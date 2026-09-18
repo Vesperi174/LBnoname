@@ -71,7 +71,7 @@ public class DamageEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.DAMAGE_CAUSE, EventPriority.ENGINE, this::onDamageCause);
-        log.info("[造成伤害事件] 已注册 DAMAGE_CAUSE 监听器 (ENGINE 优先级)");
+        
     }
 
     /**

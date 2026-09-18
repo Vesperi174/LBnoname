@@ -75,7 +75,7 @@ public class LoseHpEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.LOSE_HP, EventPriority.ENGINE, this::onLoseHp);
-        log.info("[失去体力事件] 已注册 LOSE.HP 监听器 (ENGINE 优先级)");
+        
     }
 
     // ================================================================

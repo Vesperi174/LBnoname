@@ -105,7 +105,7 @@ public class DrawCardEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CARD_DRAW, EventPriority.ENGINE, this::onDraw);
-        log.info("[摸牌事件] 已注册 CARD.DRAW 监听器 (ENGINE 优先级)");
+        
     }
 
     // ================================================================

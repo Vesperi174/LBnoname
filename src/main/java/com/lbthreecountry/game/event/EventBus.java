@@ -4,6 +4,8 @@ import com.lbthreecountry.game.GameMatch;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -73,6 +75,11 @@ public class EventBus {
     /** 监听器注册表：事件类型 → 优先级排序的监听器列表 */
     private final Map<String, List<PrioritizedListener>> listenerMap = new ConcurrentHashMap<>();
 
+    /** 注册日志收集（用于启动时汇总输出） */
+    private final List<RegEntry> registrationLog = new ArrayList<>();
+
+    private record RegEntry(String eventType, int priority) {}
+
     // ================================================================
     //  注册 / 注销
     // ================================================================
@@ -93,6 +100,9 @@ public class EventBus {
 
         // 按优先级排序
         listenerMap.get(eventType).sort(Comparator.comparingInt(PrioritizedListener::priority));
+
+        // 收集注册信息，启动时统一输出
+        registrationLog.add(new RegEntry(eventType, priority));
     }
 
     /**
@@ -112,6 +122,34 @@ public class EventBus {
      */
     public void unregisterAll(String eventType) {
         listenerMap.remove(eventType);
+    }
+
+    /**
+     * 启动完成后统一输出所有已注册的监听器
+     */
+    @EventListener(ContextRefreshedEvent.class)
+    public void logAllRegistrations() {
+        // 按事件类型分组
+        Map<String, List<Integer>> grouped = new LinkedHashMap<>();
+        for (RegEntry entry : registrationLog) {
+            grouped.computeIfAbsent(entry.eventType, k -> new ArrayList<>()).add(entry.priority);
+        }
+
+        log.info("====== 事件监听器注册汇总 (共 {} 个) ======", registrationLog.size());
+        for (Map.Entry<String, List<Integer>> entry : grouped.entrySet()) {
+            // 同一事件类型可能有多个不同优先级的监听器
+            String priorities = entry.getValue().stream()
+                    .map(p -> {
+                        if (p == EventPriority.FRAMEWORK) return "FRAMEWORK";
+                        if (p == EventPriority.SKILL) return "SKILL";
+                        if (p == EventPriority.EQUIP_CARD) return "EQUIP_CARD";
+                        if (p == EventPriority.ENGINE) return "ENGINE";
+                        if (p == EventPriority.MONITOR) return "MONITOR";
+                        return String.valueOf(p);
+                    })
+                    .collect(java.util.stream.Collectors.joining(", "));
+            log.info("  {} 监听器 ({} 优先级)", entry.getKey(), priorities);
+        }
     }
 
     /**

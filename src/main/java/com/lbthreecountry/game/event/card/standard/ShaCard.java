@@ -65,7 +65,7 @@ public class ShaCard {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CARD_USE_EFFECT, EventPriority.SKILL, this::onUseEffect);
-        log.info("[杀] 已注册 CARD.USE_EFFECT 监听器 (SKILL 优先级)");
+        
     }
 
     /**

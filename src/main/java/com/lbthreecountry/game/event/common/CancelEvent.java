@@ -102,7 +102,7 @@ public class CancelEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CANCEL_ACTION, EventPriority.ENGINE, this::onCancel);
-        log.info("[取消事件] 已注册 CANCEL_ACTION 监听器 (ENGINE 优先级)");
+        
     }
 
     /**

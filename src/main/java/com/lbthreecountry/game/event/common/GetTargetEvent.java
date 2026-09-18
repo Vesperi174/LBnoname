@@ -76,7 +76,7 @@ public class GetTargetEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.GET_TARGET, EventPriority.ENGINE, this::onGetTarget);
-        log.info("[获取目标事件] 已注册 GET_TARGET 监听器 (ENGINE 优先级)");
+        
     }
 
     /**

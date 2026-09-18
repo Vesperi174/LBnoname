@@ -31,7 +31,7 @@ public class AttackRangeEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.GET_ATTACK_RANGE, EventPriority.ENGINE, this::onGetAttackRange);
-        log.info("[攻击距离事件] 已注册 GET_ATTACK_RANGE 监听器 (ENGINE 优先级)");
+        
     }
 
     /**

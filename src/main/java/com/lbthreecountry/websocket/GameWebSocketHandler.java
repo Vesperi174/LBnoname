@@ -860,15 +860,19 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             GameMatch match = gameService.selectHero(roomId, playerId, heroId);
             BaseHero hero = heroManager.getHero(heroId);
 
+            // 选将后读取玩家实际体力（主公已 +1）
+            GamePlayer self = match.findPlayer(playerId);
+
             sendJson(session, Map.of(
                     "type", "HERO_SELECTED",
                     "playerId", playerId,
-                    "hero", heroManager.heroToMap(hero)
+                    "hero", heroManager.heroToMap(hero),
+                    "maxHp", self != null ? self.getMaxHp() : 0,
+                    "currentHp", self != null ? self.getCurrentHp() : 0
             ));
 
             log.info("[武将选择] {} 选择了 [{}]", playerSession.getPlayer().getName(), heroId);
 
-            GamePlayer self = match.findPlayer(playerId);
             boolean isLord = self != null && self.getRole().name().equals("LORD");
 
             if (isLord) {

@@ -96,7 +96,7 @@ public class CardAvailableCountEvent {
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CARD_AVAILABLE_COUNT, EventPriority.ENGINE, this::onCheck);
-        log.info("[可使用次数事件] 已注册 CARD.AVAILABLE_COUNT 监听器 (ENGINE 优先级)");
+        
     }
 
     // ================================================================

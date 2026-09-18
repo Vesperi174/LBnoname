@@ -109,7 +109,7 @@ public class RoundStateMachine {
     public void init() {
         // 只监听外部事件 BATTLE_START，不监听自己发布的事件
         eventBus.register(GameEventType.BATTLE_START, EventPriority.ENGINE, this::onBattleStart);
-        log.info("[轮次状态机] 已注册 BATTLE_START 监听器（自然驱动，不监听自身事件）");
+        
     }
 
     @PreDestroy
