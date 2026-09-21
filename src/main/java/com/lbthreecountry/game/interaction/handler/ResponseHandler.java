@@ -91,23 +91,34 @@ public class ResponseHandler {
                 .map(GamePlayer::getPlayerId)
                 .collect(Collectors.toList());
 
-        // ── 后端兜底超时 ──
-        int backendTimeout = config.getTimeout() + 5;
+        // ── 记录交互开始时间，取消重选不重置倒计时 ──
+        long startTime = System.currentTimeMillis();
 
         // ── 推送 HAND_STATUS ──
         pushHandStatus(match, player, config.getFilter());
 
         // ── 循环：选牌 → 确认 → 取消重选 ──
         while (true) {
+            // ── 计算剩余超时（取消重选不重置） ──
+            int elapsed = (int) ((System.currentTimeMillis() - startTime) / 1000);
+            int remaining = config.getTimeout() - elapsed;
+            if (remaining <= 0) {
+                log.debug("[ResponseHandler] 玩家 {} 交互超时（已用 {}s）", player.getPlayerId(), elapsed);
+                return new ResponseResult<>(ResponseStatus.TIMEOUT, null, null);
+            }
+            int remainingBackend = remaining + 5;
+
             // ── 阶段 1：选牌 ──
             Map<String, Object> selectMsg = buildSelectMessage(config);
+            selectMsg.put("timeout", remaining);
+            selectMsg.put("totalTimeout", config.getTotalTimeout());
 
             broadcastThinking(allPlayerIds, player.getPlayerId(),
-                    config.getTimeout(), config.getThinkingDescription());
+                    remaining, config.getTotalTimeout(), config.getThinkingDescription());
 
             Map<String, Object> selectResp = interactionStack.pushAndAwait(
                     match.getRoomId(), player.getPlayerId(),
-                    selectMsg, sessionManager, backendTimeout);
+                    selectMsg, sessionManager, remainingBackend);
 
             // 处理选牌响应
             Long selectedId = parseSelectedCardId(selectResp);
@@ -122,15 +133,26 @@ public class ResponseHandler {
                 return ResponseResult.confirmed(selectedId, selectResp);
             }
 
+            // ── 重新计算剩余超时（选牌阶段也消耗了时间） ──
+            int elapsed2 = (int) ((System.currentTimeMillis() - startTime) / 1000);
+            int confirmRemaining = config.getTimeout() - elapsed2;
+            if (confirmRemaining <= 0) {
+                log.debug("[ResponseHandler] 玩家 {} 确认阶段超时", player.getPlayerId());
+                return new ResponseResult<>(ResponseStatus.TIMEOUT, null, null);
+            }
+            int confirmRemainingBackend = confirmRemaining + 5;
+
             // ── 阶段 2：确认 ──
             Map<String, Object> confirmMsg = buildConfirmMessage(config, selectedId);
+            confirmMsg.put("timeout", confirmRemaining);
+            confirmMsg.put("totalTimeout", config.getTotalTimeout());
 
             broadcastThinking(allPlayerIds, player.getPlayerId(),
-                    config.getTimeout(), config.getThinkingDescription());
+                    confirmRemaining, config.getTotalTimeout(), config.getThinkingDescription());
 
             Map<String, Object> confirmResp = interactionStack.pushAndAwait(
                     match.getRoomId(), player.getPlayerId(),
-                    confirmMsg, sessionManager, backendTimeout);
+                    confirmMsg, sessionManager, confirmRemainingBackend);
 
             ResponseStatus confirmStatus = parseConfirmStatus(confirmResp);
 
@@ -143,7 +165,7 @@ public class ResponseHandler {
                 return new ResponseResult<>(confirmStatus, null, confirmResp);
             }
 
-            // CANCEL → 回到循环开始，重新选牌
+            // CANCEL → 回到循环开始，重新选牌（倒计时继续走）
             log.debug("[ResponseHandler] 玩家 {} 取消确认，重新选牌", player.getPlayerId());
         }
     }
@@ -167,6 +189,7 @@ public class ResponseHandler {
                 .filter(config.getFilter())
                 .requireConfirm(false)
                 .timeout(config.getTimeout())
+                .totalTimeout(config.getTotalTimeout())
                 .selectActions(config.getSelectActions())
                 .thinkingDescription(config.getThinkingDescription())
                 .build();
@@ -190,12 +213,20 @@ public class ResponseHandler {
                                                                 String playerId,
                                                                 String description,
                                                                 List<Map<String, Object>> actions,
-                                                                int timeout) {
+                                                                int timeout,
+                                                                int totalTimeout) {
         int backendTimeout = timeout + 5;
+
+        // ── 同步广播 thinking ──
+        List<String> allPlayerIds = match.getPlayers().stream()
+                .map(GamePlayer::getPlayerId)
+                .collect(Collectors.toList());
+        broadcastThinking(allPlayerIds, playerId, timeout, totalTimeout, description);
 
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("type", "ACTION_DECISION");
         message.put("timeout", timeout);
+        message.put("totalTimeout", totalTimeout);
         message.put("description", description);
         message.put("actions", actions);
         message.put("handSelectable", false);
@@ -225,7 +256,7 @@ public class ResponseHandler {
                 Map.of("text", "取消", "value", "cancel", "type", "default"));
 
         ResponseResult<Map<String, Object>> result = requestDecision(
-                match, playerId, description, actions, timeout);
+                match, playerId, description, actions, timeout, timeout);
 
         return result.getStatus();
     }
@@ -267,23 +298,24 @@ public class ResponseHandler {
     }
 
     /**
-     * 广播思考状态（PLAYER_THINKING）给除目标玩家外的所有人
-     *
-     * <p>在每次 {@code pushAndAwait} 之前调用，让其他玩家知道目标玩家正在决策。</p>
+     * 广播 PLAYER_THINKING 消息（带显式 totalTimeout）
      *
      * @param allPlayerIds 房间内所有玩家 ID 列表
      * @param playerId     正在决策的玩家 ID
-     * @param timeout      超时秒数
+     * @param timeout      剩余超时秒数
+     * @param totalTimeout 超时总长（固定值，用于前端进度条比例计算）
      * @param description  描述文字（如"玩家【闪】思考中"）
      */
     public void broadcastThinking(List<String> allPlayerIds,
                                    String playerId,
                                    int timeout,
+                                   int totalTimeout,
                                    String description) {
         Map<String, Object> thinkingMsg = new LinkedHashMap<>();
         thinkingMsg.put("type", "PLAYER_THINKING");
         thinkingMsg.put("playerId", playerId);
         thinkingMsg.put("timeout", timeout);
+        thinkingMsg.put("totalTimeout", totalTimeout);
         thinkingMsg.put("description", description);
 
         try {
@@ -294,6 +326,16 @@ public class ResponseHandler {
         } catch (Exception e) {
             log.warn("[ResponseHandler] 广播 PLAYER_THINKING 失败", e);
         }
+    }
+
+    /**
+     * 广播 PLAYER_THINKING 消息（totalTimeout = timeout，独立交互场景适用）
+     */
+    public void broadcastThinking(List<String> allPlayerIds,
+                                   String playerId,
+                                   int timeout,
+                                   String description) {
+        broadcastThinking(allPlayerIds, playerId, timeout, timeout, description);
     }
 
     /**
@@ -328,6 +370,7 @@ public class ResponseHandler {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("type", "ACTION_DECISION");
         message.put("timeout", config.getTimeout());
+        message.put("totalTimeout", config.getTotalTimeout());
         message.put("description", config.getSelectDescription());
         message.put("actions", config.getSelectActions() != null
                 ? config.getSelectActions()
@@ -345,6 +388,7 @@ public class ResponseHandler {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("type", "ACTION_DECISION");
         message.put("timeout", config.getTimeout());
+        message.put("totalTimeout", config.getTotalTimeout());
         message.put("description", config.getConfirmDescription() != null
                 ? config.getConfirmDescription()
                 : "确定要使用这张牌吗？");

@@ -26,7 +26,13 @@ public enum CardActionStatus implements BaseEnum {
      * ❌ 这张牌不可选
      * <p>前端效果：暗（30% 黑色半透明遮罩），不可点击</p>
      */
-    NOT_SELECTABLE(2, "不可选");
+    NOT_SELECTABLE(2, "不可选"),
+
+    /**
+     * ✅ 这张牌已被选中（上浮状态）
+     * <p>前端效果：上浮/高亮，表示已选中</p>
+     */
+    SELECTED(3, "已选");
 
     private final Integer code;
     private final String description;

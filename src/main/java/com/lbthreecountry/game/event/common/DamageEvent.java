@@ -141,6 +141,21 @@ public class DamageEvent {
         // ── 前端通信：广播伤害结果 ──
         broadcastDamage(match, data.source, data.target, actualDamage);
 
+        // ── 检查是否进入濒死状态 ──
+        if (data.target.getCurrentHp() <= 0) {
+            log.info("[造成伤害事件] 目标 {} 体力 ≤ 0，进入濒死状态", data.target.getPlayerId());
+            GameEvent dyingEvent = GameEvent.builder()
+                    .type(GameEventType.PLAYER_DYING)
+                    .sourceId(data.source != null ? data.source.getPlayerId() : null)
+                    .targetId(data.target.getPlayerId())
+                    .build()
+                    .putData("player", data.target)
+                    .putData("source", data.source)
+                    .putData("sourceCard", data.sourceCard)
+                    .putData("damage", actualDamage);
+            eventBus.publish(dyingEvent, match);
+        }
+
         // 伤害后数据使用实际值
         data.damage = actualDamage;
 

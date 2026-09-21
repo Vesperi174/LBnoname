@@ -10,6 +10,7 @@ import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.game.event.common.Source;
 import com.lbthreecountry.game.interaction.InteractionMessageStack;
+import com.lbthreecountry.game.interaction.handler.ResponseHandler;
 import com.lbthreecountry.game.state.PlayerTurnStateMachine;
 import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
@@ -17,7 +18,7 @@ import com.lbthreecountry.model.card.def.CardRules;
 import com.lbthreecountry.model.enums.impl.GamePhase;
 import com.lbthreecountry.service.RoomService;
 import com.lbthreecountry.websocket.WebSocketSessionManager;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +68,7 @@ public class PlayPhaseHandler {
     private final WebSocketSessionManager sessionManager;
     private final RoomService roomService;
     private final CardLibrary cardLibrary;
+    private final ResponseHandler responseHandler;
 
     /** 防止循环内重入发布 PHASE.ACTIVE.PLAY 导致递归 */
     private final ThreadLocal<Boolean> inPlayLoop = ThreadLocal.withInitial(() -> false);
@@ -75,12 +77,14 @@ public class PlayPhaseHandler {
             InteractionMessageStack interactionStack,
             WebSocketSessionManager sessionManager,
             RoomService roomService,
-            CardLibrary cardLibrary) {
+            CardLibrary cardLibrary,
+            ResponseHandler responseHandler) {
         this.eventBus = eventBus;
         this.interactionStack = interactionStack;
         this.sessionManager = sessionManager;
         this.roomService = roomService;
         this.cardLibrary = cardLibrary;
+        this.responseHandler = responseHandler;
     }
 
     @PostConstruct
@@ -127,7 +131,7 @@ public class PlayPhaseHandler {
         GamePlayer player = match.findPlayer(playerId);
         if (player != null && player.isBot()) {
             log.info("[出牌阶段处理器] 🤖 玩家 {} 是 Bot，自动跳过出牌阶段", playerId);
-            Map<String, Object> dummyMsg = buildDecisionMessage(turnTime);
+            Map<String, Object> dummyMsg = buildDecisionMessage(turnTime, turnTime);
             interactionStack.push(match.getRoomId(), playerId, dummyMsg, sessionManager);
             return;
         }
@@ -138,11 +142,26 @@ public class PlayPhaseHandler {
         List<String> allPlayerIds = match.getPlayers().stream()
                 .map(GamePlayer::getPlayerId)
                 .collect(Collectors.toList());
-        ObjectMapper objectMapper = new ObjectMapper();
+        // ── 记录出牌阶段开始时间，用于计算剩余超时（取消重选不重置倒计时） ──
+        // 使用 long[] 包装以实现可变引用，handlePlayCard 成功出牌时可重置它
+        long[] phaseStartTimeRef = new long[]{System.currentTimeMillis()};
 
         inPlayLoop.set(true);
         try {
             while (true) {
+                // ── 计算剩余时间 ──
+                int elapsed = (int) ((System.currentTimeMillis() - phaseStartTimeRef[0]) / 1000);
+                int remainingTime = turnTime - elapsed;
+
+                // ── 出牌超时 → 结束循环（不再发消息，彻底断掉续命的可能） ──
+                if (remainingTime <= 0) {
+                    log.info("[出牌阶段处理器] 玩家 {} 出牌超时（已用 {}s），结束出牌阶段",
+                            playerId, elapsed);
+                    break;
+                }
+
+                int remainingBackend = remainingTime + 5;
+
                 // ── 重新发布 PHASE.ACTIVE.PLAY 钩子 → 触发卡牌可用性检测等 ──
                 GameEvent hookEvent = new GameEvent();
                 hookEvent.setType(GameEventType.phaseActive(GamePhase.PLAY));
@@ -150,26 +169,15 @@ public class PlayPhaseHandler {
                 eventBus.publish(hookEvent, match);
 
                 // ── 构造 ACTION_DECISION 消息（每次重新构造，反映最新的手牌状态） ──
-                Map<String, Object> message = buildDecisionMessage(turnTime);
+                Map<String, Object> message = buildDecisionMessage(remainingTime, turnTime);
 
                 // ── 广播给其他玩家：当前玩家正在决策中 ──
-                Map<String, Object> thinkingMsg = new LinkedHashMap<>();
-                thinkingMsg.put("type", "PLAYER_THINKING");
-                thinkingMsg.put("playerId", playerId);
-                thinkingMsg.put("timeout", turnTime);
-                thinkingMsg.put("description", "出牌阶段思考中");
-                try {
-                    sessionManager.broadcastToRoom(
-                            allPlayerIds,
-                            objectMapper.writeValueAsString(thinkingMsg),
-                            playerId);
-                } catch (Exception e) {
-                    log.warn("[出牌阶段处理器] 广播 PLAYER_THINKING 失败", e);
-                }
-                log.info("[出牌阶段处理器] ⏳ 等待玩家 {} 出牌决策... (第 {} 次, 前端超时={}s, 后端兜底={}s)",
-                        playerId, ++playCount, turnTime, backendTimeout);
+                responseHandler.broadcastThinking(allPlayerIds, playerId,
+                        remainingTime, turnTime, "出牌阶段思考中");
+                log.info("[出牌阶段处理器] ⏳ 等待玩家 {} 出牌决策... (第 {} 次, 剩余超时={}s, 后端兜底={}s)",
+                        playerId, ++playCount, remainingTime, remainingBackend);
                 Map<String, Object> response = interactionStack.pushAndAwait(
-                        match.getRoomId(), playerId, message, sessionManager, backendTimeout);
+                        match.getRoomId(), playerId, message, sessionManager, remainingBackend);
 
                 String action = response != null ? (String) response.get("action") : null;
                 String value = response != null ? (String) response.get("value") : null;
@@ -181,7 +189,7 @@ public class PlayPhaseHandler {
                 // ── 处理卡牌出牌（前端返回卡牌 action value，如 "play_slash"）──
                 if (value != null && value.startsWith("play_")) {
                     boolean continueLoop = handlePlayCard(playerId, response, value,
-                            match, turnTime, backendTimeout);
+                            match, turnTime, remainingTime, remainingBackend, phaseStartTimeRef);
                     if (!continueLoop) {
                         break;
                     }
@@ -224,7 +232,7 @@ public class PlayPhaseHandler {
     @SuppressWarnings("unchecked")
     private boolean handlePlayCard(String playerId, Map<String, Object> response,
             String cardAction, GameMatch match,
-            int turnTime, int backendTimeout) {
+            int originalTurnTime, int turnTime, int backendTimeout, long[] phaseStartTimeRef) {
         // ── 解析 selectedCardIds[0] 为卡牌实例 ID ──
         List<String> selectedCardIds = (List<String>) response.get("selectedCardIds");
         if (selectedCardIds == null || selectedCardIds.isEmpty()) {
@@ -297,9 +305,19 @@ public class PlayPhaseHandler {
             }
 
             // ── 发送目标选择 ACTION_DECISION ──
+            // 同步广播 thinking：其他玩家知道该玩家在选择目标
+            List<String> allPlayerIds = match.getPlayers().stream()
+                    .map(GamePlayer::getPlayerId)
+                    .collect(Collectors.toList());
+            int targetRemaining = Math.max(1, originalTurnTime - (int)((System.currentTimeMillis() - phaseStartTimeRef[0]) / 1000));
+            int targetRemainingBackend = targetRemaining + 5;
+            responseHandler.broadcastThinking(allPlayerIds, playerId,
+                    targetRemaining, originalTurnTime, "玩家选择目标中");
+
             Map<String, Object> targetMsg = new LinkedHashMap<>();
             targetMsg.put("type", "ACTION_DECISION");
-            targetMsg.put("timeout", turnTime);
+            targetMsg.put("timeout", targetRemaining);
+            targetMsg.put("totalTimeout", originalTurnTime);
             targetMsg.put("description", "请选择【" + cardDef.getName() + "】的目标");
             targetMsg.put("actions", List.of(
                     Map.of("text", "确定", "value", cardAction, "type", "primary"),
@@ -314,7 +332,7 @@ public class PlayPhaseHandler {
             log.info("[出牌阶段处理器] 等待玩家 {} 选择【{}】的目标... (可选目标: {})",
                     playerId, cardDef.getName(), targets);
             Map<String, Object> targetResponse = interactionStack.pushAndAwait(
-                    match.getRoomId(), playerId, targetMsg, sessionManager, backendTimeout);
+                    match.getRoomId(), playerId, targetMsg, sessionManager, targetRemainingBackend);
 
             String targetAction = targetResponse != null
                     ? (String) targetResponse.get("action")
@@ -352,10 +370,20 @@ public class PlayPhaseHandler {
 
         // ── 无目标卡牌 → 确认使用 ──
         if (targetplayer == null) {
+            // 同步广播 thinking：其他玩家知道该玩家在确认使用
+            List<String> allPlayerIds2 = match.getPlayers().stream()
+                    .map(GamePlayer::getPlayerId)
+                    .collect(Collectors.toList());
+            int confirmRemaining = Math.max(1, originalTurnTime - (int)((System.currentTimeMillis() - phaseStartTimeRef[0]) / 1000));
+            int confirmRemainingBackend = confirmRemaining + 5;
+            responseHandler.broadcastThinking(allPlayerIds2, playerId,
+                    confirmRemaining, originalTurnTime, "玩家确认使用中");
+
             // 构造确认框：与前端约定 action=confirm 为确认，action=cancel 为取消
             Map<String, Object> confirmMsg = new LinkedHashMap<>();
             confirmMsg.put("type", "ACTION_DECISION");
-            confirmMsg.put("timeout", turnTime);
+            confirmMsg.put("timeout", confirmRemaining);
+            confirmMsg.put("totalTimeout", originalTurnTime);
             confirmMsg.put("description", "确定要使用【" + cardDef.getName() + "】吗？");
             confirmMsg.put("actions", List.of(
                     Map.of("text", "确定", "value", "confirm", "type", "primary"),
@@ -368,7 +396,7 @@ public class PlayPhaseHandler {
             log.info("[出牌阶段处理器] 等待玩家 {} 确认使用【{}】...",
                     playerId, cardDef.getName());
             Map<String, Object> confirmResponse = interactionStack.pushAndAwait(
-                    match.getRoomId(), playerId, confirmMsg, sessionManager, backendTimeout);
+                    match.getRoomId(), playerId, confirmMsg, sessionManager, confirmRemainingBackend);
 
             String confirmAction = confirmResponse != null
                     ? (String) confirmResponse.get("action")
@@ -406,6 +434,9 @@ public class PlayPhaseHandler {
                 .putData("card", card);
         eventBus.publish(useEvent, match);
 
+        // ── 成功出牌 → 重置倒计时（有效事件不计入"取消续命"） ──
+        phaseStartTimeRef[0] = System.currentTimeMillis();
+
         return true;
     }
 
@@ -433,11 +464,15 @@ public class PlayPhaseHandler {
 
     /**
      * 构造 ACTION_DECISION 消息
+     *
+     * @param timeout      前端展示的倒计时秒数（剩余时间）
+     * @param totalTimeout 总超时秒数（用于前端进度条比例计算）
      */
-    private Map<String, Object> buildDecisionMessage(int turnTime) {
+    private Map<String, Object> buildDecisionMessage(int timeout, int totalTimeout) {
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("type", "ACTION_DECISION");
-        message.put("timeout", turnTime);
+        message.put("timeout", timeout);
+        message.put("totalTimeout", totalTimeout);
         message.put("description", "出牌阶段，请选择一张卡牌");
         message.put("actions", List.of(
                 Map.of("text", "确定", "value", "confirm", "type", "default"),

@@ -38,6 +38,9 @@ public final class SelectCardConfig {
     /** 前端超时秒数 */
     private final int timeout;
 
+    /** 超时总长（用于前端进度条比例计算，默认 = timeout） */
+    private final int totalTimeout;
+
     /** 选牌阶段按钮配置，默认仅一个"取消"按钮 */
     private final List<Map<String, Object>> selectActions;
 
@@ -55,6 +58,7 @@ public final class SelectCardConfig {
         this.filter = builder.filter;
         this.requireConfirm = builder.requireConfirm;
         this.timeout = builder.timeout;
+        this.totalTimeout = builder.totalTimeout;
         this.selectActions = builder.selectActions;
         this.confirmActions = builder.confirmActions;
         this.thinkingDescription = builder.thinkingDescription;
@@ -71,6 +75,7 @@ public final class SelectCardConfig {
     public HandCardFilter getFilter()           { return filter; }
     public boolean isRequireConfirm()           { return requireConfirm; }
     public int getTimeout()                     { return timeout; }
+    public int getTotalTimeout()                { return totalTimeout; }
     public List<Map<String, Object>> getSelectActions()  { return selectActions; }
     public List<Map<String, Object>> getConfirmActions() { return confirmActions; }
     public String getThinkingDescription()      { return thinkingDescription; }
@@ -83,6 +88,7 @@ public final class SelectCardConfig {
         private HandCardFilter filter;
         private boolean requireConfirm = true;
         private int timeout = 15;
+        private int totalTimeout = 15;
         private List<Map<String, Object>> selectActions;
         private List<Map<String, Object>> confirmActions;
         private String thinkingDescription = "玩家决策中";
@@ -116,6 +122,12 @@ public final class SelectCardConfig {
         /** 前端超时秒数（默认 15） */
         public Builder timeout(int val) {
             this.timeout = val;
+            return this;
+        }
+
+        /** 超时总长（用于前端进度条比例计算，默认 = timeout） */
+        public Builder totalTimeout(int val) {
+            this.totalTimeout = val;
             return this;
         }
 
