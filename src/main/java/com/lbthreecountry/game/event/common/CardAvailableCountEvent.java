@@ -168,20 +168,17 @@ public class CardAvailableCountEvent {
     /**
      * 获取每回合最大使用次数
      *
-     * <p>注意：此事件默认只应在有限次卡牌上调用，因此直接返回
-     * {@code maxUseCount} 的值。如果 {@code maxUseCount == null}
-     * （不限次数）或 {@code rules == null}，返回 {@code 0} 作为兜底。</p>
+     * <p>优先级：{@code maxUseCount}（非 null 优先）→ {@code maxPerTurn}（兜底）。</p>
      *
      * @param rules 卡牌使用规则
-     * @return 每回合最大使用次数（不为 null 时返回配置值，否则 0）
+     * @return 每回合最大使用次数
      */
     private int getMaxUseCount(CardRules rules) {
         if (rules == null) {
             return 0;
         }
-        Integer maxUseCount = rules.getMaxUseCount();
-        // maxUseCount != null 表示有限次，返回配置的限制次数
-        // maxUseCount == null 表示不限次数，返回 0 兜底
-        return maxUseCount != null ? maxUseCount : 0;
+        // maxUseCount != null 表示有限次，优先使用配置的限制次数
+        // maxUseCount == null 则回退到 maxPerTurn
+        return rules.getMaxUseCount() != null ? rules.getMaxUseCount() : rules.getMaxPerTurn();
     }
 }

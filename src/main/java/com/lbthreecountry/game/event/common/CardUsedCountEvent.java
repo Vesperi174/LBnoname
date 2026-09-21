@@ -105,8 +105,8 @@ public class CardUsedCountEvent {
             return;
         }
 
-        // ── 从 CardInstance 获取默认本回合已使用次数 ──
-        int usedCount = card.getUsedCount();
+        // ── 从玩家本回合已使用次数中获取（按 defId 维度，跨卡牌实例） ──
+        int usedCount = player.getTurnUsedCounts().getOrDefault(card.getDefId(), 0);
 
         // ── 发布修正钩子，监听器可根据 player + card 修改 usedCount ──
         GameEvent modifyEvent = GameEvent.builder()

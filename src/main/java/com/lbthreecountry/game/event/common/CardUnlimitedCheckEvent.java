@@ -152,15 +152,28 @@ public class CardUnlimitedCheckEvent {
     /**
      * 根据卡牌规则判断默认是否不限次数
      *
+     * <p>规则优先级：</p>
+     * <ol>
+     *   <li>{@code maxUseCount != null} → 有明确限制（如技能覆盖），视为有限次</li>
+     *   <li>{@code maxUseCount == null && maxPerTurn >= 999} → 无限制（默认值）</li>
+     *   <li>{@code maxUseCount == null && maxPerTurn < 999} → 由 {@code maxPerTurn} 限制
+     *       （如"杀"的 {@code maxPerTurn=1}）</li>
+     * </ol>
+     *
      * @param rules 卡牌使用规则
-     * @return 如果 {@code maxUseCount == null} 则视为不限次数
+     * @return 是否真正不限次数
      */
     private boolean isUnlimitedByRules(CardRules rules) {
         if (rules == null) {
             return false;
         }
-        // maxUseCount == null 表示不限次数（JSON 中 "maxUseCount": null）
-        // maxUseCount 有具体数值（如 1）表示每回合有限次
-        return rules.getMaxUseCount() == null;
+        // maxUseCount != null → 有明确的次数限制（即使为 0）
+        if (rules.getMaxUseCount() != null) {
+            return false;
+        }
+        // maxUseCount == null → 检查 maxPerTurn
+        // maxPerTurn >= 999（默认值）→ 真正不限次数
+        // maxPerTurn < 999（如杀的 1）→ 有限次
+        return rules.getMaxPerTurn() >= 999;
     }
 }

@@ -174,7 +174,7 @@ public class CardPlayabilityChecker {
         eventBus.register(GameEventType.BATTLE_START, EventPriority.EQUIP_CARD, (event, match) -> {
             log.info("[卡牌检测]战斗开始，所有玩家手牌强制不可点击");
             for (GamePlayer gp : match.getPlayers()) {
-                forceAllNotSelectable(match, gp);
+                forceAllNotSelectable(match, gp, "非出牌阶段不可使用");
             }
         });
 
@@ -194,11 +194,14 @@ public class CardPlayabilityChecker {
         //     // 更新本回合已出杀的标记
         // });
 
-        // ── TODO: 回合开始 → 重置本回合使用标记 ──
-        // eventBus.register("TURN.ACTIVE", EventPriority.EQUIP_CARD, (event, match) -> {
-        //     // 重置所有次数限制
-        //     // 重新检测手牌状态
-        // });
+        // ── 回合开始前 → 重置本回合使用标记 ──
+        eventBus.register(GameEventType.TURN_BEFORE, EventPriority.EQUIP_CARD, (event, match) -> {
+            String playerId = event.getData("playerId");
+            GamePlayer player = match.findPlayer(playerId);
+            if (player == null) return;
+            player.getTurnUsedCounts().clear();
+            log.debug("[卡牌检测] 玩家 {} 回合开始 → 重置本回合使用次数计数", playerId);
+        });
 
         log.info("[卡牌检测] 事件钩子已注册（已接入: CARD.DRAW.CHECK + BATTLE.START 均强制不可点击）");
     }
@@ -275,12 +278,13 @@ public class CardPlayabilityChecker {
      *
      * @param match  当前对局
      * @param player 目标玩家
+     * @param reason 不可用原因文字
      */
-    private void forceAllNotSelectable(GameMatch match, GamePlayer player) {
+    public void forceAllNotSelectable(GameMatch match, GamePlayer player, String reason) {
         Map<Long, CardCheckResult> results = new LinkedHashMap<>();
         for (CardInstance card : player.getHandCards()) {
             results.put(card.getInstanceId(),
-                    new CardCheckResult(CardActionStatus.NOT_SELECTABLE, "非出牌阶段不可使用"));
+                    new CardCheckResult(CardActionStatus.NOT_SELECTABLE, reason));
         }
         resultsCache.put(cacheKey(match, player), results);
         pushHandStatus(match, player, results);

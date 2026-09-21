@@ -3,6 +3,7 @@ package com.lbthreecountry.game.event.common;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
+import com.lbthreecountry.game.card.CardPlayabilityChecker;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
@@ -28,12 +29,14 @@ import java.util.stream.Collectors;
  * <pre>
  * CARD.USE (触发钩子)
  *   ├── 广播 TARGET_LINE   (通知前端渲染目标连线/射线)
- *   ├── CARD.MOVE         (移入牌桌中央，由 MoveCardEvent 处理移牌 + 通知前端)
- *   ├── CARD.USE.BEFORE   (使用牌前，可修改 / 可取消)
- *   ├── CARD.USE.ACTIVE   (使用牌时，可修改 / 可取消)
- *   ├── CARD.USE.EFFECT   (执行牌效果，由具体卡牌监听)
- *   ├── CARD.USE.AFTER    (使用牌后，仅通知)
- *   └── CARD.MOVE         (移入弃牌堆，由 MoveCardEvent 处理移牌 + 通知前端)
+ *   ├── HAND_STATUS        (所有手牌不可选，防止动画期间操作)
+ *   ├── CARD.MOVE          (移入牌桌中央，由 MoveCardEvent 处理移牌 + 通知前端)
+ *   ├── CARD.USE.BEFORE    (使用牌前，可修改 / 可取消；被取消不计数)
+ *   ├── 回合使用次数 +1    (放在 ACTIVE 之前，确保即使被取消也计数)
+ *   ├── CARD.USE.ACTIVE    (使用牌时，可修改 / 可取消；取消时次数已计)
+ *   ├── CARD.USE.EFFECT    (执行牌效果，由具体卡牌监听)
+ *   ├── CARD.USE.AFTER     (使用牌后，仅通知)
+ *   └── CARD.MOVE          (移入弃牌堆，由 MoveCardEvent 处理移牌 + 通知前端)
  * </pre>
  *
  * <h3>触发事件数据字段</h3>
@@ -82,11 +85,14 @@ public class CardUseEffectEvent {
 
     private final EventBus eventBus;
     private final WebSocketSessionManager sessionManager;
+    private final CardPlayabilityChecker playabilityChecker;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public CardUseEffectEvent(EventBus eventBus, WebSocketSessionManager sessionManager) {
+    public CardUseEffectEvent(EventBus eventBus, WebSocketSessionManager sessionManager,
+                              CardPlayabilityChecker playabilityChecker) {
         this.eventBus = eventBus;
         this.sessionManager = sessionManager;
+        this.playabilityChecker = playabilityChecker;
     }
 
     @PostConstruct
@@ -104,9 +110,13 @@ public class CardUseEffectEvent {
      * <p>从事件数据中读取使用牌参数，依次执行：</p>
      * <ol>
      *   <li>{@code TARGET_LINE} — 广播目标连线（通知前端渲染射线/链式动画）</li>
+     *   <li>{@code HAND_STATUS} — 所有手牌不可选（防止动画期间操作）</li>
      *   <li>{@code CARD.MOVE} — 移入牌桌中央（委托 MoveCardEvent 处理移牌 + 通知前端动画）</li>
-     *   <li>{@code CARD.USE.BEFORE} — 使用牌前（监听器可修改或取消）</li>
-     *   <li>{@code CARD.USE.ACTIVE} — 使用牌时（BEFORE 修改后的数据，监听器可修改或取消）</li>
+     *   <li>{@code CARD.USE.BEFORE} — 使用牌前（监听器可修改或取消；被取消不计数不继续）</li>
+     *   <li>{@code 回合使用次数 +1} — 本回合使用次数 +1（按 defId 维度累加；放在 ACTIVE 之前，
+     *       确保即使后被取消如【杀被闪闪避】次数也已计）</li>
+     *   <li>{@code CARD.USE.ACTIVE} — 使用牌时（BEFORE 修改后的数据，监听器可修改或取消；
+     *       取消时次数已计但效果不执行）</li>
      *   <li>{@code CARD.USE.EFFECT} — 执行牌效果（ACTIVE 修改后的数据，由具体卡牌监听执行效果）</li>
      *   <li>{@code CARD.USE.AFTER} — 使用牌后钩子（实际使用的数据，仅通知）</li>
      *   <li>{@code CARD.MOVE} — 移入弃牌堆（委托 MoveCardEvent 处理完整的移牌生命周期）</li>
@@ -132,6 +142,10 @@ public class CardUseEffectEvent {
         // ── 0) TARGET_LINE：广播目标连线（前端据此渲染射线/链式动画） ──
         broadcastTargetLine(match, useplayer, targetplayer, card);
 
+        // ── 0.5) 手牌全部不可选（卡牌使用动画期间禁止操作） ──
+        playabilityChecker.forceAllNotSelectable(match, useplayer, "卡牌使用中");
+        log.debug("[使用牌事件] TARGET_LINE 后 → 玩家 {} 所有手牌设为不可选", useplayer.getPlayerId());
+
         // ── 1) 将牌从手牌区移到牌桌中央（同步后端数据 + 通知前端动画） ──
         data.publishMoveToTable(event, match, eventBus);
 
@@ -142,7 +156,15 @@ public class CardUseEffectEvent {
             writeResult(event, data);
             return;
         }
-        // ── 3) 使用牌时（BEFORE 修改后的数据） ──
+
+        // ── 3) 本回合使用次数 +1（按 defId 维度，跨卡牌实例累加） ──
+        // 放在 ACTIVE 之前，确保即使 ACTIVE 被取消（如杀被闪闪避）次数也已累加
+        data.useplayer.getTurnUsedCounts().merge(card.getDefId(), 1, Integer::sum);
+        log.info("[使用牌事件] 玩家 {} 本回合【{}】已使用 {} 次",
+                data.useplayer.getPlayerId(), card.getDefId(),
+                data.useplayer.getTurnUsedCounts().get(card.getDefId()));
+
+        // ── 4) 使用牌时（BEFORE 修改后的数据，ACTIVE 可修改或取消） ──
         data.publishAndSync(GameEventType.CARD_USE_ACTIVE, event, match, eventBus);
         if (data.cancelled) {
             log.info("[使用牌事件] ACTIVE 钩子已取消 — {} 的使用牌被取消", useplayer.getPlayerId());
@@ -150,13 +172,13 @@ public class CardUseEffectEvent {
             return;
         }
 
-        // ── 4) 执行牌效果（ACTIVE 修改后的数据） ──
+        // ── 5) 执行牌效果（ACTIVE 修改后的数据） ──
         data.publishEffect(event, match, eventBus);
 
-        // ── 5) 使用牌后钩子（实际使用的数据，仅通知） ──
+        // ── 6) 使用牌后钩子（实际使用的数据，仅通知） ──
         data.publishAfterOnly(event, match, eventBus);
 
-        // ── 6) 移入弃牌堆（委托 MoveCardEvent 处理完整移牌生命周期） ──
+        // ── 7) 移入弃牌堆（委托 MoveCardEvent 处理完整移牌生命周期） ──
         data.publishMoveToDiscard(event, match, eventBus);
 
         // ── 写入结果到触发事件 ──

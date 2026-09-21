@@ -97,6 +97,13 @@ public class GamePlayer {
     @Builder.Default
     private Map<String, Object> flags = new HashMap<>();
 
+    /**
+     * 本回合各卡牌已使用次数（key=defId, value=使用次数）
+     * <p>每回合开始时自动清空，用于限制每回合使用次数（如"杀"每回合限 1 次）</p>
+     */
+    @Builder.Default
+    private Map<String, Integer> turnUsedCounts = new HashMap<>();
+
     // ============ 便捷方法 ============
 
     /**
