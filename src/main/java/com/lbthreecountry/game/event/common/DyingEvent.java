@@ -689,14 +689,13 @@ public class DyingEvent {
      * 处理濒死失败 — 玩家未能使用足够的桃
      *
      * <ol>
-     *   <li>抛出 {@code PLAYER.DEAD} 事件钩子（监听器可在此处理死亡相关逻辑：弃牌、奖励等）</li>
-     *   <li>将玩家状态设为 {@link PlayerStatus#DEAD}</li>
+     *   <li>抛出 {@code PLAYER.DEAD} 事件钩子（由 {@code DeathEvent} 监听并处理死亡逻辑：弃牌、奖励等）</li>
      * </ol>
      */
     private void handleDyingFailure(GameMatch match, GamePlayer player) {
         log.info("[濒死事件] 玩家 {} 未能脱离濒死，进入死亡状态", player.getPlayerId());
 
-        // ── ① 抛出玩家死亡事件钩子 ──
+        // ── 抛出玩家死亡事件钩子（由 DeathEvent 监听并处理死亡逻辑） ──
         GameEvent deadEvent = GameEvent.builder()
                 .type(GameEventType.PLAYER_DEAD)
                 .sourceId(null)
@@ -704,9 +703,6 @@ public class DyingEvent {
                 .build()
                 .putData("player", player);
         eventBus.publish(deadEvent, match);
-
-        // ── ② 设置死亡状态 ──
-        player.setStatus(PlayerStatus.DEAD);
     }
 
     // ================================================================
