@@ -350,8 +350,45 @@ public class PlayPhaseHandler {
             }
         }
 
-        // ── 无目标时默认以自身为目标 ──
+        // ── 无目标卡牌 → 确认使用 ──
         if (targetplayer == null) {
+            // 构造确认框：与前端约定 action=confirm 为确认，action=cancel 为取消
+            Map<String, Object> confirmMsg = new LinkedHashMap<>();
+            confirmMsg.put("type", "ACTION_DECISION");
+            confirmMsg.put("timeout", turnTime);
+            confirmMsg.put("description", "确定要使用【" + cardDef.getName() + "】吗？");
+            confirmMsg.put("actions", List.of(
+                    Map.of("text", "确定", "value", "confirm", "type", "primary"),
+                    Map.of("text", "取消", "value", "cancel", "type", "default")));
+            confirmMsg.put("handSelectable", false);
+            confirmMsg.put("targetSelectable", false);
+            // 传递已选卡牌 ID，前端据此保持选中的卡牌浮起
+            confirmMsg.put("selectedCardIds", selectedCardIds);
+
+            log.info("[出牌阶段处理器] 等待玩家 {} 确认使用【{}】...",
+                    playerId, cardDef.getName());
+            Map<String, Object> confirmResponse = interactionStack.pushAndAwait(
+                    match.getRoomId(), playerId, confirmMsg, sessionManager, backendTimeout);
+
+            String confirmAction = confirmResponse != null
+                    ? (String) confirmResponse.get("action")
+                    : "cancel";
+            String confirmRespType = confirmResponse != null
+                    ? (String) confirmResponse.get("type")
+                    : null;
+
+            // 房间已销毁 → 结束出牌阶段
+            if ("CANCELLED".equals(confirmRespType)) {
+                log.info("[出牌阶段处理器] 房间已销毁，结束出牌阶段");
+                return false;
+            }
+
+            if ("cancel".equals(confirmAction) || "interrupted".equals(confirmAction)) {
+                log.info("[出牌阶段处理器] 玩家 {} 取消使用【{}】", playerId, cardDef.getName());
+                return true;
+            }
+
+            // 确认 → 默认为自身
             targetplayer = useplayer;
         }
 

@@ -13,6 +13,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * 回复体力事件 — 监听 {@code RECOVER.HP} 触发钩子，执行回复体力生命周期
  *
@@ -198,17 +200,8 @@ public class RecoverHpEvent {
         log.info("[回复体力事件] 对 {} 实际回复 {} 点体力 (当前体力: {}/{})",
                 target.getPlayerId(), actualAmount, target.getCurrentHp(), target.getMaxHp());
 
-        // ── 前端通信（预留） ──
-        // TODO: 在此处推送回复体力结果到前端，包含以下信息：
-        //       - targetId: 回复体力的玩家 ID
-        //       - sourceType: 回复来源类型
-        //       - sourceName: 回复来源名称
-        //       - amount: 实际回复量
-        //       - remainingHp: 回复后剩余体力
-        //       - maxHp: 最大体力
-        //       参考 DamageEvent 的推送模式：
-        //       sessionManager.sendMessage(targetId, json);
-        //       sessionManager.broadcastToRoom(allPlayerIds, json, targetId);
+        // ── 前端通信：广播 HEALING（通知所有玩家回复结果） ──
+        broadcastHealing(match, target, actualAmount);
 
         // 回复后数据使用实际值
         data.amount = actualAmount;
@@ -223,6 +216,34 @@ public class RecoverHpEvent {
     // ================================================================
     //  内部方法
     // ================================================================
+
+    /**
+     * 广播回复结果到前端
+     *
+     * <p>通知所有玩家，谁回复了多少点体力，以及当前剩余体力。</p>
+     */
+    private void broadcastHealing(GameMatch match, GamePlayer target, int amount) {
+        try {
+            List<String> allPlayerIds = match.getPlayers().stream()
+                    .map(GamePlayer::getPlayerId)
+                    .collect(java.util.stream.Collectors.toList());
+
+            java.util.Map<String, Object> msg = new java.util.LinkedHashMap<>();
+            msg.put("type", "HEALING");
+            msg.put("targetId", target.getPlayerId());
+            msg.put("targetName", target.getPlayerName());
+            msg.put("amount", amount);
+            msg.put("remainingHp", target.getCurrentHp());
+            msg.put("maxHp", target.getMaxHp());
+
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(msg);
+            sessionManager.broadcastToRoom(allPlayerIds, json, null);
+            log.debug("[回复体力事件] 广播 HEALING → {} 回复 {} 点体力",
+                    target.getPlayerId(), amount);
+        } catch (Exception e) {
+            log.warn("[回复体力事件] 广播 HEALING 失败", e);
+        }
+    }
 
     /** 将回复体力结果写回触发事件 */
     private void writeResult(GameEvent event, HookData data) {

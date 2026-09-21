@@ -66,6 +66,16 @@ public class CardRegistry {
                 .build());
 
         register(CardDef.builder()
+                .id("tao")
+                .type("BASIC").subType("TAO")
+                .rules(CardRules.builder()
+                        .playablePhase("PLAY")
+                        .targetCount(0)
+                        .build())
+                .components(Map.of("onUse", List.of("tao_effect")))
+                .build());
+
+        register(CardDef.builder()
                 .id("shan")
                 .type("BASIC").subType("SHAN")
                 .rules(CardRules.builder()
