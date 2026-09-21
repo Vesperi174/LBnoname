@@ -10,6 +10,7 @@ import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.game.event.common.Source;
 import com.lbthreecountry.game.interaction.InteractionMessageStack;
+import com.lbthreecountry.game.interaction.handler.HandCardFilter;
 import com.lbthreecountry.game.interaction.handler.ResponseHandler;
 import com.lbthreecountry.game.state.PlayerTurnStateMachine;
 import com.lbthreecountry.model.card.CardInstance;
@@ -222,6 +223,9 @@ public class PlayPhaseHandler {
         } finally {
             inPlayLoop.set(false);
         }
+
+        // 重置手牌状态为全部不可选
+        responseHandler.pushHandStatus(match, player, HandCardFilter.none("出牌阶段结束"));
 
         // 循环结束 → 状态机自动推进到 DISCARD
         log.info("[出牌阶段处理器] 出牌循环结束，状态机进入弃牌阶段");

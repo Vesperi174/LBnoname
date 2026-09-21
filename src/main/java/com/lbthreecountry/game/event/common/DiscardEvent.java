@@ -174,6 +174,8 @@ public class DiscardEvent {
 
         // ── 3) 前端选牌交互 ──
         List<String> selectedCardIds = doDiscardInteraction(match, player, data.count);
+        // 重置手牌状态为全部不可选
+        responseHandler.pushHandStatus(match, player, HandCardFilter.none("弃牌阶段结束"));
         if (selectedCardIds == null) {
             log.info("[弃牌事件] 玩家 {} 选牌交互未完成，跳过弃牌", playerId);
             writeResult(event, data);
