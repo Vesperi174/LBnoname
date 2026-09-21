@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -139,6 +140,9 @@ public class MoveCardEvent {
         // ── 3.1) 通知前端：卡牌移动动画 ──
         broadcastCardMove(match, data.player, data.cards, fromStatuses, data.destination);
 
+        // ── 3.2) 通知前端：更新各玩家手牌数量 ──
+        broadcastHandCount(match, data.player != null ? data.player.getPlayerId() : null);
+
         // ── 4. AFTER 钩子：可修改数据 ──
         data.publishAfter(event, match, eventBus);
 
@@ -187,6 +191,43 @@ public class MoveCardEvent {
                     cards.size(), fromStatuses.get(0).name(), destination);
         } catch (Exception e) {
             log.warn("[移牌事件] 广播 CARD_MOVE 失败", e);
+        }
+    }
+
+    /**
+     * 广播手牌数量更新消息 — 通知前端刷新各玩家手牌数
+     *
+     * <p>在每次移牌后调用，使前端能及时更新手牌数量显示。</p>
+     *
+     * @param match    当前对局
+     * @param moveOwnerId 移牌所属玩家的 ID（可为 null）
+     */
+    private void broadcastHandCount(GameMatch match, String moveOwnerId) {
+        try {
+            List<String> allPlayerIds = match.getPlayers().stream()
+                    .map(GamePlayer::getPlayerId)
+                    .collect(Collectors.toList());
+
+            List<Map<String, Object>> handCounts = new ArrayList<>();
+            for (GamePlayer p : match.getPlayers()) {
+                Map<String, Object> info = new LinkedHashMap<>();
+                info.put("playerId", p.getPlayerId());
+                info.put("playerName", p.getPlayerName());
+                info.put("handCount", p.getHandCards().size());
+                handCounts.add(info);
+            }
+
+            Map<String, Object> msg = new LinkedHashMap<>();
+            msg.put("type", "HAND_COUNT");
+            msg.put("handCounts", handCounts);
+            if (moveOwnerId != null) {
+                msg.put("moveOwnerId", moveOwnerId);
+            }
+
+            String json = objectMapper.writeValueAsString(msg);
+            sessionManager.broadcastToRoom(allPlayerIds, json, null);
+        } catch (Exception e) {
+            log.warn("[移牌事件] 广播 HAND_COUNT 失败", e);
         }
     }
 

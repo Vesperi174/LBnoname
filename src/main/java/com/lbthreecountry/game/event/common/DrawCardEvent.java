@@ -8,12 +8,18 @@ import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.websocket.WebSocketSessionManager;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 摸牌事件 — 监听 {@code CARD.DRAW} 触发钩子，执行摸牌生命周期
@@ -96,10 +102,15 @@ public class DrawCardEvent {
 
     private final EventBus eventBus;
     private final CardManager cardManager;
+    private final WebSocketSessionManager sessionManager;
+    private final ObjectMapper objectMapper;
 
-    public DrawCardEvent(EventBus eventBus, CardManager cardManager) {
+    public DrawCardEvent(EventBus eventBus, CardManager cardManager,
+                         WebSocketSessionManager sessionManager) {
         this.eventBus = eventBus;
         this.cardManager = cardManager;
+        this.sessionManager = sessionManager;
+        this.objectMapper = new ObjectMapper();
     }
 
     @PostConstruct
@@ -186,6 +197,9 @@ public class DrawCardEvent {
 
         log.info("[摸牌事件] {} 实际摸到 {} 张牌", player.getPlayerId(), data.actualCount);
 
+        // ── 3.5) 通知前端：更新各玩家手牌数量 ──
+        broadcastHandCount(match, player.getPlayerId());
+
         // ── 4) 摸牌结束后钩子（实际使用的数据） ──
         data.publishAfterOnly(event, match, eventBus);
 
@@ -229,6 +243,36 @@ public class DrawCardEvent {
         legacyEvent.putData("gameSeat", player.getGameSeat());
         legacyEvent.putData("driver", data.driver);
         eventBus.publish(legacyEvent, match);
+    }
+
+    /**
+     * 广播手牌数量更新消息 — 通知前端刷新各玩家手牌数
+     */
+    private void broadcastHandCount(GameMatch match, String drawPlayerId) {
+        try {
+            List<String> allPlayerIds = match.getPlayers().stream()
+                    .map(GamePlayer::getPlayerId)
+                    .collect(Collectors.toList());
+
+            List<Map<String, Object>> handCounts = new ArrayList<>();
+            for (GamePlayer p : match.getPlayers()) {
+                Map<String, Object> info = new LinkedHashMap<>();
+                info.put("playerId", p.getPlayerId());
+                info.put("playerName", p.getPlayerName());
+                info.put("handCount", p.getHandCards().size());
+                handCounts.add(info);
+            }
+
+            Map<String, Object> msg = new LinkedHashMap<>();
+            msg.put("type", "HAND_COUNT");
+            msg.put("handCounts", handCounts);
+            msg.put("drawPlayerId", drawPlayerId);
+
+            String json = objectMapper.writeValueAsString(msg);
+            sessionManager.broadcastToRoom(allPlayerIds, json, null);
+        } catch (Exception e) {
+            log.warn("[摸牌事件] 广播 HAND_COUNT 失败", e);
+        }
     }
 
     // ================================================================
