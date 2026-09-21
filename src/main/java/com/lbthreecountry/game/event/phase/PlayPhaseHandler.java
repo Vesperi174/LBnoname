@@ -16,6 +16,7 @@ import com.lbthreecountry.model.card.CardInstance;
 import com.lbthreecountry.model.card.def.CardDef;
 import com.lbthreecountry.model.card.def.CardRules;
 import com.lbthreecountry.model.enums.impl.GamePhase;
+import com.lbthreecountry.model.enums.impl.GameStatus;
 import com.lbthreecountry.service.RoomService;
 import com.lbthreecountry.websocket.WebSocketSessionManager;
 
@@ -149,6 +150,12 @@ public class PlayPhaseHandler {
         inPlayLoop.set(true);
         try {
             while (true) {
+                // ── 游戏已结束 → 立即退出出牌阶段 ──
+                if (match.getStatus() == GameStatus.FINISHED) {
+                    log.info("[出牌阶段处理器] 游戏已结束，退出出牌阶段");
+                    break;
+                }
+
                 // ── 计算剩余时间 ──
                 int elapsed = (int) ((System.currentTimeMillis() - phaseStartTimeRef[0]) / 1000);
                 int remainingTime = turnTime - elapsed;

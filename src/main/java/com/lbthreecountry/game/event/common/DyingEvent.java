@@ -437,6 +437,9 @@ public class DyingEvent {
         List<GamePlayer> allPlayers = match.getPlayers();
         int size = allPlayers.size();
 
+        log.info("[濒死事件] 尝试询问其他玩家拯救濒死者 {}（总玩家数={}）",
+                dyingPlayer.getPlayerId(), size);
+
         // ── 找到濒死玩家的座次下标 ──
         int dyingIndex = -1;
         for (int i = 0; i < size; i++) {
@@ -445,7 +448,10 @@ public class DyingEvent {
                 break;
             }
         }
-        if (dyingIndex < 0) return false;
+        if (dyingIndex < 0) {
+            log.warn("[濒死事件] 找不到濒死玩家 {} 的座次", dyingPlayer.getPlayerId());
+            return false;
+        }
 
         String dyingHeroName = getHeroDisplayName(dyingPlayer);
         String description = String.format("玩家[%s]濒死，需要%d个桃，是否使用桃拯救？",
@@ -458,13 +464,11 @@ public class DyingEvent {
 
             // 跳过已死亡和濒死玩家自己
             if (!helper.isAlive() || helper.getPlayerId().equals(dyingPlayer.getPlayerId())) {
+                log.debug("[濒死事件] 跳过玩家 {}（存活={}, 濒死者={}）",
+                        helper.getPlayerId(), helper.isAlive(),
+                        helper.getPlayerId().equals(dyingPlayer.getPlayerId()));
                 continue;
             }
-
-            // 跳过没有桃的玩家
-            boolean hasTao = helper.getHandCards().stream()
-                    .anyMatch(c -> "tao".equals(c.getDefId()));
-            if (!hasTao) continue;
 
             log.info("[濒死事件] 询问玩家 {} 是否使用桃拯救 {}", helper.getPlayerId(), dyingPlayer.getPlayerId());
 

@@ -1,6 +1,7 @@
 package com.lbthreecountry.game.event;
 
 import com.lbthreecountry.game.GameMatch;
+import com.lbthreecountry.model.enums.impl.GameStatus;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -197,6 +198,12 @@ public class EventBus {
         Objects.requireNonNull(match, "match must not be null");
         if (event.getType() == null) {
             log.warn("[事件] 发布的事件缺少 type 字段，已忽略");
+            return;
+        }
+
+        // 游戏已结束 → 忽略所有后续事件
+        if (match.getStatus() == GameStatus.FINISHED) {
+            log.debug("[事件] 游戏已结束，忽略事件: {}", event.getType());
             return;
         }
 

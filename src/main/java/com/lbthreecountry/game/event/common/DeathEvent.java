@@ -27,7 +27,8 @@ import java.util.stream.Collectors;
  * {@code PLAYER.DEAD} 事件，本组件监听到后执行死亡处理：</p>
  * <ol>
  *   <li>将玩家状态设为 {@link PlayerStatus#DEAD}</li>
- *   <li>广播死亡消息到前端</li>
+ *   <li>广播死亡消息到前端（含玩家身份）</li>
+ *   <li>抛出 {@code GAME_OVER_CHECK} 钩子（携带存活玩家及身份，供游戏结束判定）</li>
  * </ol>
  *
  * <h3>触发事件数据字段</h3>
@@ -43,6 +44,9 @@ import java.util.stream.Collectors;
 public class DeathEvent {
 
     private static final Logger log = LoggerFactory.getLogger(DeathEvent.class);
+
+    /** 游戏结束检测钩子 — 死亡事件广播后触发，监听器检查是否满足游戏结束条件 */
+    public static final String GAME_OVER_CHECK = "GAME.OVER.CHECK";
 
     private final EventBus eventBus;
     private final WebSocketSessionManager sessionManager;
@@ -65,6 +69,7 @@ public class DeathEvent {
      * <ol>
      *   <li>将玩家状态设为 {@code DEAD}</li>
      *   <li>广播 {@code PLAYER_DEAD} 消息到前端</li>
+     *   <li>抛出 {@code GAME_OVER_CHECK} 钩子（携带存活玩家及身份，供游戏结束判定）</li>
      * </ol>
      */
     private void onPlayerDead(GameEvent event, GameMatch match) {
@@ -82,6 +87,38 @@ public class DeathEvent {
 
         // ── ② 广播死亡消息到前端 ──
         broadcastPlayerDead(match, player);
+
+        // ── ③ 抛出游戏结束检测钩子 ──
+        fireGameOverCheck(match);
+    }
+
+    /**
+     * 抛出游戏结束检测钩子
+     *
+     * <p>携带当前所有存活玩家及其身份信息，供监听器（如 GameOverCheckEvent）判断游戏是否结束。</p>
+     */
+    private void fireGameOverCheck(GameMatch match) {
+        List<Map<String, Object>> alivePlayers = match.getPlayers().stream()
+                .filter(GamePlayer::isAlive)
+                .map(p -> {
+                    Map<String, Object> info = new LinkedHashMap<>();
+                    info.put("playerId", p.getPlayerId());
+                    info.put("playerName", p.getPlayerName());
+                    info.put("heroId", p.getHeroId());
+                    RoleType role = p.getRole();
+                    info.put("role", role != null ? role.getCode() : null);
+                    info.put("roleName", role != null ? role.getDescription() : null);
+                    return info;
+                })
+                .collect(Collectors.toList());
+
+        GameEvent checkEvent = GameEvent.builder()
+                .type(GAME_OVER_CHECK)
+                .build()
+                .putData("alivePlayers", alivePlayers);
+        eventBus.publish(checkEvent, match);
+
+        log.debug("[死亡事件] 抛出 GAME_OVER_CHECK 钩子 (存活 {} 人)", alivePlayers.size());
     }
 
     // ================================================================
