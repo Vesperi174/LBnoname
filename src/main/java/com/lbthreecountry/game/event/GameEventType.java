@@ -136,12 +136,31 @@ public final class GameEventType {
      */
     public static final String GET_ATTACK_RANGE = "ATTACK_RANGE.GET";
 
-    /**
-     * 攻击距离修正 — 由 {@code AttackRangeEvent} 在 {@code GET_ATTACK_RANGE} 回调中发布
+    /** 攻击距离修正 — 由 {@code AttackRangeEvent} 在 {@code GET_ATTACK_RANGE} 回调中发布
      *
      * <p>装备、技能等监听器可监听此钩子，修改事件数据中的 {@code attackRange} 来修正攻击距离。</p>
      */
     public static final String ATTACK_RANGE_MODIFY = "ATTACK_RANGE.MODIFY";
+
+    // ================================================================
+    //  手牌上限
+    //
+    //  发布 HAND_LIMIT.CALC 触发事件（需附带 playerId 数据），
+    //  由 HandLimitEvent 组件监听到后计算手牌上限，并抛出修正钩子。
+    //    HAND_LIMIT.CALC       — 触发计算手牌上限
+    //      └─ HAND_LIMIT.MODIFY  — 修正钩子，监听器可修改 limit 值
+    //
+    //  数据字段：
+    //    playerId    — 玩家 ID（必填）
+    //    baseLimit   — 基础手牌上限（由 HandLimitEvent 填入，默认 = 当前体力值）
+    //    limit       — 最终手牌上限（监听器可在 MODIFY 钩子中修改此值）
+    // ================================================================
+
+    /** 获取手牌上限 — 发布此事件触发手牌上限计算（由 HandLimitEvent @Component 监听） */
+    public static final String HAND_LIMIT_CALC = "HAND_LIMIT.CALC";
+
+    /** 手牌上限修正钩子 — 监听器可修改 limit 字段 */
+    public static final String HAND_LIMIT_MODIFY = "HAND_LIMIT.MODIFY";
 
     // ================================================================
     //  获取目标

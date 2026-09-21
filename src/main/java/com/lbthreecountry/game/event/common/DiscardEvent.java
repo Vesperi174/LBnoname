@@ -6,11 +6,22 @@ import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
+import com.lbthreecountry.game.interaction.InteractionMessageStack;
+import com.lbthreecountry.game.interaction.handler.HandCardFilter;
+import com.lbthreecountry.game.interaction.handler.ResponseHandler;
+import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.model.enums.impl.GameStatus;
 import com.lbthreecountry.websocket.WebSocketSessionManager;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 弃牌事件 — 监听 {@code CARD.DISCARD} 触发钩子，执行弃牌生命周期
@@ -20,7 +31,11 @@ import org.springframework.stereotype.Component;
  * CARD.DISCARD (触发钩子)
  *   ├── CARD.DISCARD.BEFORE  (弃牌开始前，可修改 count / 可取消)
  *   ├── CARD.DISCARD.ACTIVE  (弃牌进行中，可修改 count / 可取消)
- *   ├── 实际弃牌操作
+ *   ├── 前端选牌交互
+ *   │     ├── 推送 HAND_STATUS（所有手牌可选）
+ *   │     ├── 发送 ACTION_DECISION "请选择x张牌弃置"
+ *   │     └── pushAndAwait() 等待玩家选择
+ *   ├── 实际弃牌操作（CardManager.discardAll）
  *   └── CARD.DISCARD.AFTER   (弃牌结束后钩子，仅通知)
  * </pre>
  *
@@ -30,6 +45,7 @@ import org.springframework.stereotype.Component;
  * │ 字段          │ 类型      │ 说明                                   │
  * ├──────────────┼──────────┼────────────────────────────────────────┤
  * │ playerId     │ String   │ 弃牌玩家 ID（必填）                      │
+ * │ player       │ GamePlayer │ 弃牌玩家对象（可选）                   │
  * │ count        │ int      │ 需要弃牌的数量（默认 0）                  │
  * └──────────────┴──────────┴────────────────────────────────────────┘
  * </pre>
@@ -62,22 +78,31 @@ public class DiscardEvent {
 
     private static final Logger log = LoggerFactory.getLogger(DiscardEvent.class);
 
+    /** 弃牌交互默认超时秒数 */
+    private static final int DEFAULT_DISCARD_TIMEOUT = 15;
+
     // ================================================================
     //  依赖
     // ================================================================
 
     private final EventBus eventBus;
+    private final InteractionMessageStack interactionStack;
     private final WebSocketSessionManager sessionManager;
+    private final ResponseHandler responseHandler;
 
-    public DiscardEvent(EventBus eventBus, WebSocketSessionManager sessionManager) {
+    public DiscardEvent(EventBus eventBus,
+                        InteractionMessageStack interactionStack,
+                        WebSocketSessionManager sessionManager,
+                        ResponseHandler responseHandler) {
         this.eventBus = eventBus;
+        this.interactionStack = interactionStack;
         this.sessionManager = sessionManager;
+        this.responseHandler = responseHandler;
     }
 
     @PostConstruct
     public void init() {
         eventBus.register(GameEventType.CARD_DISCARD, EventPriority.ENGINE, this::onDiscard);
-        
     }
 
     // ================================================================
@@ -91,10 +116,12 @@ public class DiscardEvent {
      * <ol>
      *   <li>{@code CARD.DISCARD.BEFORE} — 弃牌开始前（初始数据，监听器可修改 {@code count} 或取消）</li>
      *   <li>{@code CARD.DISCARD.ACTIVE} — 弃牌进行中（BEFORE 修改后的数据，监听器可修改 {@code count} 或取消）</li>
-     *   <li><b>实际弃牌操作</b> — 使用 ACTIVE 修改后的数据执行弃牌</li>
+     *   <li><b>前端选牌交互</b> — 推送 HAND_STATUS + ACTION_DECISION，等待玩家选牌</li>
+     *   <li><b>实际弃牌操作</b> — 调用 CardManager.discardAll 执行弃牌</li>
      *   <li>{@code CARD.DISCARD.AFTER} — 弃牌结束后钩子（实际使用的数据，仅通知）</li>
      * </ol>
      */
+    @SuppressWarnings("unchecked")
     private void onDiscard(GameEvent event, GameMatch match) {
         // ── 读取调用方传入的参数 ──
         GamePlayer player = event.getData("player");
@@ -117,7 +144,8 @@ public class DiscardEvent {
             return;
         }
 
-        log.info("[弃牌事件] 玩家 {} 需要弃 {} 张牌", player.getPlayerId(), count);
+        String playerId = player.getPlayerId();
+        log.info("[弃牌事件] 玩家 {} 需要弃 {} 张牌", playerId, count);
 
         // ── 构造可修改的临时数据对象 ──
         HookData data = new HookData(player, count);
@@ -125,7 +153,7 @@ public class DiscardEvent {
         // ── 1) 弃牌开始前（初始数据） ──
         data.publishAndSync(GameEventType.CARD_DISCARD_BEFORE, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[弃牌事件] BEFORE 钩子已取消 — {} 的弃牌被取消", player.getPlayerId());
+            log.info("[弃牌事件] BEFORE 钩子已取消 — {} 的弃牌被取消", playerId);
             writeResult(event, data);
             return;
         }
@@ -133,23 +161,48 @@ public class DiscardEvent {
         // ── 2) 弃牌进行中（BEFORE 修改后的数据） ──
         data.publishAndSync(GameEventType.CARD_DISCARD_ACTIVE, event, match, eventBus);
         if (data.cancelled) {
-            log.info("[弃牌事件] ACTIVE 钩子已取消 — {} 的弃牌被取消", player.getPlayerId());
+            log.info("[弃牌事件] ACTIVE 钩子已取消 — {} 的弃牌被取消", playerId);
             writeResult(event, data);
             return;
         }
 
-        // ── 3) 实际弃牌操作（ACTIVE 修改后的数据） ──
         if (data.count <= 0) {
             log.info("[弃牌事件] 弃牌数量为 0，跳过后续流程");
             writeResult(event, data);
             return;
         }
 
-        // TODO: 实际弃牌逻辑（玩家选择弃哪些牌，然后调用 CardManager.discardAll）
-        //       暂记本次弃牌信息供 AFTER 钩子和前端通信使用
-        data.actualCount = data.count;
+        // ── 3) 前端选牌交互 ──
+        List<String> selectedCardIds = doDiscardInteraction(match, player, data.count);
+        if (selectedCardIds == null) {
+            log.info("[弃牌事件] 玩家 {} 选牌交互未完成，跳过弃牌", playerId);
+            writeResult(event, data);
+            return;
+        }
 
-        log.info("[弃牌事件] 玩家 {} 弃掉 {} 张牌", player.getPlayerId(), data.actualCount);
+        // ── 4) 实际弃牌操作：通过 CARD.MOVE 事件移入弃牌堆 ──
+        Set<Long> selectedIdSet = selectedCardIds.stream()
+                .map(Long::valueOf)
+                .collect(Collectors.toSet());
+        List<CardInstance> cardsToDiscard = player.getHandCards().stream()
+                .filter(c -> selectedIdSet.contains(c.getInstanceId()))
+                .collect(Collectors.toList());
+
+        if (!cardsToDiscard.isEmpty()) {
+            GameEvent moveEvent = GameEvent.builder()
+                    .type(GameEventType.CARD_MOVE)
+                    .sourceId(playerId)
+                    .build()
+                    .putData("cards", cardsToDiscard)
+                    .putData("destination", "DISCARD_PILE")
+                    .putData("player", player);
+            eventBus.publish(moveEvent, match);
+            data.actualCount = cardsToDiscard.size();
+            log.info("[弃牌事件] 玩家 {} 弃掉 {} 张牌: {}",
+                    playerId, data.actualCount, selectedCardIds);
+        } else {
+            log.warn("[弃牌事件] 玩家 {} 选择的牌不在手牌中: {}", playerId, selectedCardIds);
+        }
 
         // ── 前端通信（预留） ──
         // TODO: 在此处推送弃牌结果到前端，包含以下信息：
@@ -160,11 +213,100 @@ public class DiscardEvent {
         //       sessionManager.sendMessage(playerId, json);
         //       sessionManager.broadcastToRoom(allPlayerIds, json, playerId);
 
-        // ── 4) 弃牌结束后钩子（实际使用的数据） ──
+        // ── 5) 弃牌结束后钩子（实际使用的数据） ──
         data.publishAfterOnly(event, match, eventBus);
 
         // ── 写入结果到触发事件 ──
         writeResult(event, data);
+    }
+
+    // ================================================================
+    //  选牌交互
+    // ================================================================
+
+    /**
+     * 执行前端选牌交互：推送手牌状态 → 发送 ACTION_DECISION → 等待响应
+     *
+     * @param match        当前对局
+     * @param player       弃牌玩家
+     * @param discardCount 需要弃置的牌数
+     * @return 玩家选中的卡牌 instanceId 列表，交互失败返回 {@code null}
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> doDiscardInteraction(GameMatch match, GamePlayer player, int discardCount) {
+        String playerId = player.getPlayerId();
+        int timeout = DEFAULT_DISCARD_TIMEOUT;
+        int backendTimeout = timeout + 5;
+
+        // ── 推送 HAND_STATUS：全部手牌标记为可选 ──
+        responseHandler.pushHandStatus(match, player, HandCardFilter.all());
+
+        // ── 广播思考状态给其他玩家 ──
+        List<String> allPlayerIds = match.getPlayers().stream()
+                .map(GamePlayer::getPlayerId)
+                .collect(Collectors.toList());
+        responseHandler.broadcastThinking(allPlayerIds, playerId,
+                timeout, timeout, "弃牌阶段思考中");
+
+        // ── 构造 ACTION_DECISION 消息 ──
+        Map<String, Object> message = buildDiscardMessage(discardCount, timeout);
+
+        log.info("[弃牌事件] ⏳ 等待玩家 {} 选择 {} 张牌弃置...", playerId, discardCount);
+        Map<String, Object> response = interactionStack.pushAndAwait(
+                match.getRoomId(), playerId, message, sessionManager, backendTimeout);
+
+        // ── 处理响应 ──
+        String action = response != null ? (String) response.get("action") : null;
+        String respType = response != null ? (String) response.get("type") : null;
+        List<String> selectedCardIds = response != null
+                ? (List<String>) response.get("selectedCardIds")
+                : null;
+
+        // 游戏已结束或房间已销毁
+        if (match.getStatus() == GameStatus.FINISHED || "CANCELLED".equals(respType)) {
+            log.info("[弃牌事件] 游戏已结束或房间已销毁");
+            return null;
+        }
+
+        // 超时或中断
+        if ("timeout".equals(action) || "TIMEOUT".equals(action) || "interrupted".equals(action)) {
+            log.info("[弃牌事件] 玩家 {} 弃牌超时/中断", playerId);
+            // TODO: 超时后由后端随机选牌弃置
+            return null;
+        }
+
+        // 玩家确认选择
+        if ("discard".equals(action) && selectedCardIds != null && !selectedCardIds.isEmpty()) {
+            log.info("[弃牌事件] 玩家 {} 选择了 {} 张牌弃置: {}",
+                    playerId, selectedCardIds.size(), selectedCardIds);
+            return selectedCardIds;
+        }
+
+        log.warn("[弃牌事件] 玩家 {} 响应异常: action={}, selectedCardIds={}",
+                playerId, action, selectedCardIds);
+        return null;
+    }
+
+    /**
+     * 构造弃牌阶段的 ACTION_DECISION 消息
+     *
+     * @param discardCount 需要弃置的牌数
+     * @param timeout      前端展示的倒计时秒数
+     * @return 交互消息体
+     */
+    private Map<String, Object> buildDiscardMessage(int discardCount, int timeout) {
+        Map<String, Object> message = new LinkedHashMap<>();
+        message.put("type", "ACTION_DECISION");
+        message.put("timeout", timeout);
+        message.put("totalTimeout", timeout);
+        message.put("description", String.format("请选择 %d 张牌弃置", discardCount));
+        message.put("actions", List.of(
+                Map.of("text", "确定弃置", "value", "discard", "type", "default")));
+        message.put("handSelectable", true);
+        message.put("handSelectMode", "multi");
+        message.put("selectCount", discardCount);
+        message.put("targetSelectable", false);
+        return message;
     }
 
     // ================================================================
