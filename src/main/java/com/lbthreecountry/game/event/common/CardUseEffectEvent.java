@@ -22,11 +22,11 @@ import java.util.List;
  * <h3>使用牌生命周期</h3>
  * <pre>
  * CARD.USE (触发钩子)
+ *   ├── CARD.MOVE         (移入牌桌中央，由 MoveCardEvent 处理移牌 + 通知前端)
  *   ├── CARD.USE.BEFORE   (使用牌前，可修改 / 可取消)
  *   ├── CARD.USE.ACTIVE   (使用牌时，可修改 / 可取消)
  *   ├── CARD.USE.EFFECT   (执行牌效果，由具体卡牌监听)
  *   ├── CARD.USE.AFTER    (使用牌后，仅通知)
- *   ├── CARD.MOVE         (移入牌桌中央，由 MoveCardEvent 处理移牌 + 通知前端)
  *   └── CARD.MOVE         (移入弃牌堆，由 MoveCardEvent 处理移牌 + 通知前端)
  * </pre>
  *
@@ -94,7 +94,8 @@ public class CardUseEffectEvent {
      *
      * <p>从事件数据中读取使用牌参数，依次执行：</p>
      * <ol>
-     *   <li>{@code CARD.USE.BEFORE} — 使用牌前（初始数据，监听器可修改或取消）</li>
+     *   <li>{@code CARD.MOVE} — 移入牌桌中央（委托 MoveCardEvent 处理移牌 + 通知前端动画）</li>
+     *   <li>{@code CARD.USE.BEFORE} — 使用牌前（监听器可修改或取消）</li>
      *   <li>{@code CARD.USE.ACTIVE} — 使用牌时（BEFORE 修改后的数据，监听器可修改或取消）</li>
      *   <li>{@code CARD.USE.EFFECT} — 执行牌效果（ACTIVE 修改后的数据，由具体卡牌监听执行效果）</li>
      *   <li>{@code CARD.USE.AFTER} — 使用牌后钩子（实际使用的数据，仅通知）</li>
@@ -118,7 +119,10 @@ public class CardUseEffectEvent {
         // ── 构造可修改的临时数据对象 ──
         HookData data = new HookData(useplayer, targetplayer, card);
 
-        // ── 1) 使用牌前（初始数据） ──
+        // ── 0) 将牌从手牌区移到牌桌中央（同步后端数据 + 通知前端动画） ──
+        data.publishMoveToTable(event, match, eventBus);
+
+        // ── 1) 使用牌前（移牌后的数据） ──
         data.publishAndSync(GameEventType.CARD_USE_BEFORE, event, match, eventBus);
         if (data.cancelled) {
             log.info("[使用牌事件] BEFORE 钩子已取消 — {} 的使用牌被取消", useplayer.getPlayerId());
@@ -132,8 +136,6 @@ public class CardUseEffectEvent {
             writeResult(event, data);
             return;
         }
-        // ── 2.1) 将牌从手牌区移到牌桌中央（同步后端数据 + 通知前端） ──
-        data.publishMoveToTable(event, match, eventBus);
 
         // ── 3) 执行牌效果（ACTIVE 修改后的数据） ──
         data.publishEffect(event, match, eventBus);
