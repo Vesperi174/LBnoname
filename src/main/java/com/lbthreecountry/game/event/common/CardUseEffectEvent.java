@@ -1,5 +1,6 @@
 package com.lbthreecountry.game.event.common;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
 import com.lbthreecountry.game.event.EventBus;
@@ -7,12 +8,16 @@ import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
 import com.lbthreecountry.game.event.GameEventType;
 import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.websocket.WebSocketSessionManager;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 使用牌事件 — 监听 {@code CARD.USE} 触发钩子，执行使用牌生命周期
@@ -22,6 +27,7 @@ import java.util.List;
  * <h3>使用牌生命周期</h3>
  * <pre>
  * CARD.USE (触发钩子)
+ *   ├── 广播 TARGET_LINE   (通知前端渲染目标连线/射线)
  *   ├── CARD.MOVE         (移入牌桌中央，由 MoveCardEvent 处理移牌 + 通知前端)
  *   ├── CARD.USE.BEFORE   (使用牌前，可修改 / 可取消)
  *   ├── CARD.USE.ACTIVE   (使用牌时，可修改 / 可取消)
@@ -75,9 +81,12 @@ public class CardUseEffectEvent {
     // ================================================================
 
     private final EventBus eventBus;
+    private final WebSocketSessionManager sessionManager;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public CardUseEffectEvent(EventBus eventBus) {
+    public CardUseEffectEvent(EventBus eventBus, WebSocketSessionManager sessionManager) {
         this.eventBus = eventBus;
+        this.sessionManager = sessionManager;
     }
 
     @PostConstruct
@@ -94,6 +103,7 @@ public class CardUseEffectEvent {
      *
      * <p>从事件数据中读取使用牌参数，依次执行：</p>
      * <ol>
+     *   <li>{@code TARGET_LINE} — 广播目标连线（通知前端渲染射线/链式动画）</li>
      *   <li>{@code CARD.MOVE} — 移入牌桌中央（委托 MoveCardEvent 处理移牌 + 通知前端动画）</li>
      *   <li>{@code CARD.USE.BEFORE} — 使用牌前（监听器可修改或取消）</li>
      *   <li>{@code CARD.USE.ACTIVE} — 使用牌时（BEFORE 修改后的数据，监听器可修改或取消）</li>
@@ -119,17 +129,20 @@ public class CardUseEffectEvent {
         // ── 构造可修改的临时数据对象 ──
         HookData data = new HookData(useplayer, targetplayer, card);
 
-        // ── 0) 将牌从手牌区移到牌桌中央（同步后端数据 + 通知前端动画） ──
+        // ── 0) TARGET_LINE：广播目标连线（前端据此渲染射线/链式动画） ──
+        broadcastTargetLine(match, useplayer, targetplayer, card);
+
+        // ── 1) 将牌从手牌区移到牌桌中央（同步后端数据 + 通知前端动画） ──
         data.publishMoveToTable(event, match, eventBus);
 
-        // ── 1) 使用牌前（移牌后的数据） ──
+        // ── 2) 使用牌前（移牌后的数据） ──
         data.publishAndSync(GameEventType.CARD_USE_BEFORE, event, match, eventBus);
         if (data.cancelled) {
             log.info("[使用牌事件] BEFORE 钩子已取消 — {} 的使用牌被取消", useplayer.getPlayerId());
             writeResult(event, data);
             return;
         }
-        // ── 2) 使用牌时（BEFORE 修改后的数据） ──
+        // ── 3) 使用牌时（BEFORE 修改后的数据） ──
         data.publishAndSync(GameEventType.CARD_USE_ACTIVE, event, match, eventBus);
         if (data.cancelled) {
             log.info("[使用牌事件] ACTIVE 钩子已取消 — {} 的使用牌被取消", useplayer.getPlayerId());
@@ -137,13 +150,13 @@ public class CardUseEffectEvent {
             return;
         }
 
-        // ── 3) 执行牌效果（ACTIVE 修改后的数据） ──
+        // ── 4) 执行牌效果（ACTIVE 修改后的数据） ──
         data.publishEffect(event, match, eventBus);
 
-        // ── 4) 使用牌后钩子（实际使用的数据，仅通知） ──
+        // ── 5) 使用牌后钩子（实际使用的数据，仅通知） ──
         data.publishAfterOnly(event, match, eventBus);
 
-        // ── 5) 移入弃牌堆（委托 MoveCardEvent 处理完整移牌生命周期） ──
+        // ── 6) 移入弃牌堆（委托 MoveCardEvent 处理完整移牌生命周期） ──
         data.publishMoveToDiscard(event, match, eventBus);
 
         // ── 写入结果到触发事件 ──
@@ -153,6 +166,46 @@ public class CardUseEffectEvent {
     // ================================================================
     //  内部方法
     // ================================================================
+
+    /**
+     * 广播 {@code TARGET_LINE} 消息 — 前端据此渲染目标连线/链式动画
+     *
+     * <p>在第一张 {@code CARD.MOVE} 之前广播，让前端先绘制使用玩家到目标玩家的
+     * 射线/链式连线，再播放卡牌飞行动画。</p>
+     *
+     * <ul>
+     *   <li>{@code chain=false}：从 source 到每个 targets 分别渲染一条射线</li>
+     *   <li>{@code chain=true}：source → target1 → target2 → ... 链式连线</li>
+     * </ul>
+     */
+    private void broadcastTargetLine(GameMatch match, GamePlayer useplayer,
+                                     GamePlayer targetplayer, CardInstance card) {
+        try {
+            List<String> allPlayerIds = match.getPlayers().stream()
+                    .map(GamePlayer::getPlayerId)
+                    .collect(Collectors.toList());
+
+            List<Map<String, String>> targets = List.of(Map.of(
+                    "targetId", targetplayer.getPlayerId(),
+                    "targetName", targetplayer.getPlayerName()));
+
+            Map<String, Object> msg = new LinkedHashMap<>();
+            msg.put("type", "TARGET_LINE");
+            msg.put("sourceId", useplayer.getPlayerId());
+            msg.put("sourceName", useplayer.getPlayerName());
+            msg.put("targets", targets);
+            msg.put("chain", false);
+            // 预留后续扩展字段：cardDefId 标识是哪张牌触发的连线
+            msg.put("cardDefId", card != null ? card.getDefId() : null);
+
+            String json = objectMapper.writeValueAsString(msg);
+            sessionManager.broadcastToRoom(allPlayerIds, json, null);
+            log.debug("[使用牌事件] 广播 TARGET_LINE → source={} targets={} chain=false",
+                    useplayer.getPlayerId(), targets);
+        } catch (Exception e) {
+            log.warn("[使用牌事件] 广播 TARGET_LINE 失败", e);
+        }
+    }
 
     /** 将使用牌结果写回触发事件 */
     private void writeResult(GameEvent event, HookData data) {

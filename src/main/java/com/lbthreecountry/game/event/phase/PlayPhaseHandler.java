@@ -308,6 +308,8 @@ public class PlayPhaseHandler {
             targetMsg.put("targetSelectable", true);
             targetMsg.put("selectableTargetIds", targets);
             targetMsg.put("targetSelectMode", "single");
+            // 将已选中的卡牌 ID 传递给下一阶段，前端据此保持卡牌浮起状态
+            targetMsg.put("selectedCardIds", selectedCardIds);
 
             log.info("[出牌阶段处理器] 等待玩家 {} 选择【{}】的目标... (可选目标: {})",
                     playerId, cardDef.getName(), targets);
