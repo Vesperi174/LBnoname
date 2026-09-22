@@ -2,6 +2,7 @@ package com.lbthreecountry.game.event.card.standard;
 
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
+import com.lbthreecountry.game.card.CardPlayabilityChecker;
 import com.lbthreecountry.game.event.EventBus;
 import com.lbthreecountry.game.event.EventPriority;
 import com.lbthreecountry.game.event.GameEvent;
@@ -48,13 +49,16 @@ public class ShanCard {
     private final EventBus eventBus;
     private final ResponseHandler responseHandler;
     private final HeroManager heroManager;
+    private final CardPlayabilityChecker playabilityChecker;
 
     public ShanCard(EventBus eventBus,
                     ResponseHandler responseHandler,
-                    HeroManager heroManager) {
+                    HeroManager heroManager,
+                    CardPlayabilityChecker playabilityChecker) {
         this.eventBus = eventBus;
         this.responseHandler = responseHandler;
         this.heroManager = heroManager;
+        this.playabilityChecker = playabilityChecker;
     }
 
     @PostConstruct
@@ -154,6 +158,10 @@ public class ShanCard {
                         .putData("cards", List.of(shanCard))
                         .putData("destination", "TABLE_CENTER"),
                 match);
+
+        // ── ①.5) 闪已打出 → HAND_STATUS 全部不可选（动画期间禁止操作） ──
+        playabilityChecker.forceAllNotSelectable(match, targetplayer, "卡牌使用中");
+        log.debug("[闪] 闪移到桌面后 → 玩家 {} 所有手牌设为不可选", targetplayer.getPlayerId());
 
         // ② BEFORE
         eventBus.publish(GameEvent.builder()
