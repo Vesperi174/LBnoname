@@ -17,10 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -174,12 +171,25 @@ public class DiscardEvent {
 
         // ── 3) 前端选牌交互 ──
         List<String> selectedCardIds = doDiscardInteraction(match, player, data.count);
-        // 重置手牌状态为全部不可选
-        responseHandler.pushHandStatus(match, player, HandCardFilter.none("弃牌阶段结束"));
         if (selectedCardIds == null) {
             log.info("[弃牌事件] 玩家 {} 选牌交互未完成，跳过弃牌", playerId);
             writeResult(event, data);
             return;
+        }
+
+        // 如果选择的牌数量不足，随机补选
+        if (selectedCardIds.size() < data.count) {
+            int shortage = data.count - selectedCardIds.size();
+            log.info("[弃牌事件] 玩家 {} 只选了 {} 张牌，还需随机补选 {} 张",
+                    playerId, selectedCardIds.size(), shortage);
+            Set<String> alreadySelected = new HashSet<>(selectedCardIds);
+            List<String> fillUp = player.getHandCards().stream()
+                    .map(c -> String.valueOf(c.getInstanceId()))
+                    .filter(id -> !alreadySelected.contains(id))
+                    .collect(Collectors.toList());
+            Collections.shuffle(fillUp, new Random());
+            fillUp.stream().limit(shortage).forEach(selectedCardIds::add);
+            log.info("[弃牌事件] 随机补选完成，最终弃牌列表: {}", selectedCardIds);
         }
 
         // ── 4) 实际弃牌操作：通过 CARD.MOVE 事件移入弃牌堆 ──
@@ -227,12 +237,15 @@ public class DiscardEvent {
     // ================================================================
 
     /**
-     * 执行前端选牌交互：推送手牌状态 → 发送 ACTION_DECISION → 等待响应
+     * 执行前端选牌交互：推送手牌状态 → 发送 ACTION_DECISION → 等待响应 → 置灰手牌
+     *
+     * <p>交互成功后，该方法内部已在返回前将 HAND_STATUS 置为全部不可选，
+     * 调用方无需重复调用。</p>
      *
      * @param match        当前对局
      * @param player       弃牌玩家
      * @param discardCount 需要弃置的牌数
-     * @return 玩家选中的卡牌 instanceId 列表，交互失败返回 {@code null}
+     * @return 玩家选中的卡牌 instanceId 列表，交互失败（如游戏结束）返回 {@code null}
      */
     @SuppressWarnings("unchecked")
     private List<String> doDiscardInteraction(GameMatch match, GamePlayer player, int discardCount) {
@@ -270,15 +283,20 @@ public class DiscardEvent {
             return null;
         }
 
-        // 超时或中断
+        // ── 前端已返回 → 立即置灰手牌 ──
+        responseHandler.pushHandStatus(match, player, HandCardFilter.none("弃牌阶段结束"));
+
+        // 超时或中断 → 后端随机选牌弃置
         if ("timeout".equals(action) || "TIMEOUT".equals(action) || "interrupted".equals(action)) {
-            log.info("[弃牌事件] 玩家 {} 弃牌超时/中断", playerId);
-            // TODO: 超时后由后端随机选牌弃置
-            return null;
+            log.info("[弃牌事件] 玩家 {} 弃牌超时/中断 → 后端随机选牌弃置", playerId);
+            return randomSelectCards(player, discardCount);
         }
 
-        // 玩家确认选择
-        if ("discard".equals(action) && selectedCardIds != null && !selectedCardIds.isEmpty()) {
+        // 玩家确认选择（可能为空列表，后续由 onDiscard 补选兜底）
+        if ("discard".equals(action)) {
+            if (selectedCardIds == null) {
+                selectedCardIds = new ArrayList<>();
+            }
             log.info("[弃牌事件] 玩家 {} 选择了 {} 张牌弃置: {}",
                     playerId, selectedCardIds.size(), selectedCardIds);
             return selectedCardIds;
@@ -309,6 +327,31 @@ public class DiscardEvent {
         message.put("selectCount", discardCount);
         message.put("targetSelectable", false);
         return message;
+    }
+
+    // ================================================================
+    //  后端兜底 — 随机选牌
+    // ================================================================
+
+    /**
+     * 从玩家手牌中随机选择指定数量的卡牌（后端兜底策略）
+     * <p>用于以下场景：
+     * <ul>
+     *   <li>前端超时未响应</li>
+     *   <li>玩家选择的牌数不足（配合 {@code onDiscard} 中的补选逻辑）</li>
+     * </ul></p>
+     *
+     * @param player 玩家
+     * @param count  需要选择的牌数
+     * @return 选中的卡牌 instanceId 列表（String 格式）
+     */
+    private List<String> randomSelectCards(GamePlayer player, int count) {
+        List<CardInstance> handCards = new ArrayList<>(player.getHandCards());
+        Collections.shuffle(handCards, new Random());
+        return handCards.stream()
+                .limit(count)
+                .map(c -> String.valueOf(c.getInstanceId()))
+                .collect(Collectors.toList());
     }
 
     // ================================================================
