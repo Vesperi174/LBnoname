@@ -327,6 +327,15 @@ public class CardManager {
     }
 
     /**
+     * 获取所有卡牌定义
+     *
+     * @return 所有已加载的卡牌定义集合
+     */
+    public Collection<CardDef> getAllDefs() {
+        return cardLibrary.getAllDefs();
+    }
+
+    /**
      * 解析花色字符串为枚举
      */
     private CardSuit parseSuit(String suit) {

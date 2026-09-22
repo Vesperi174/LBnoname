@@ -6,6 +6,7 @@ import com.lbthreecountry.entity.GameRoom;
 import com.lbthreecountry.entity.RoomPlayer;
 import com.lbthreecountry.game.GameMatch;
 import com.lbthreecountry.game.GamePlayer;
+import com.lbthreecountry.game.card.CardLibrary;
 import com.lbthreecountry.game.card.CardManager;
 import com.lbthreecountry.game.card.CardPlayabilityChecker;
 import com.lbthreecountry.game.event.EventBus;
@@ -17,7 +18,10 @@ import com.lbthreecountry.game.hero.HeroManager;
 import com.lbthreecountry.game.event.common.DistanceManager;
 import com.lbthreecountry.game.interaction.InteractionMessageStack;
 import com.lbthreecountry.model.card.CardInstance;
+import com.lbthreecountry.model.card.def.CardCopy;
 import com.lbthreecountry.model.card.def.CardDef;
+import com.lbthreecountry.model.enums.impl.CardPoint;
+import com.lbthreecountry.model.enums.impl.CardSuit;
 import com.lbthreecountry.model.hero.BaseHero;
 import com.lbthreecountry.model.player.PlayerInfo;
 import com.lbthreecountry.model.player.PlayerSession;
@@ -55,6 +59,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>{@code ROOM_LIST} — 查询房间列表</li>
  *   <li>{@code PLAYER_READY} — 准备/取消准备</li>
  *   <li>{@code START_GAME} — 开始游戏（仅房主）</li>
+ *   <li>{@code DEV_CHEAT} — 开发调试，返回所有已加载卡牌数据（含花色点数名称）</li>
  * </ul>
  */
 @Component
@@ -240,6 +245,8 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             case "NEXT_PHASE"                    -> handleNextPhase(session, playerSession);
             case "VIEW_DISTANCE"                 -> handleViewDistance(session, playerSession, msg);
             case "ACTION_DECISION_RESPONSE"      -> handleActionDecisionResponse(playerSession, msg);
+            case "DEV_CHEAT"                     -> handleDevCheat(session, playerSession);
+            case "DEV_CHEAT_PICK"                -> handleDevCheatPick(session, playerSession, msg);
             default -> sendJson(session, Map.of(
                     "type", "ERROR",
                     "message", "未知消息类型: " + type
@@ -1059,6 +1066,295 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             log.error("[卡牌检测] 检测失败", e);
             sendJson(session, Map.of("type", "ERROR", "message", "卡牌检测失败: " + e.getMessage()));
         }
+    }
+
+    // ──────────────────────────────────────────────
+    //  DEV_CHEAT — 开发调试：返回所有已加载的卡牌
+    // ──────────────────────────────────────────────
+
+    /**
+     * 处理 DEV_CHEAT 请求 — 返回所有已加载的卡牌数据（含花色、点数、名称）
+     *
+     * <p>前端发送 {@code { "type": "DEV_CHEAT" }} 时触发，
+     * 服务端将 {@link CardLibrary} 中所有已加载的卡牌定义及其副本
+     * （花色+点数）返回给请求玩家，便于前端调试展示所有卡牌信息。</p>
+     *
+     * <p><b>响应格式：</b></p>
+     * <pre>{@code
+     * {
+     *   "type": "DEV_CHEAT",
+     *   "cards": [
+     *     {
+     *       "defId": "sha",
+     *       "name": "杀",
+     *       "type": "BASIC",
+     *       "subType": "SHA",
+     *       "copies": [
+     *         { "suit": "SPADES", "suitName": "黑桃", "point": 7, "pointName": "7" },
+     *         { "suit": "HEARTS", "suitName": "红桃", "point": 3, "pointName": "3" }
+     *       ]
+     *     }
+     *   ]
+     * }
+     * }</pre>
+     */
+    private void handleDevCheat(WebSocketSession session, PlayerSession playerSession) {
+        // 获取所有已加载的卡牌定义
+        java.util.Collection<CardDef> allDefs = cardManager.getAllDefs();
+
+        List<Map<String, Object>> cardList = new java.util.ArrayList<>();
+
+        for (CardDef def : allDefs) {
+            Map<String, Object> cardMap = new LinkedHashMap<>();
+            cardMap.put("defId", def.getId());
+            cardMap.put("name", def.getName());
+            cardMap.put("type", def.getType());
+            cardMap.put("subType", def.getSubType());
+
+            // 展开所有副本（花色+点数）
+            List<Map<String, Object>> copyList = new java.util.ArrayList<>();
+            if (def.getCopies() != null) {
+                for (CardCopy copy : def.getCopies()) {
+                    Map<String, Object> copyMap = new LinkedHashMap<>();
+                    String suitStr = copy.getSuit();
+                    int pointVal = copy.getPoint();
+
+                    // 花色信息
+                    copyMap.put("suit", suitStr);
+                    try {
+                        CardSuit suitEnum = CardSuit.valueOf(suitStr);
+                        copyMap.put("suitName", suitEnum.getDescription());
+                    } catch (IllegalArgumentException e) {
+                        copyMap.put("suitName", suitStr);
+                    }
+
+                    // 点数信息
+                    copyMap.put("point", pointVal);
+                    CardPoint pointEnum = CardPoint.of(pointVal);
+                    copyMap.put("pointName", pointEnum != null ? pointEnum.getDescription() : String.valueOf(pointVal));
+
+                    copyList.add(copyMap);
+                }
+            }
+            cardMap.put("copies", copyList);
+
+            cardList.add(cardMap);
+        }
+
+        sendJson(session, Map.of(
+                "type", "DEV_CHEAT",
+                "cards", cardList
+        ));
+
+        log.info("[DEV_CHEAT] 已返回 {} 张卡牌定义给玩家 {}", cardList.size(), playerSession.getPlayer().getName());
+    }
+
+    // ──────────────────────────────────────────────
+    //  DEV_CHEAT_PICK — 开发调试：从场上检索指定牌移到玩家手牌
+    // ──────────────────────────────────────────────
+
+    /**
+     * 处理 DEV_CHEAT_PICK 请求 — 从场上所有区域检索指定卡牌并移入目标玩家手牌
+     *
+     * <p>前端发送：</p>
+     * <pre>{@code
+     * {
+     *   "type": "DEV_CHEAT_PICK",
+     *   "card": {
+     *     "defId": "sha",
+     *     "suit": "SPADES",
+     *     "suitName": "黑桃",
+     *     "point": 7,
+     *     "pointName": "7",
+     *     "playerId": "player_xxx"
+     *   }
+     * }
+     * }</pre>
+     *
+     * <p>服务端搜索所有区域（摸牌堆、弃牌堆、所有玩家的手牌/装备区/判定区），
+     * 找到 {@code defId + suit + point} 完全匹配的第一张牌，移入 {@code playerId}
+     * 对应的玩家手牌，然后推送手牌更新和玩家状态广播。</p>
+     */
+    @SuppressWarnings("unchecked")
+    private void handleDevCheatPick(WebSocketSession session, PlayerSession playerSession, Map<String, Object> msg) {
+        Map<String, Object> cardParam = (Map<String, Object>) msg.get("card");
+        if (cardParam == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "缺少 card 字段"));
+            return;
+        }
+
+        String targetDefId = (String) cardParam.get("defId");
+        String targetSuit = (String) cardParam.get("suit");
+        Object targetPointObj = cardParam.get("point");
+        String targetPlayerId = (String) cardParam.get("playerId");
+
+        if (targetDefId == null || targetSuit == null || targetPointObj == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "card 缺少 defId/suit/point"));
+            return;
+        }
+        int targetPoint = ((Number) targetPointObj).intValue();
+
+        // 如果没有指定 targetPlayerId，默认给发送者
+        if (targetPlayerId == null) {
+            targetPlayerId = playerSession.getPlayer().getPlayerId();
+        }
+
+        // 查找目标玩家所在的房间和对局
+        GameRoom room = roomService.findRoomByPlayerId(targetPlayerId);
+        if (room == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "目标玩家不在任何房间中"));
+            return;
+        }
+
+        GameMatch match = gameService.getMatch(room.getRoomId());
+        if (match == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "对局不存在"));
+            return;
+        }
+
+        GamePlayer targetPlayer = match.findPlayer(targetPlayerId);
+        if (targetPlayer == null) {
+            sendJson(session, Map.of("type", "ERROR", "message", "未找到目标玩家"));
+            return;
+        }
+
+        match.lock();
+        try {
+            // 搜索所有区域，找到匹配的卡牌
+            CardInstance found = findCardInGame(match, targetDefId, targetSuit, targetPoint);
+
+            if (found == null) {
+                sendJson(session, Map.of("type", "ERROR", "message",
+                        "未找到匹配的卡牌: " + targetDefId + " " + targetSuit + " " + targetPoint));
+                return;
+            }
+
+            // 将牌移入目标玩家手牌
+            cardManager.moveToZone(match, found, "HAND", targetPlayer);
+
+            log.info("[DEV_CHEAT_PICK] 玩家 {} 获取卡牌: {} ({} {} {}), instanceId={}",
+                    targetPlayer.getPlayerName(), targetDefId,
+                    targetSuit, targetPoint, found.getInstanceId());
+
+            // 私发目标玩家更新后的手牌
+            List<Map<String, Object>> cardList = new java.util.ArrayList<>();
+            for (CardInstance card : targetPlayer.getHandCards()) {
+                CardDef def = cardManager.getDef(card.getDefId());
+                Map<String, Object> cardMap = new LinkedHashMap<>();
+                cardMap.put("instanceId", card.getInstanceId());
+                cardMap.put("defId", card.getDefId());
+                cardMap.put("name", def != null ? def.getName() : card.getDefId());
+                cardMap.put("suit", card.getSuit().name());
+                cardMap.put("point", card.getPoint());
+                cardList.add(cardMap);
+            }
+            sessionManager.sendMessage(targetPlayerId, toJson(Map.of(
+                    "type", "MY_HAND",
+                    "cards", cardList
+            )));
+
+            // 广播全玩家状态更新（手牌数变化）
+            List<Map<String, Object>> playerUpdates = match.getPlayers().stream()
+                    .map(gp -> {
+                        Map<String, Object> p = new LinkedHashMap<>();
+                        p.put("playerId", gp.getPlayerId());
+                        p.put("currentHp", gp.getCurrentHp());
+                        p.put("handCardCount", gp.getHandCards().size());
+                        p.put("status", gp.getStatus().name());
+                        return p;
+                    })
+                    .toList();
+            broadcastToRoom(room, Map.of(
+                    "type", "PLAYER_UPDATE",
+                    "players", playerUpdates
+            ), null);
+
+            // 通知请求方操作成功
+            sendJson(session, Map.of(
+                    "type", "DEV_CHEAT_PICK_SUCCESS",
+                    "message", "已将 " + targetDefId + " 移入 " + targetPlayer.getPlayerName() + " 的手牌",
+                    "instanceId", found.getInstanceId()
+            ));
+
+        } catch (Exception e) {
+            log.error("[DEV_CHEAT_PICK] 操作失败", e);
+            sendJson(session, Map.of("type", "ERROR", "message", "操作失败: " + e.getMessage()));
+        } finally {
+            match.unlock();
+        }
+    }
+
+    /**
+     * 在对局所有区域中搜索匹配的卡牌
+     *
+     * <p>搜索顺序：</p>
+     * <ol>
+     *   <li>所有存活玩家的手牌区</li>
+     *   <li>所有存活玩家的装备区</li>
+     *   <li>所有存活玩家的判定区</li>
+     *   <li>摸牌堆</li>
+     *   <li>弃牌堆</li>
+     * </ol>
+     *
+     * @param match  当前对局
+     * @param defId  卡牌定义 ID
+     * @param suit   花色枚举名（如 "SPADES"）
+     * @param point  点数（如 7）
+     * @return 匹配的 CardInstance，未找到返回 null
+     */
+    private CardInstance findCardInGame(GameMatch match, String defId, String suit, int point) {
+        // 1) 搜索所有玩家的手牌
+        for (GamePlayer player : match.getPlayers()) {
+            for (CardInstance card : player.getHandCards()) {
+                if (card.getDefId().equals(defId)
+                        && card.getSuit().name().equals(suit)
+                        && card.getPoint() == point) {
+                    return card;
+                }
+            }
+        }
+
+        // 2) 搜索所有玩家的装备区
+        for (GamePlayer player : match.getPlayers()) {
+            for (CardInstance card : player.getEquipCards()) {
+                if (card.getDefId().equals(defId)
+                        && card.getSuit().name().equals(suit)
+                        && card.getPoint() == point) {
+                    return card;
+                }
+            }
+        }
+
+        // 3) 搜索所有玩家的判定区
+        for (GamePlayer player : match.getPlayers()) {
+            for (CardInstance card : player.getJudgeArea()) {
+                if (card.getDefId().equals(defId)
+                        && card.getSuit().name().equals(suit)
+                        && card.getPoint() == point) {
+                    return card;
+                }
+            }
+        }
+
+        // 4) 搜索摸牌堆
+        for (CardInstance card : match.getDrawPile()) {
+            if (card.getDefId().equals(defId)
+                    && card.getSuit().name().equals(suit)
+                    && card.getPoint() == point) {
+                return card;
+            }
+        }
+
+        // 5) 搜索弃牌堆
+        for (CardInstance card : match.getDiscardPile()) {
+            if (card.getDefId().equals(defId)
+                    && card.getSuit().name().equals(suit)
+                    && card.getPoint() == point) {
+                return card;
+            }
+        }
+
+        return null;
     }
 
     // ──────────────────────────────────────────────
