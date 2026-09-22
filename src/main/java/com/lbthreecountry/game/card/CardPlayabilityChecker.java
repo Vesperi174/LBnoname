@@ -17,9 +17,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -288,6 +291,44 @@ public class CardPlayabilityChecker {
         }
         resultsCache.put(cacheKey(match, player), results);
         pushHandStatus(match, player, results);
+    }
+
+    /**
+     * 强制指定卡牌以外的所有手牌不可选，并推送 HAND_STATUS 给前端
+     *
+     * <p>用于出牌阶段玩家点击一张牌后，锁定其余手牌，
+     * 被点击的牌仍保持 {@link CardActionStatus#PLAYABLE PLAYABLE} 状态，
+     * 让前端可以将其高亮显示为"已选中"。</p>
+     *
+     * @param match            当前对局
+     * @param player           目标玩家
+     * @param exceptInstanceIds 保持可选的手牌 instanceId 列表（被点击的那张）
+     * @param reason           其它牌不可用的原因文字
+     */
+    public void forceOthersNotSelectable(GameMatch match, GamePlayer player,
+                                          List<Long> exceptInstanceIds, String reason) {
+        Map<Long, CardCheckResult> results = new LinkedHashMap<>();
+        Set<Long> exceptSet = exceptInstanceIds != null
+                ? new HashSet<>(exceptInstanceIds)
+                : Collections.emptySet();
+
+        for (CardInstance card : player.getHandCards()) {
+            long id = card.getInstanceId();
+            if (exceptSet.contains(id)) {
+                // 选中的牌保持 PLAYABLE（前端可高亮显示为"已选中"）
+                results.put(id, new CardCheckResult(CardActionStatus.PLAYABLE, null));
+            } else {
+                results.put(id, new CardCheckResult(CardActionStatus.NOT_SELECTABLE, reason));
+            }
+        }
+        resultsCache.put(cacheKey(match, player), results);
+        pushHandStatus(match, player, results);
+
+        if (exceptInstanceIds != null && !exceptInstanceIds.isEmpty()) {
+            log.debug("[卡牌检测] 玩家 {} 选中卡牌 {}，其余 {} 张手牌已锁定",
+                    player.getPlayerName(), exceptInstanceIds,
+                    player.getHandCards().size() - exceptInstanceIds.size());
+        }
     }
 
     /**

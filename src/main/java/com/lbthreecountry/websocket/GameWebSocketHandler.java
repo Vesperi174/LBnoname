@@ -1482,6 +1482,35 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             interactionStack.resolve(roomId, playerId, response, sessionManager);
             log.info("[ACTION_DECISION_RESPONSE] 玩家 {} 决策: action={}, 已弹栈唤醒 (栈深={})",
                     playerId, value, depthBefore - 1);
+
+            // ── 如果玩家选择了卡牌（非空 selectedCardIds），立即锁定其余手牌 ──
+            // 禁止在卡牌效果处理/目标选择期间继续点击其他牌，被选中的牌保持 PLAYABLE
+            if (selectedCardIds != null && !selectedCardIds.isEmpty()) {
+                try {
+                    GameMatch match = gameService.getMatch(roomId);
+                    if (match != null) {
+                        GamePlayer player = match.findPlayer(playerId);
+                        if (player != null) {
+                            List<Long> exceptIds = selectedCardIds.stream()
+                                    .map(id -> {
+                                        try {
+                                            return Long.parseLong(id);
+                                        } catch (NumberFormatException e) {
+                                            return null;
+                                        }
+                                    })
+                                    .filter(java.util.Objects::nonNull)
+                                    .toList();
+                            cardPlayabilityChecker.forceOthersNotSelectable(
+                                    match, player, exceptIds, "已选择卡牌，请等待处理");
+                            log.debug("[ACTION_DECISION_RESPONSE] 玩家 {} 已选中卡牌 {}，其余手牌已锁定",
+                                    playerId, exceptIds);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("[ACTION_DECISION_RESPONSE] 锁定手牌失败", e);
+                }
+            }
         } else {
             log.warn("[ACTION_DECISION_RESPONSE] 玩家 {} 无待处理的消息栈条目", playerId);
         }
