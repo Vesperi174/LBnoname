@@ -354,6 +354,21 @@ public final class GameEventType {
     /** 执行牌效果钩子 — 附带本次使用牌信息，执行卡牌效果 */
     public static final String CARD_USE_EFFECT_HOOK = "CARD.USE.EFFECT";
 
+    /**
+     * 锦囊牌即将生效钩子 — 锦囊牌执行效果前发布
+     *
+     * <p>此钩子在 {@link #CARD_USE_EFFECT_HOOK} 检测到卡牌为锦囊牌后发布，
+     * 用于给【无懈可击】等响应牌提供拦截机会。监听器可通过 {@code cancel()} 取消效果。</p>
+     *
+     * <p>事件数据：</p>
+     * <ul>
+     *   <li>{@code useplayer} — 使用牌的玩家</li>
+     *   <li>{@code targetplayer} — 目标玩家（可 null）</li>
+     *   <li>{@code card} — 使用的锦囊牌</li>
+     * </ul>
+     */
+    public static final String CARD_STRATEGY_EFFECT_BEFORE = "CARD.STRATEGY.EFFECT.BEFORE";
+
     /** 使用牌后钩子 — 附带本次使用牌信息，仅通知 */
     public static final String CARD_USE_AFTER = "CARD.USE.AFTER";
 

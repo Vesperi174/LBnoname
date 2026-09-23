@@ -42,8 +42,9 @@ public class CardRegistry {
      */
     @PostConstruct
     public void init() {
-        log.info("[卡牌注册] 开始注册卡牌定义（仅杀/闪）...");
+        log.info("[卡牌注册] 开始注册卡牌定义...");
         registerBasicCards();
+        registerStrategyCards();
         log.info("[卡牌注册] 注册完成: 共 {} 张卡牌", registeredDefs.size());
     }
 
@@ -83,6 +84,21 @@ public class CardRegistry {
                         .canRespondTo(List.of("SHA"))
                         .build())
                 .components(Map.of("onRespond", List.of("shan_effect")))
+                .build());
+    }
+
+    // ================================================================
+    //  锦囊牌
+    // ================================================================
+
+    private void registerStrategyCards() {
+        register(CardDef.builder()
+                .id("wuzhong")
+                .type("STRATEGY").subType("WUZHONG")
+                .rules(CardRules.builder()
+                        .playablePhase("PLAY")
+                        .targetCount(0)
+                        .build())
                 .build());
     }
 
