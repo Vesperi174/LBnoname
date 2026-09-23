@@ -51,7 +51,7 @@ public class WuZhongCard {
 
     @PostConstruct
     public void init() {
-        eventBus.register(GameEventType.CARD_USE_EFFECT_HOOK, EventPriority.SKILL, this::onUseEffect);
+        eventBus.register(GameEventType.CARD_USE_EFFECT_HOOK, EventPriority.CARD, this::onUseEffect);
     }
 
     /**

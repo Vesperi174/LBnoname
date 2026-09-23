@@ -76,14 +76,27 @@ public final class EventPriority {
     public static final int SKILL = 0;
 
     /**
-     * 装备与卡牌效果 — 中等优先级
+     * 卡牌基础效果 — 次高优先级
+     *
+     * <p>卡牌自身的牌面效果在此优先级执行，包括：</p>
+     * <ul>
+     *   <li>基本牌效果（杀、闪、桃等）</li>
+     *   <li>锦囊牌效果（无中生有、过河拆桥等）</li>
+     * </ul>
+     *
+     * <p>此优先级低于 {@link #SKILL 技能}（技能先于卡牌触发），
+     * 高于 {@link #EQUIP_CARD 装备效果}（装备/防具对卡牌效果进行修正）。</p>
+     */
+    public static final int CARD = 50;
+
+    /**
+     * 装备与卡牌修正效果 — 中等优先级
      *
      * <p>适用于：</p>
      * <ul>
      *   <li>武器效果（青龙偃月刀、贯石斧等杀特效）</li>
      *   <li>防具效果（八卦阵、仁王盾等）</li>
      *   <li>坐骑效果（+1马、-1马影响攻击距离）</li>
-     *   <li>锦囊牌效果（过河拆桥、无中生有等）</li>
      * </ul>
      */
     public static final int EQUIP_CARD = 100;

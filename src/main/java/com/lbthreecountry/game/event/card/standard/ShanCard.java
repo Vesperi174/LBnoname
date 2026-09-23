@@ -63,7 +63,7 @@ public class ShanCard {
 
     @PostConstruct
     public void init() {
-        eventBus.register(GameEventType.CARD_USE_ACTIVE, EventPriority.EQUIP_CARD, this::onUseActive);
+        eventBus.register(GameEventType.CARD_USE_ACTIVE, EventPriority.CARD, this::onUseActive);
     }
 
     /**
